@@ -1,0 +1,43 @@
+{
+  "name": "com.nekoare.chimera-hair-master.editor",
+  "rootNamespace": "ChimeraHairMaster.Editor",
+  "references": [
+    "com.nekoare.chimera-hair-master.runtime",
+    "nadena.dev.ndmf",
+    "nadena.dev.ndmf.runtime",
+    "VRC.SDK3A",
+    "VRC.SDK3A.Editor",
+    "VRC.SDKBase",
+    "VRC.SDKBase.Editor",
+    "jp.lilxyzw.liltoon",
+    "jp.lilxyzw.liltoon.editor",
+    "com.nekoare.mask-tool.editor"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [
+    {
+      "name": "com.vrchat.avatars",
+      "expression": "",
+      "define": "CHM_VRCSDK3_AVATARS"
+    },
+    {
+      "name": "com.anatawa12.avatar-optimizer",
+      "expression": "",
+      "define": "CHM_AVATAR_OPTIMIZER"
+    },
+    {
+      "name": "com.nekoare.mask-creation-tool",
+      "expression": "",
+      "define": "CHM_MASK_CREATION_TOOL"
+    }
+  ],
+  "noEngineReferences": false
+}

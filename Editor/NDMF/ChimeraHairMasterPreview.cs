@@ -1,0 +1,1837 @@
+#nullable enable
+using System;
+using System.Collections.Generic;
+using System.Collections.Immutable;
+using System.Linq;
+using System.Threading.Tasks;
+using ChimeraHairMaster.Editor.Processing;
+using nadena.dev.ndmf;
+using nadena.dev.ndmf.preview;
+using UnityEditor;
+using UnityEngine;
+using Object = UnityEngine.Object;
+
+namespace ChimeraHairMaster.Editor.NDMF
+{
+    /// <summary>
+    /// NDMFプレビューシステムを使用したScene上でのリアルタイムプレビュー
+    /// Color-Changer-For-Unityのアプローチを参考に実装
+    ///
+    /// プレビューでは色変換のみを適用し、アトラス化・UV変換はビルド時のみ行う
+    /// </summary>
+    internal class ChimeraHairMasterPreview : IRenderFilter
+    {
+        #region アトラスキャッシュ
+
+        /// <summary>
+        /// アトラス生成結果のキャッシュ（コンポーネントInstanceID → キャッシュエントリ）
+        /// previewMaterial のプロパティ変更時にアトラス再生成をスキップするために使用
+        /// </summary>
+        private static readonly Dictionary<int, AtlasCacheEntry> _atlasCache = new();
+
+        private class AtlasCacheEntry
+        {
+            public int LayoutHash;
+            public int InputHash;
+            public Dictionary<string, Texture2D> AtlasTextures = new();
+            public Dictionary<int, Mesh> RemappedMeshes = new();
+
+            public void DisposeTextures()
+            {
+                foreach (var tex in AtlasTextures.Values)
+                    if (tex != null) Object.DestroyImmediate(tex);
+                AtlasTextures.Clear();
+            }
+
+            public void Dispose()
+            {
+                DisposeTextures();
+
+                foreach (var mesh in RemappedMeshes.Values)
+                    if (mesh != null) Object.DestroyImmediate(mesh);
+                RemappedMeshes.Clear();
+            }
+        }
+
+        /// <summary>
+        /// レイアウトに影響する入力のハッシュを計算
+        /// UV配置・マテリアル選択・ソーステクスチャ等、メッシュUVリマップに影響するパラメータ
+        /// </summary>
+        private static int ComputeLayoutHash(ChimeraHairMaster component, int previewResolution)
+        {
+            unchecked
+            {
+                int hash = 17;
+                hash = hash * 31 + previewResolution;
+
+                // materialSelections（統合対象の選択状態）
+                if (component.materialSelections != null)
+                {
+                    foreach (var entry in component.materialSelections)
+                    {
+                        hash = hash * 31 + entry.rendererIndex;
+                        hash = hash * 31 + entry.submeshIndex;
+                        hash = hash * 31 + entry.isIncluded.GetHashCode();
+                    }
+                }
+
+                // islandPlacements（アイランド配置情報）
+                if (component.islandPlacements != null)
+                {
+                    hash = hash * 31 + component.islandPlacements.Count;
+                    foreach (var island in component.islandPlacements)
+                    {
+                        hash = hash * 31 + island.rendererIndex;
+                        hash = hash * 31 + island.submeshIndex;
+                        hash = hash * 31 + island.localIslandIndex;
+                        hash = hash * 31 + island.originalBounds.GetHashCode();
+                        hash = hash * 31 + island.atlasPosition.GetHashCode();
+                        hash = hash * 31 + island.atlasScale.GetHashCode();
+                    }
+                }
+
+                // ソーステクスチャの識別（InstanceID）
+                for (int r = 0; r < component.targetRenderers.Count; r++)
+                {
+                    var renderer = component.targetRenderers[r];
+                    if (renderer == null) continue;
+                    var mats = renderer.sharedMaterials;
+                    for (int s = 0; s < mats.Length; s++)
+                    {
+                        var mat = mats[s];
+                        if (mat == null) continue;
+                        if (!component.IsSubmeshIncluded(r, s)) continue;
+                        hash = hash * 31 + mat.GetInstanceID();
+                        if (component.colorChangeTargets != null)
+                        {
+                            foreach (var slot in component.colorChangeTargets)
+                            {
+                                if (mat.HasProperty(slot.propertyName))
+                                {
+                                    var tex = mat.GetTexture(slot.propertyName);
+                                    hash = hash * 31 + (tex != null ? tex.GetInstanceID() : 0);
+                                }
+                            }
+                        }
+                    }
+                }
+
+                return hash;
+            }
+        }
+
+        /// <summary>
+        /// アトラス生成に影響する入力の完全ハッシュを計算（レイアウト + 色パラメータ）
+        /// previewMaterialHash は含めない（マテリアルプロパティ変更時にキャッシュヒットさせるため）
+        /// </summary>
+        private static int ComputeAtlasInputHash(ChimeraHairMaster component, int previewResolution)
+        {
+            unchecked
+            {
+                int hash = ComputeLayoutHash(component, previewResolution);
+
+                hash = hash * 31 + component.enableColorTransform.GetHashCode();
+
+                if (component.enableColorTransform)
+                {
+                    hash = hash * 31 + component.targetColor.GetHashCode();
+                    hash = hash * 31 + component.colorTransformMode.GetHashCode();
+                    hash = hash * 31 + component.brightnessUnifyMode.GetHashCode();
+                    hash = hash * 31 + component.saturationPreserve.GetHashCode();
+                    hash = hash * 31 + component.valuePreserve.GetHashCode();
+                    // gradientCurve: 全カラーキー（色+位置）+ 全アルファキー（値+位置）
+                    if (component.gradientCurve != null)
+                    {
+                        var colorKeys = component.gradientCurve.colorKeys;
+                        hash = hash * 31 + colorKeys.Length;
+                        foreach (var ck in colorKeys)
+                        {
+                            hash = hash * 31 + ck.color.GetHashCode();
+                            hash = hash * 31 + ck.time.GetHashCode();
+                        }
+
+                        var alphaKeys = component.gradientCurve.alphaKeys;
+                        hash = hash * 31 + alphaKeys.Length;
+                        foreach (var ak in alphaKeys)
+                        {
+                            hash = hash * 31 + ak.alpha.GetHashCode();
+                            hash = hash * 31 + ak.time.GetHashCode();
+                        }
+
+                        hash = hash * 31 + (int)component.gradientCurve.mode;
+                    }
+                }
+
+                // 明度調整
+                if (component.rendererBrightnessAdjustments != null)
+                {
+                    foreach (var adj in component.rendererBrightnessAdjustments)
+                    {
+                        hash = hash * 31 + adj.rendererIndex;
+                        hash = hash * 31 + adj.brightnessOffset.GetHashCode();
+                    }
+                }
+
+                // colorChangeTargets の設定
+                if (component.colorChangeTargets != null)
+                {
+                    foreach (var slot in component.colorChangeTargets)
+                    {
+                        hash = hash * 31 + (slot.propertyName?.GetHashCode() ?? 0);
+                        hash = hash * 31 + slot.applyColorChange.GetHashCode();
+                    }
+                }
+
+                return hash;
+            }
+        }
+
+        /// <summary>
+        /// プレビューに影響するプロパティのハッシュを計算
+        /// context.Observe で使用し、非プレビュープロパティ（bounds, probeAnchor等）の
+        /// 変更による不要な再インスタンス化を防止する
+        /// </summary>
+        private static int ComputePreviewRelevantHash(ChimeraHairMaster component)
+        {
+            unchecked
+            {
+                int hash = ComputeAtlasInputHash(component, (int)component.previewResolution);
+                hash = hash * 31 + component.enableMeshMerge.GetHashCode();
+                hash = hash * 31 + component.unifyMatCap.GetHashCode();
+                hash = hash * 31 + (component.baseMaterial != null ? component.baseMaterial.GetInstanceID() : 0);
+                hash = hash * 31 + (component.previewMaterial != null ? component.previewMaterial.GetInstanceID() : 0);
+                return hash;
+            }
+        }
+
+        [InitializeOnLoadMethod]
+        private static void ClearCacheOnDomainReload()
+        {
+            ClearAllAtlasCache();
+            ClearAllColorTransformCache();
+
+            // シーン切替時にもキャッシュをクリア（InstanceIDが変わるため）
+            UnityEditor.SceneManagement.EditorSceneManager.sceneOpened -= OnSceneOpened;
+            UnityEditor.SceneManagement.EditorSceneManager.sceneOpened += OnSceneOpened;
+            UnityEditor.SceneManagement.EditorSceneManager.sceneClosing -= OnSceneClosing;
+            UnityEditor.SceneManagement.EditorSceneManager.sceneClosing += OnSceneClosing;
+        }
+
+        private static void OnSceneOpened(UnityEngine.SceneManagement.Scene scene, UnityEditor.SceneManagement.OpenSceneMode mode)
+        {
+            ClearAllAtlasCache();
+            ClearAllColorTransformCache();
+        }
+
+        private static void OnSceneClosing(UnityEngine.SceneManagement.Scene scene, bool removingScene)
+        {
+            ClearAllAtlasCache();
+            ClearAllColorTransformCache();
+        }
+
+        private static void ClearAllAtlasCache()
+        {
+            foreach (var entry in _atlasCache.Values)
+                entry.Dispose();
+            _atlasCache.Clear();
+        }
+
+        #endregion
+
+        #region 色変換テクスチャキャッシュ（enableMeshMerge=false用）
+
+        /// <summary>
+        /// 色変換済みテクスチャのキャッシュ（コンポーネントInstanceID → キャッシュエントリ）
+        /// enableMeshMerge=false 時の ProcessComponent で使用
+        /// previewMaterialHash 変更時（lilToon編集時）に色変換のGPU処理をスキップするために使用
+        /// </summary>
+        private static readonly Dictionary<int, ColorCacheEntry> _colorTransformCache = new();
+
+        private class ColorCacheEntry
+        {
+            public int ColorHash;
+            /// <summary>
+            /// 元テクスチャ → 色変換済みテクスチャのマッピング
+            /// キャッシュが所有し、PreviewNodeのDispose対象外
+            /// </summary>
+            public Dictionary<Texture2D, Texture2D> TransformedTextures = new();
+
+            public void Dispose()
+            {
+                foreach (var tex in TransformedTextures.Values)
+                    if (tex != null) Object.DestroyImmediate(tex);
+                TransformedTextures.Clear();
+            }
+        }
+
+        /// <summary>
+        /// 色変換に影響するパラメータのハッシュを計算（enableMeshMerge=false用）
+        /// </summary>
+        private static int ComputeColorHash(ChimeraHairMaster component)
+        {
+            unchecked
+            {
+                int hash = 17;
+                hash = hash * 31 + component.enableColorTransform.GetHashCode();
+
+                if (component.enableColorTransform)
+                {
+                    hash = hash * 31 + component.targetColor.GetHashCode();
+                    hash = hash * 31 + component.colorTransformMode.GetHashCode();
+                    hash = hash * 31 + component.brightnessUnifyMode.GetHashCode();
+                    hash = hash * 31 + component.saturationPreserve.GetHashCode();
+                    hash = hash * 31 + component.valuePreserve.GetHashCode();
+
+                    if (component.gradientCurve != null)
+                    {
+                        var colorKeys = component.gradientCurve.colorKeys;
+                        hash = hash * 31 + colorKeys.Length;
+                        foreach (var ck in colorKeys)
+                        {
+                            hash = hash * 31 + ck.color.GetHashCode();
+                            hash = hash * 31 + ck.time.GetHashCode();
+                        }
+
+                        var alphaKeys = component.gradientCurve.alphaKeys;
+                        hash = hash * 31 + alphaKeys.Length;
+                        foreach (var ak in alphaKeys)
+                        {
+                            hash = hash * 31 + ak.alpha.GetHashCode();
+                            hash = hash * 31 + ak.time.GetHashCode();
+                        }
+
+                        hash = hash * 31 + (int)component.gradientCurve.mode;
+                    }
+                }
+
+                // colorChangeTargets
+                if (component.colorChangeTargets != null)
+                {
+                    foreach (var slot in component.colorChangeTargets)
+                    {
+                        hash = hash * 31 + (slot.propertyName?.GetHashCode() ?? 0);
+                        hash = hash * 31 + slot.applyColorChange.GetHashCode();
+                    }
+                }
+
+                // ソーステクスチャの識別（同じ色設定でもテクスチャが変わればキャッシュ無効）
+                for (int r = 0; r < component.targetRenderers.Count; r++)
+                {
+                    var renderer = component.targetRenderers[r];
+                    if (renderer == null) continue;
+                    var mats = renderer.sharedMaterials;
+                    for (int s = 0; s < mats.Length; s++)
+                    {
+                        var mat = mats[s];
+                        if (mat == null) continue;
+                        if (!component.IsSubmeshIncluded(r, s)) continue;
+
+                        if (component.colorChangeTargets != null)
+                        {
+                            foreach (var slot in component.colorChangeTargets)
+                            {
+                                if (mat.HasProperty(slot.propertyName))
+                                {
+                                    var tex = mat.GetTexture(slot.propertyName);
+                                    hash = hash * 31 + (tex != null ? tex.GetInstanceID() : 0);
+                                }
+                            }
+                        }
+                        if (mat.HasProperty("_MainTex"))
+                        {
+                            var tex = mat.GetTexture("_MainTex");
+                            hash = hash * 31 + (tex != null ? tex.GetInstanceID() : 0);
+                        }
+                    }
+                }
+
+                return hash;
+            }
+        }
+
+        private static void ClearAllColorTransformCache()
+        {
+            foreach (var entry in _colorTransformCache.Values)
+                entry.Dispose();
+            _colorTransformCache.Clear();
+        }
+
+        #endregion
+
+        public ImmutableList<RenderGroup> GetTargetGroups(ComputeContext context)
+        {
+            var avatars = context.GetAvatarRoots();
+            var resultSet = new List<RenderGroup>();
+
+            foreach (var avatar in avatars)
+            {
+                try
+                {
+                    // アバター内のChimeraHairMasterコンポーネントを取得
+                    var components = context.GetComponentsInChildren<ChimeraHairMaster>(avatar, true);
+                    if (!components.Any()) continue;
+
+                    // 有効なコンポーネントのみ（enableColorTransformも監視）
+                    var enabledComponents = components
+                        .Where(c => context.Observe(c, x => x.isEnabled && x.previewEnabled))
+                        .Select(c => {
+                            // enableColorTransformの変更も監視（プレビュー更新のため）
+                            context.Observe(c, x => x.enableColorTransform);
+                            // 明度調整リストの変更も監視
+                            context.Observe(c, x => x.rendererBrightnessAdjustments);
+                            // プレビュー解像度の変更も監視
+                            context.Observe(c, x => x.previewResolution);
+                            return c;
+                        })
+                        .ToArray();
+                    if (!enabledComponents.Any()) continue;
+
+                    // 対象のRendererを収集
+                    var targetRenderers = new HashSet<Renderer>();
+                    foreach (var component in enabledComponents)
+                    {
+                        var renderers = context.Observe(component, c => c.targetRenderers);
+                        if (renderers == null) continue;
+
+                        foreach (var renderer in renderers)
+                        {
+                            if (renderer != null)
+                            {
+                                targetRenderers.Add(renderer);
+                            }
+                        }
+                    }
+
+                    if (targetRenderers.Count > 0)
+                    {
+                        resultSet.Add(RenderGroup.For(targetRenderers).WithData((avatar, enabledComponents)));
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Debug.LogError($"[ChimeraHairMaster] Failed to get target groups: {ex}");
+                }
+            }
+
+            return resultSet.ToImmutableList();
+        }
+
+        public Task<IRenderFilterNode> Instantiate(RenderGroup group, IEnumerable<(Renderer, Renderer)> proxyPairs, ComputeContext context)
+        {
+            try
+            {
+                var renderData = group.GetData<(GameObject, ChimeraHairMaster[])>();
+                var avatar = renderData.Item1;
+                var components = renderData.Item2;
+
+                // プレビュー関連プロパティのみ監視
+                // meshMergeMode, probeAnchor, bounds等の非プレビュープロパティは除外
+                foreach (var component in components)
+                {
+                    context.Observe(component, c => ComputePreviewRelevantHash(c));
+                    // previewMaterialHashを明示的に監視（マテリアル内部変更検知用）
+                    var hash = context.Observe(component, c => c.previewMaterialHash);
+                    Debug.Log($"[ChimeraHairMaster] Preview Instantiate - current hash: {hash}");
+                }
+
+                // 有効なコンポーネントをフィルタ
+                var enabledComponents = components
+                    .Where(c => c != null && c.isEnabled && c.previewEnabled)
+                    .ToArray();
+
+                if (!enabledComponents.Any())
+                {
+                    return Task.FromResult<IRenderFilterNode>(new PreviewNode(null, null));
+                }
+
+                // 生成されたリソースを保持
+                var generatedTextures = new List<Texture>();
+                var processedMaterials = new Dictionary<Material, Material>();
+                Dictionary<int, Mesh>? remappedMeshes = null;
+
+                // 各コンポーネントを処理
+                foreach (var component in enabledComponents)
+                {
+                    // メッシュ統合無効時は常に従来モード（アトラス不要）
+                    if (!component.enableMeshMerge)
+                    {
+                        ProcessComponent(component, processedMaterials, generatedTextures);
+                    }
+                    // islandPlacements がある場合はアトラスモード
+                    else if (component.islandPlacements != null && component.islandPlacements.Count > 0)
+                    {
+                        remappedMeshes ??= new Dictionary<int, Mesh>();
+                        ProcessComponentAtlas(component, processedMaterials, generatedTextures, remappedMeshes);
+                    }
+                    else
+                    {
+                        // 従来モード（islandPlacements 未設定時のフォールバック）
+                        ProcessComponent(component, processedMaterials, generatedTextures);
+                    }
+                }
+
+                if (processedMaterials.Count == 0)
+                {
+                    return Task.FromResult<IRenderFilterNode>(new PreviewNode(null, null));
+                }
+
+                // ObjectRegistryに登録（Color-Changerと同様）
+                foreach (var kvp in processedMaterials)
+                {
+                    ObjectRegistry.RegisterReplacedObject(kvp.Key, kvp.Value);
+                }
+
+                // アトラスモードのメッシュはキャッシュが所有するため、PreviewNodeでは破棄しない
+                bool ownsMeshes = remappedMeshes == null;
+                return Task.FromResult<IRenderFilterNode>(new PreviewNode(processedMaterials, generatedTextures, remappedMeshes, ownsMeshes));
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[ChimeraHairMaster] Failed to instantiate preview: {ex}");
+                return Task.FromResult<IRenderFilterNode>(new PreviewNode(null, null));
+            }
+        }
+
+        private void ProcessComponent(
+            ChimeraHairMaster component,
+            Dictionary<Material, Material> processedMaterials,
+            List<Texture> generatedTextures)
+        {
+            if (component.targetRenderers == null || component.targetRenderers.Count == 0) return;
+
+            try
+            {
+                // previewMaterialがある場合は、それをベースにして色変換テクスチャを適用
+                // previewMaterialがなく、baseMaterialがある場合は自動生成
+                Material? baseMaterialForPreview = component.previewMaterial;
+
+                if (baseMaterialForPreview == null && component.baseMaterial != null)
+                {
+                    // previewMaterialを自動生成
+                    baseMaterialForPreview = CreateMaterialWithoutTextures(component.baseMaterial);
+                    baseMaterialForPreview.name = component.baseMaterial.name + "_CHM_Preview_Auto";
+                    CopyMatCapTextures(component.baseMaterial, baseMaterialForPreview);
+
+                    Debug.Log($"[ChimeraHairMaster] {component.name}: プレビュー用マテリアルを自動生成しました。");
+                }
+
+                // baseMaterialもpreviewMaterialもない場合
+                if (baseMaterialForPreview == null)
+                {
+                    if (component.enableMeshMerge)
+                    {
+                        Debug.LogWarning($"[ChimeraHairMaster] {component.name}: 基準マテリアルが設定されていません。プレビューをスキップします。");
+                        return;
+                    }
+                    // enableMeshMerge=false の場合は baseMaterial なしでも続行可能（元マテリアルベース）
+                }
+
+                // 色合わせが無効な場合は色変換をスキップ
+                bool enableColorTransform = component.enableColorTransform;
+
+                // 色変換テクスチャキャッシュ（色パラメータ変更時のみ再実行、lilToon編集時はスキップ）
+                int componentId = component.GetInstanceID();
+                int colorHash = enableColorTransform ? ComputeColorHash(component) : 0;
+                bool colorCacheHit = false;
+                Dictionary<Texture2D, Texture2D>? cachedColorTransforms = null;
+                Dictionary<Texture2D, Texture2D>? newColorCacheTextures = null;
+
+                // 色変換設定を取得（色合わせが有効な場合のみ使用）
+                Processing.ColorTransformSettings? settings = null;
+                Dictionary<Texture2D, Texture2D>? brightnessAdjustedCache = null;
+
+                if (enableColorTransform)
+                {
+                    // キャッシュチェック
+                    colorCacheHit = _colorTransformCache.TryGetValue(componentId, out var colorCache)
+                                    && colorCache != null && colorCache.ColorHash == colorHash;
+
+                    if (colorCacheHit)
+                    {
+                        // キャッシュヒット: 色変換済みテクスチャを再利用（GPU処理スキップ）
+                        cachedColorTransforms = colorCache!.TransformedTextures;
+                        Debug.Log($"[ChimeraHairMaster] {component.name}: 色変換キャッシュヒット（GPU処理スキップ）");
+                    }
+                    else
+                    {
+                        // キャッシュミス: 色変換設定を準備
+                        Debug.Log($"[ChimeraHairMaster] {component.name}: 色変換キャッシュミス（色変換実行）");
+
+                        Color sourceColor = Color.white;
+                        if (component.targetRenderers.Count > 0 && component.targetRenderers[0] != null)
+                        {
+                            sourceColor = GetDominantColorFromRenderer(component.targetRenderers[0]);
+                        }
+
+                        settings = Processing.ColorTransformSettings.FromComponent(component, sourceColor);
+
+                        // 輝度統一が有効な場合、事前にすべてのテクスチャを収集して明度を調整
+                        if (settings.Mode == ColorTransformMode.HueShift && settings.BrightnessUnifyMode != BrightnessUnifyMode.Off)
+                        {
+                            brightnessAdjustedCache = ApplyBrightnessUnificationForPreview(component, settings.BrightnessUnifyMode);
+                        }
+
+                        // 旧キャッシュを破棄
+                        if (_colorTransformCache.TryGetValue(componentId, out var oldCache))
+                        {
+                            oldCache.Dispose();
+                        }
+
+                        newColorCacheTextures = new Dictionary<Texture2D, Texture2D>();
+                    }
+                }
+
+                // 各Rendererのマテリアルを処理
+                for (int rendererIndex = 0; rendererIndex < component.targetRenderers.Count; rendererIndex++)
+                {
+                    var renderer = component.targetRenderers[rendererIndex];
+                    if (renderer == null) continue;
+
+                    // Renderer単位の明度オフセットを取得
+                    float brightnessOffset = GetRendererBrightnessOffset(component, rendererIndex);
+
+                    var materials = renderer.sharedMaterials;
+                    for (int submeshIndex = 0; submeshIndex < materials.Length; submeshIndex++)
+                    {
+                        var mat = materials[submeshIndex];
+
+                        // 統合対象外のサブメッシュはスキップ
+                        if (!component.IsSubmeshIncluded(rendererIndex, submeshIndex))
+                        {
+                            continue;
+                        }
+                    {
+                        if (mat == null) continue;
+
+                        // 明度オフセットがある場合はRenderer固有のキーを使用
+                        // 同じマテリアルでも異なる明度オフセットが適用される可能性があるため
+                        var materialKey = Mathf.Abs(brightnessOffset) > 0.001f
+                            ? null  // オフセットがある場合は常に新規作成
+                            : mat;
+
+                        if (materialKey != null && processedMaterials.ContainsKey(materialKey)) continue;
+
+                        Material newMat;
+
+                        if (!component.enableMeshMerge)
+                        {
+                            // メッシュ統合なし: 元マテリアルコピー（テクスチャ全保持）+ 数値設定のみ上書き
+                            newMat = new Material(mat);
+                            newMat.name = mat.name + "_CHM_Preview";
+                            if (baseMaterialForPreview != null)
+                            {
+                                TextureAtlasPass.ApplyShaderSettings(baseMaterialForPreview, newMat,
+                                    excludeOverlayAndEmission: true,
+                                    excludeMatCap: !component.unifyMatCap);
+
+                                // マットキャップ統一時はテクスチャもbaseMaterialから上書き（Noneも含む）
+                                if (component.unifyMatCap)
+                                {
+                                    OverwriteMatCapTextures(baseMaterialForPreview, newMat);
+                                }
+                            }
+                        }
+                        else
+                        {
+                            // 通常モード: プレビューマテリアルの完全コピー
+                            // 色変換処理が後続で対象スロットを上書きする
+                            if (baseMaterialForPreview == null) continue;
+                            newMat = new Material(baseMaterialForPreview);
+                            newMat.name = baseMaterialForPreview.name + "_Preview";
+                        }
+
+                        // 色合わせが無効な場合は元のテクスチャをそのまま設定
+                        if (!enableColorTransform)
+                        {
+                            // 各テクスチャスロットに元のテクスチャを設定
+                            foreach (var slot in component.colorChangeTargets)
+                            {
+                                if (!mat.HasProperty(slot.propertyName)) continue;
+
+                                var tex = mat.GetTexture(slot.propertyName);
+                                if (tex != null)
+                                {
+                                    newMat.SetTexture(slot.propertyName, tex);
+                                }
+                            }
+
+                            // メインテクスチャも設定
+                            if (mat.HasProperty("_MainTex"))
+                            {
+                                var tex = mat.GetTexture("_MainTex");
+                                if (tex != null)
+                                {
+                                    newMat.SetTexture("_MainTex", tex);
+                                }
+                            }
+
+                            processedMaterials[mat] = newMat;
+                            continue;
+                        }
+
+                        // 各テクスチャスロットに対して色変換を適用（キャッシュ対応）
+                        bool hasProcessedTexture = false;
+                        foreach (var slot in component.colorChangeTargets)
+                        {
+                            if (!mat.HasProperty(slot.propertyName)) continue;
+                            if (!slot.applyColorChange) continue;
+
+                            var tex = mat.GetTexture(slot.propertyName) as Texture2D;
+                            if (tex == null) continue;
+
+                            // キャッシュまたは新規変換で色変換済みテクスチャを取得
+                            Texture2D? baseTex = GetOrCreateColorTransformedTexture(
+                                tex, cachedColorTransforms, newColorCacheTextures,
+                                brightnessAdjustedCache, settings);
+                            if (baseTex == null) continue;
+
+                            // 明度オフセットを適用（常に新規生成）
+                            if (Mathf.Abs(brightnessOffset) > 0.001f)
+                            {
+                                var offsetApplied = Processing.ColorProcessor.ApplyBrightnessOffset(baseTex, brightnessOffset);
+                                if (offsetApplied != null)
+                                {
+                                    newMat.SetTexture(slot.propertyName, offsetApplied);
+                                    generatedTextures.Add(offsetApplied);
+                                    hasProcessedTexture = true;
+                                }
+                            }
+                            else
+                            {
+                                // キャッシュ所有テクスチャを直接参照（generatedTexturesには追加しない）
+                                newMat.SetTexture(slot.propertyName, baseTex);
+                                hasProcessedTexture = true;
+                            }
+                        }
+
+                        // メインテクスチャがcolorChangeTargetsに含まれていない場合も処理
+                        if (!hasProcessedTexture && mat.HasProperty("_MainTex"))
+                        {
+                            var tex = mat.GetTexture("_MainTex") as Texture2D;
+                            if (tex != null)
+                            {
+                                Texture2D? baseTex = GetOrCreateColorTransformedTexture(
+                                    tex, cachedColorTransforms, newColorCacheTextures,
+                                    brightnessAdjustedCache, settings);
+
+                                if (baseTex != null)
+                                {
+                                    if (Mathf.Abs(brightnessOffset) > 0.001f)
+                                    {
+                                        var offsetApplied = Processing.ColorProcessor.ApplyBrightnessOffset(baseTex, brightnessOffset);
+                                        if (offsetApplied != null)
+                                        {
+                                            newMat.SetTexture("_MainTex", offsetApplied);
+                                            generatedTextures.Add(offsetApplied);
+                                        }
+                                    }
+                                    else
+                                    {
+                                        newMat.SetTexture("_MainTex", baseTex);
+                                    }
+                                }
+                            }
+                        }
+
+                        processedMaterials[mat] = newMat;
+                    }
+                }
+            }
+
+                // 色変換キャッシュの保存とクリーンアップ
+                if (newColorCacheTextures != null)
+                {
+                    _colorTransformCache[componentId] = new ColorCacheEntry
+                    {
+                        ColorHash = colorHash,
+                        TransformedTextures = newColorCacheTextures
+                    };
+                }
+
+                // 輝度統一の中間テクスチャを破棄
+                if (brightnessAdjustedCache != null)
+                {
+                    foreach (var tex in brightnessAdjustedCache.Values)
+                    {
+                        if (tex != null) Object.DestroyImmediate(tex);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[ChimeraHairMaster] Failed to process component: {ex}");
+            }
+        }
+
+        /// <summary>
+        /// 色変換済みテクスチャをキャッシュから取得、またはキャッシュミス時に新規生成してキャッシュに保存
+        /// </summary>
+        private static Texture2D? GetOrCreateColorTransformedTexture(
+            Texture2D originalTex,
+            Dictionary<Texture2D, Texture2D>? cachedTransforms,
+            Dictionary<Texture2D, Texture2D>? newCacheTextures,
+            Dictionary<Texture2D, Texture2D>? brightnessAdjustedCache,
+            Processing.ColorTransformSettings? settings)
+        {
+            // キャッシュヒット: 既存の変換済みテクスチャを返す
+            if (cachedTransforms != null && cachedTransforms.TryGetValue(originalTex, out var cached))
+            {
+                return cached;
+            }
+
+            // キャッシュミス時に新規テクスチャも構築中: 既に変換済みならそれを返す
+            if (newCacheTextures != null && newCacheTextures.TryGetValue(originalTex, out var alreadyProcessed))
+            {
+                return alreadyProcessed;
+            }
+
+            // 色変換を実行
+            if (settings == null) return null;
+
+            Texture2D sourceTexture = originalTex;
+            if (brightnessAdjustedCache != null && brightnessAdjustedCache.TryGetValue(originalTex, out var adjusted))
+            {
+                sourceTexture = adjusted;
+            }
+
+            var processedTex = Processing.ColorProcessor.ProcessTexture(sourceTexture, settings, true);
+            if (processedTex != null && newCacheTextures != null)
+            {
+                newCacheTextures[originalTex] = processedTex;
+            }
+
+            return processedTex;
+        }
+
+        /// <summary>
+        /// アトラスモードでコンポーネントを処理
+        /// ビルドパイプライン（ColorTransformPass + TextureAtlasPass）と同じフローを再現:
+        /// 1. 色変換テクスチャキャッシュを構築
+        /// 2. TextureAtlasBuilder でアトラス生成
+        /// 3. アトラスマテリアルを作成
+        /// 4. メッシュ UV をリマップ
+        ///
+        /// パフォーマンス最適化:
+        /// - アトラス生成結果を静的キャッシュに保持
+        /// - previewMaterial のプロパティ変更時はマテリアル再作成のみ（アトラス再生成スキップ）
+        /// </summary>
+        private void ProcessComponentAtlas(
+            ChimeraHairMaster component,
+            Dictionary<Material, Material> processedMaterials,
+            List<Texture> generatedTextures,
+            Dictionary<int, Mesh> remappedMeshes)
+        {
+            if (component.targetRenderers == null || component.targetRenderers.Count == 0) return;
+
+            try
+            {
+                Material? baseMaterialForPreview = component.previewMaterial;
+
+                if (baseMaterialForPreview == null && component.baseMaterial != null)
+                {
+                    baseMaterialForPreview = CreateMaterialWithoutTextures(component.baseMaterial);
+                    baseMaterialForPreview.name = component.baseMaterial.name + "_CHM_Preview_Auto";
+                    CopyMatCapTextures(component.baseMaterial, baseMaterialForPreview);
+                }
+
+                if (baseMaterialForPreview == null)
+                {
+                    Debug.LogWarning($"[ChimeraHairMaster] {component.name}: 基準マテリアルが設定されていません。アトラスプレビューをスキップします。");
+                    return;
+                }
+
+                int resolution = (int)component.previewResolution;
+                int componentId = component.GetInstanceID();
+                int layoutHash = ComputeLayoutHash(component, resolution);
+                int inputHash = ComputeAtlasInputHash(component, resolution);
+
+                // 3段階キャッシュチェック
+                bool hasCache = _atlasCache.TryGetValue(componentId, out var cachedEntry) && cachedEntry != null;
+                bool fullCacheHit = hasCache && cachedEntry!.InputHash == inputHash;
+                bool layoutCacheHit = hasCache && !fullCacheHit && cachedEntry!.LayoutHash == layoutHash;
+
+                Dictionary<string, Texture2D> atlasTextures;
+                Dictionary<int, Mesh> cachedMeshes;
+
+                if (fullCacheHit)
+                {
+                    // 完全キャッシュヒット: アトラス生成と UV リマップをスキップ
+                    Debug.Log($"[ChimeraHairMaster] {component.name}: アトラスキャッシュヒット（マテリアル再作成のみ）");
+                    atlasTextures = cachedEntry!.AtlasTextures;
+                    cachedMeshes = cachedEntry.RemappedMeshes;
+                }
+                else
+                {
+                    // テクスチャ再生成が必要（レイアウトキャッシュヒットまたは完全ミス）
+                    bool needUVRemap = !layoutCacheHit;
+
+                    if (layoutCacheHit)
+                    {
+                        Debug.Log($"[ChimeraHairMaster] {component.name}: レイアウトキャッシュヒット（テクスチャのみ再生成、UVリマップスキップ）");
+                        // テクスチャのみ破棄（メッシュは再利用）
+                        cachedEntry!.DisposeTextures();
+                    }
+                    else
+                    {
+                        Debug.Log($"[ChimeraHairMaster] {component.name}: アトラスキャッシュミス（フル生成）");
+                        // 旧キャッシュを完全破棄
+                        if (hasCache)
+                        {
+                            cachedEntry!.Dispose();
+                            _atlasCache.Remove(componentId);
+                        }
+                    }
+
+                    // 1. 色変換テクスチャキャッシュを構築（ビルドの ColorTransformPass 相当）
+                    var colorTransformTextures = new List<Texture>();
+                    Dictionary<Texture2D, Texture2D>? processedTextureCache = null;
+                    if (component.enableColorTransform)
+                    {
+                        processedTextureCache = BuildColorTransformCache(component, colorTransformTextures);
+                    }
+
+                    // 1.5. 明度オフセットがあるRendererのマテリアルを一時的に差し替え
+                    var savedMaterials = new Dictionary<SkinnedMeshRenderer, Material[]>();
+                    var tempTextures = new List<Texture>();
+                    var tempMaterials = new List<Material>();
+
+                    if (component.enableColorTransform)
+                    {
+                        Color sourceColor = Color.white;
+                        if (component.targetRenderers.Count > 0 && component.targetRenderers[0] != null)
+                        {
+                            sourceColor = GetDominantColorFromRenderer(component.targetRenderers[0]);
+                        }
+                        var settings = Processing.ColorTransformSettings.FromComponent(component, sourceColor);
+
+                        Dictionary<Texture2D, Texture2D>? brightnessAdjustedCache = null;
+                        if (settings.Mode == ColorTransformMode.HueShift && settings.BrightnessUnifyMode != BrightnessUnifyMode.Off)
+                        {
+                            brightnessAdjustedCache = ApplyBrightnessUnificationForPreview(component, settings.BrightnessUnifyMode);
+                            foreach (var adjTex in brightnessAdjustedCache.Values)
+                            {
+                                tempTextures.Add(adjTex);
+                            }
+                        }
+
+                        for (int r = 0; r < component.targetRenderers.Count; r++)
+                        {
+                            var renderer = component.targetRenderers[r];
+                            if (renderer == null) continue;
+
+                            float brightnessOffset = GetRendererBrightnessOffset(component, r);
+                            if (Mathf.Abs(brightnessOffset) < 0.001f) continue;
+
+                            savedMaterials[renderer] = renderer.sharedMaterials;
+                            var mats = renderer.sharedMaterials;
+                            var newMats = new Material[mats.Length];
+
+                            for (int s = 0; s < mats.Length; s++)
+                            {
+                                var mat = mats[s];
+                                if (mat == null) continue;
+                                if (!component.IsSubmeshIncluded(r, s))
+                                {
+                                    newMats[s] = mat;
+                                    continue;
+                                }
+
+                                var tempMat = new Material(mat);
+                                tempMaterials.Add(tempMat);
+
+                                foreach (var slot in component.colorChangeTargets)
+                                {
+                                    if (!slot.applyColorChange) continue;
+                                    if (!tempMat.HasProperty(slot.propertyName)) continue;
+
+                                    var tex = tempMat.GetTexture(slot.propertyName) as Texture2D;
+                                    if (tex == null) continue;
+
+                                    Texture2D source = tex;
+                                    if (brightnessAdjustedCache != null && brightnessAdjustedCache.TryGetValue(tex, out var adjusted))
+                                    {
+                                        source = adjusted;
+                                    }
+
+                                    var processed = Processing.ColorProcessor.ProcessTexture(source, settings, true);
+                                    if (processed == null) continue;
+
+                                    var offsetApplied = Processing.ColorProcessor.ApplyBrightnessOffset(processed, brightnessOffset);
+                                    if (offsetApplied != null)
+                                    {
+                                        Object.DestroyImmediate(processed);
+                                        processed = offsetApplied;
+                                    }
+
+                                    tempMat.SetTexture(slot.propertyName, processed);
+                                    tempTextures.Add(processed);
+                                }
+
+                                // _MainTex もチェック
+                                if (tempMat.HasProperty("_MainTex"))
+                                {
+                                    var tex = tempMat.GetTexture("_MainTex") as Texture2D;
+                                    bool alreadyProcessed = component.colorChangeTargets
+                                        .Any(ct => ct.propertyName == "_MainTex" && ct.applyColorChange);
+                                    if (tex != null && !alreadyProcessed)
+                                    {
+                                        Texture2D source = tex;
+                                        if (brightnessAdjustedCache != null && brightnessAdjustedCache.TryGetValue(tex, out var adj))
+                                        {
+                                            source = adj;
+                                        }
+
+                                        var processed = Processing.ColorProcessor.ProcessTexture(source, settings, true);
+                                        if (processed != null)
+                                        {
+                                            var offsetApplied = Processing.ColorProcessor.ApplyBrightnessOffset(processed, brightnessOffset);
+                                            if (offsetApplied != null)
+                                            {
+                                                Object.DestroyImmediate(processed);
+                                                processed = offsetApplied;
+                                            }
+
+                                            tempMat.SetTexture("_MainTex", processed);
+                                            tempTextures.Add(processed);
+                                        }
+                                    }
+                                }
+
+                                newMats[s] = tempMat;
+                            }
+
+                            renderer.sharedMaterials = newMats;
+                        }
+                    }
+
+                    // 2. TextureAtlasBuilder でアトラス生成
+                    TextureAtlasBuilder.AtlasResult atlasResult;
+                    try
+                    {
+                        atlasResult = TextureAtlasBuilder.Build(component, resolution, processedTextureCache ?? new Dictionary<Texture2D, Texture2D>(), isPreview: true);
+                    }
+                    finally
+                    {
+                        // 必ずマテリアルを復元
+                        foreach (var kvp in savedMaterials)
+                        {
+                            kvp.Key.sharedMaterials = kvp.Value;
+                        }
+
+                        // 一時テクスチャ・マテリアルを破棄
+                        foreach (var tex in tempTextures)
+                        {
+                            if (tex != null) Object.DestroyImmediate(tex);
+                        }
+                        foreach (var mat in tempMaterials)
+                        {
+                            if (mat != null) Object.DestroyImmediate(mat);
+                        }
+
+                        // 色変換中間テクスチャも破棄（アトラスに焼き込み済み）
+                        foreach (var tex in colorTransformTextures)
+                        {
+                            if (tex != null) Object.DestroyImmediate(tex);
+                        }
+                    }
+
+                    if (atlasResult.AtlasTextures.Count == 0)
+                    {
+                        Debug.LogWarning($"[ChimeraHairMaster] {component.name}: アトラステクスチャが生成されませんでした。従来モードにフォールバックします。");
+                        ProcessComponent(component, processedMaterials, generatedTextures);
+                        return;
+                    }
+
+                    if (needUVRemap)
+                    {
+                        // 完全ミス: UV リマップも実行
+                        var newMeshes = new Dictionary<int, Mesh>();
+                        for (int i = 0; i < component.targetRenderers.Count; i++)
+                        {
+                            var renderer = component.targetRenderers[i];
+                            if (renderer == null || renderer.sharedMesh == null) continue;
+
+                            var remapped = MeshUVRemapper.RemapUVsByIslands(
+                                renderer.sharedMesh, atlasResult.IslandPlacements, i);
+                            if (remapped != null)
+                            {
+                                newMeshes[renderer.GetInstanceID()] = remapped;
+                            }
+                        }
+
+                        // 新規キャッシュエントリ
+                        var newCacheEntry = new AtlasCacheEntry
+                        {
+                            LayoutHash = layoutHash,
+                            InputHash = inputHash,
+                            AtlasTextures = atlasResult.AtlasTextures,
+                            RemappedMeshes = newMeshes
+                        };
+                        _atlasCache[componentId] = newCacheEntry;
+
+                        atlasTextures = newCacheEntry.AtlasTextures;
+                        cachedMeshes = newCacheEntry.RemappedMeshes;
+
+                        Debug.Log($"[ChimeraHairMaster] {component.name}: アトラスプレビュー生成完了 " +
+                                  $"(アトラス数: {atlasTextures.Count}, リマップメッシュ数: {cachedMeshes.Count})");
+                    }
+                    else
+                    {
+                        // レイアウトキャッシュヒット: テクスチャのみ更新、メッシュ再利用
+                        cachedEntry!.InputHash = inputHash;
+                        cachedEntry.AtlasTextures = atlasResult.AtlasTextures;
+
+                        atlasTextures = cachedEntry.AtlasTextures;
+                        cachedMeshes = cachedEntry.RemappedMeshes;
+
+                        Debug.Log($"[ChimeraHairMaster] {component.name}: テクスチャ再生成完了（メッシュ再利用、アトラス数: {atlasTextures.Count}）");
+                    }
+                }
+
+                // === ここからはキャッシュヒット/ミス共通 ===
+
+                // メッシュ参照をコピー（キャッシュが所有、PreviewNode は参照のみ）
+                foreach (var kvp in cachedMeshes)
+                {
+                    remappedMeshes[kvp.Key] = kvp.Value;
+                }
+
+                // アトラスマテリアルを作成（baseMaterialForPreview の完全コピー + アトラステクスチャ上書き）
+                var atlasMat = new Material(baseMaterialForPreview);
+                atlasMat.name = baseMaterialForPreview.name + "_Preview_Atlas";
+
+                foreach (var kvp in atlasTextures)
+                {
+                    if (atlasMat.HasProperty(kvp.Key))
+                    {
+                        atlasMat.SetTexture(kvp.Key, kvp.Value);
+                    }
+                }
+
+                // 全 original material → atlasMat のコピーにマッピング
+                for (int r = 0; r < component.targetRenderers.Count; r++)
+                {
+                    var renderer = component.targetRenderers[r];
+                    if (renderer == null) continue;
+
+                    var materials = renderer.sharedMaterials;
+                    for (int s = 0; s < materials.Length; s++)
+                    {
+                        var mat = materials[s];
+                        if (mat == null) continue;
+
+                        if (!component.IsSubmeshIncluded(r, s)) continue;
+
+                        if (!processedMaterials.ContainsKey(mat))
+                        {
+                            var matCopy = new Material(atlasMat);
+                            matCopy.name = atlasMat.name;
+                            processedMaterials[mat] = matCopy;
+                        }
+                    }
+                }
+
+                // テンプレートマテリアルを破棄（コピー済みのため不要）
+                Object.DestroyImmediate(atlasMat);
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[ChimeraHairMaster] Failed to process atlas component: {ex}");
+            }
+        }
+
+        /// <summary>
+        /// プレビュー用の色変換テクスチャキャッシュを構築
+        /// ビルドの ColorTransformPass と同じロジックで、元テクスチャ → 色変換済みテクスチャのマッピングを作成
+        /// TextureAtlasBuilder.Build() に渡して、アトラス生成時に色変換済みテクスチャを使用させる
+        /// </summary>
+        private Dictionary<Texture2D, Texture2D> BuildColorTransformCache(
+            ChimeraHairMaster component,
+            List<Texture> generatedTextures)
+        {
+            var cache = new Dictionary<Texture2D, Texture2D>();
+
+            Color sourceColor = Color.white;
+            if (component.targetRenderers.Count > 0 && component.targetRenderers[0] != null)
+            {
+                sourceColor = GetDominantColorFromRenderer(component.targetRenderers[0]);
+            }
+
+            var settings = Processing.ColorTransformSettings.FromComponent(component, sourceColor);
+
+            // 輝度統一
+            Dictionary<Texture2D, Texture2D>? brightnessAdjustedCache = null;
+            if (settings.Mode == ColorTransformMode.HueShift && settings.BrightnessUnifyMode != BrightnessUnifyMode.Off)
+            {
+                brightnessAdjustedCache = ApplyBrightnessUnificationForPreview(component, settings.BrightnessUnifyMode);
+                // 輝度調整テクスチャもトラッキング
+                foreach (var tex in brightnessAdjustedCache.Values)
+                {
+                    generatedTextures.Add(tex);
+                }
+            }
+
+            // 統合対象の全テクスチャを色変換
+            for (int r = 0; r < component.targetRenderers.Count; r++)
+            {
+                var renderer = component.targetRenderers[r];
+                if (renderer == null) continue;
+
+                var materials = renderer.sharedMaterials;
+                for (int s = 0; s < materials.Length; s++)
+                {
+                    var mat = materials[s];
+                    if (mat == null) continue;
+                    if (!component.IsSubmeshIncluded(r, s)) continue;
+
+                    foreach (var slot in component.colorChangeTargets)
+                    {
+                        if (!slot.applyColorChange) continue;
+                        if (!mat.HasProperty(slot.propertyName)) continue;
+
+                        var tex = mat.GetTexture(slot.propertyName) as Texture2D;
+                        if (tex == null || cache.ContainsKey(tex)) continue;
+
+                        Texture2D source = tex;
+                        if (brightnessAdjustedCache != null && brightnessAdjustedCache.TryGetValue(tex, out var adjusted))
+                        {
+                            source = adjusted;
+                        }
+
+                        var processed = Processing.ColorProcessor.ProcessTexture(source, settings, true);
+                        if (processed != null)
+                        {
+                            cache[tex] = processed;
+                            generatedTextures.Add(processed);
+                        }
+                    }
+
+                    // _MainTex がcolorChangeTargetsに含まれていない場合もチェック
+                    if (mat.HasProperty("_MainTex"))
+                    {
+                        var tex = mat.GetTexture("_MainTex") as Texture2D;
+                        if (tex != null && !cache.ContainsKey(tex))
+                        {
+                            Texture2D source = tex;
+                            if (brightnessAdjustedCache != null && brightnessAdjustedCache.TryGetValue(tex, out var adjusted))
+                            {
+                                source = adjusted;
+                            }
+
+                            var processed = Processing.ColorProcessor.ProcessTexture(source, settings, true);
+                            if (processed != null)
+                            {
+                                cache[tex] = processed;
+                                generatedTextures.Add(processed);
+                            }
+                        }
+                    }
+                }
+            }
+
+            return cache;
+        }
+
+        /// <summary>
+        /// Renderer単位の明度オフセットを取得
+        /// </summary>
+        private float GetRendererBrightnessOffset(ChimeraHairMaster component, int rendererIndex)
+        {
+            if (component.rendererBrightnessAdjustments == null) return 0f;
+
+            foreach (var adjustment in component.rendererBrightnessAdjustments)
+            {
+                if (adjustment.rendererIndex == rendererIndex)
+                {
+                    return adjustment.brightnessOffset;
+                }
+            }
+
+            return 0f;
+        }
+
+        /// <summary>
+        /// プレビュー用：輝度統一を適用
+        /// </summary>
+        private Dictionary<Texture2D, Texture2D> ApplyBrightnessUnificationForPreview(ChimeraHairMaster component, BrightnessUnifyMode mode)
+        {
+            var result = new Dictionary<Texture2D, Texture2D>();
+            var textureBrightnessMap = new Dictionary<Texture2D, float>();
+
+            // すべてのテクスチャを収集して平均明度を計算
+            foreach (var renderer in component.targetRenderers)
+            {
+                if (renderer == null) continue;
+
+                var materials = renderer.sharedMaterials;
+                foreach (var mat in materials)
+                {
+                    if (mat == null) continue;
+
+                    foreach (var slot in component.colorChangeTargets)
+                    {
+                        if (!slot.applyColorChange) continue;
+                        if (!mat.HasProperty(slot.propertyName)) continue;
+
+                        var texture = mat.GetTexture(slot.propertyName) as Texture2D;
+                        if (texture == null || textureBrightnessMap.ContainsKey(texture)) continue;
+
+                        float avgBrightness = Processing.ColorProcessor.CalculateAverageBrightness(texture);
+                        textureBrightnessMap[texture] = avgBrightness;
+                    }
+
+                    // _MainTexもチェック
+                    if (mat.HasProperty("_MainTex"))
+                    {
+                        var texture = mat.GetTexture("_MainTex") as Texture2D;
+                        if (texture != null && !textureBrightnessMap.ContainsKey(texture))
+                        {
+                            float avgBrightness = Processing.ColorProcessor.CalculateAverageBrightness(texture);
+                            textureBrightnessMap[texture] = avgBrightness;
+                        }
+                    }
+                }
+            }
+
+            if (textureBrightnessMap.Count == 0) return result;
+
+            // 最も明るいテクスチャと最も暗いテクスチャの平均明度を取得
+            float minBrightness = textureBrightnessMap.Values.Min();
+            float maxBrightness = textureBrightnessMap.Values.Max();
+
+            // モードに基づいて目標明度を決定
+            float targetBrightness;
+            switch (mode)
+            {
+                case BrightnessUnifyMode.ToBrightest:
+                    targetBrightness = maxBrightness;
+                    break;
+                case BrightnessUnifyMode.ToDarkest:
+                    targetBrightness = minBrightness;
+                    break;
+                default:
+                    return result; // Offの場合は何もしない
+            }
+
+            // 各テクスチャの明度を調整
+            foreach (var kvp in textureBrightnessMap)
+            {
+                var adjustedTexture = Processing.ColorProcessor.AdjustBrightness(kvp.Key, targetBrightness);
+                result[kvp.Key] = adjustedTexture;
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Rendererから支配的な色を取得
+        /// </summary>
+        private Color GetDominantColorFromRenderer(SkinnedMeshRenderer renderer)
+        {
+            if (renderer == null) return Color.white;
+
+            var materials = renderer.sharedMaterials;
+            foreach (var mat in materials)
+            {
+                if (mat == null) continue;
+
+                // メインテクスチャから色を抽出
+                if (mat.HasProperty("_MainTex"))
+                {
+                    var tex = mat.GetTexture("_MainTex") as Texture2D;
+                    if (tex != null)
+                    {
+                        return Processing.ColorProcessor.ExtractDominantColor(tex);
+                    }
+                }
+
+                // マテリアルのカラーを使用
+                if (mat.HasProperty("_Color"))
+                {
+                    return mat.GetColor("_Color");
+                }
+            }
+
+            return Color.white;
+        }
+
+        /// <summary>
+        /// テクスチャを除いて数値パラメータとトグルのみをコピーした新規マテリアルを作成
+        /// すべてのテクスチャスロットを明示的にnullに設定
+        /// </summary>
+        private static Material CreateMaterialWithoutTextures(Material source)
+        {
+            if (source == null)
+            {
+                throw new ArgumentNullException(nameof(source), "Source material cannot be null");
+            }
+
+            // 同じシェーダーで新規マテリアルを作成
+            var newMat = new Material(source.shader);
+            
+            // レンダーキューをコピー
+            newMat.renderQueue = source.renderQueue;
+            
+            // シェーダーキーワードをコピー
+            newMat.shaderKeywords = source.shaderKeywords;
+            
+            // プロパティをコピー（テクスチャ以外）
+            var shader = source.shader;
+            int propertyCount = shader.GetPropertyCount();
+            
+            for (int i = 0; i < propertyCount; i++)
+            {
+                var propertyType = shader.GetPropertyType(i);
+                var propertyName = shader.GetPropertyName(i);
+                
+                switch (propertyType)
+                {
+                    case UnityEngine.Rendering.ShaderPropertyType.Color:
+                        newMat.SetColor(propertyName, source.GetColor(propertyName));
+                        break;
+                    case UnityEngine.Rendering.ShaderPropertyType.Vector:
+                        newMat.SetVector(propertyName, source.GetVector(propertyName));
+                        break;
+                    case UnityEngine.Rendering.ShaderPropertyType.Float:
+                    case UnityEngine.Rendering.ShaderPropertyType.Range:
+                        newMat.SetFloat(propertyName, source.GetFloat(propertyName));
+                        break;
+                    case UnityEngine.Rendering.ShaderPropertyType.Int:
+                        newMat.SetInt(propertyName, source.GetInt(propertyName));
+                        break;
+                    // Textureは明示的にnullに設定
+                    case UnityEngine.Rendering.ShaderPropertyType.Texture:
+                        newMat.SetTexture(propertyName, null);
+                        // テクスチャのScale/Offsetはコピー
+                        newMat.SetTextureScale(propertyName, source.GetTextureScale(propertyName));
+                        newMat.SetTextureOffset(propertyName, source.GetTextureOffset(propertyName));
+                        break;
+                }
+            }
+            
+            return newMat;
+        }
+
+        /// <summary>
+        /// マットキャップテクスチャのみをコピー
+        /// </summary>
+        private static void CopyMatCapTextures(Material source, Material dest)
+        {
+            // マットキャップ1st
+            string[] matCap1stProps = new string[]
+            {
+                "_MatCapTex",
+                "_MatCapBlendMask",
+                "_MatCapBumpMap"
+            };
+
+            foreach (var prop in matCap1stProps)
+            {
+                if (source.HasProperty(prop) && dest.HasProperty(prop))
+                {
+                    var tex = source.GetTexture(prop);
+                    if (tex != null)
+                    {
+                        dest.SetTexture(prop, tex);
+                    }
+                }
+            }
+
+            // マットキャップ2nd
+            string[] matCap2ndProps = new string[]
+            {
+                "_MatCap2ndTex",
+                "_MatCap2ndBlendMask",
+                "_MatCap2ndBumpMap"
+            };
+
+            foreach (var prop in matCap2ndProps)
+            {
+                if (source.HasProperty(prop) && dest.HasProperty(prop))
+                {
+                    var tex = source.GetTexture(prop);
+                    if (tex != null)
+                    {
+                        dest.SetTexture(prop, tex);
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// マットキャップテクスチャを上書き（Noneも含めてsourceの値で置き換える）
+        /// </summary>
+        private static void OverwriteMatCapTextures(Material source, Material dest)
+        {
+            string[] matCapProps = new string[]
+            {
+                "_MatCapTex", "_MatCapBlendMask", "_MatCapBumpMap",
+                "_MatCap2ndTex", "_MatCap2ndBlendMask", "_MatCap2ndBumpMap"
+            };
+
+            foreach (var prop in matCapProps)
+            {
+                if (source.HasProperty(prop) && dest.HasProperty(prop))
+                {
+                    dest.SetTexture(prop, source.GetTexture(prop));
+                }
+            }
+        }
+
+        /// <summary>
+        /// プレビューノード（Color-Changerと同様のパターン）
+        /// </summary>
+        private class PreviewNode : IRenderFilterNode, IDisposable
+        {
+            private readonly Dictionary<Material, Material>? _processedMaterials;
+            private readonly List<Texture>? _generatedTextures;
+
+            // アトラスモード: Renderer InstanceID → アトラスUVにリマップ済みメッシュ
+            private readonly Dictionary<int, Mesh>? _remappedMeshes;
+
+            // マスクプレビュー用: アトラスマスクを元UV空間に合成したRenderer単位テクスチャ
+            private Dictionary<int, RenderTexture>? _compositedMasks;
+            private Material? _blitMaterial;
+            // マスク適用前のマテリアルプロパティ保存（Material InstanceID → 元の値）
+            private string? _activeMaskSlot;
+            private Dictionary<int, (float useTexValue, Texture? texture, Texture? blendMask, Color color, float blendMode)>? _savedMaskSlotStates;
+
+            // アトラスモードの場合は Mesh も変更対象
+            private readonly bool _isAtlasMode;
+
+            // メッシュの所有権フラグ（false = キャッシュが所有、Disposeで破棄しない）
+            private readonly bool _ownsMeshes;
+
+            public RenderAspects WhatChanged => _isAtlasMode
+                ? RenderAspects.Texture | RenderAspects.Material | RenderAspects.Mesh
+                : RenderAspects.Texture | RenderAspects.Material;
+
+            public PreviewNode(
+                Dictionary<Material, Material>? processedMaterials,
+                List<Texture>? generatedTextures,
+                Dictionary<int, Mesh>? remappedMeshes = null,
+                bool ownsMeshes = true)
+            {
+                _processedMaterials = processedMaterials;
+                _generatedTextures = generatedTextures;
+                _remappedMeshes = remappedMeshes;
+                _isAtlasMode = remappedMeshes != null && remappedMeshes.Count > 0;
+                _ownsMeshes = ownsMeshes;
+            }
+
+            public void OnFrame(Renderer original, Renderer proxy)
+            {
+                try
+                {
+                    if (proxy == null)
+                        return;
+
+                    // マテリアルを置換
+                    if (_processedMaterials != null && _processedMaterials.Count > 0)
+                    {
+                        var materials = proxy.sharedMaterials;
+                        var newMaterials = new Material?[materials.Length];
+
+                        for (int i = 0; i < materials.Length; i++)
+                        {
+                            var mat = materials[i];
+                            if (mat != null && _processedMaterials.TryGetValue(mat, out var processedMat))
+                            {
+                                newMaterials[i] = processedMat;
+                            }
+                            else
+                            {
+                                newMaterials[i] = mat;
+                            }
+                        }
+
+                        proxy.sharedMaterials = newMaterials!;
+                    }
+
+                    // アトラスモード: メッシュ UV をアトラス座標に置換
+                    if (_remappedMeshes != null && proxy is SkinnedMeshRenderer smr)
+                    {
+                        int originalId = original.GetInstanceID();
+                        if (_remappedMeshes.TryGetValue(originalId, out var mesh) && smr.sharedMesh != mesh)
+                        {
+                            smr.sharedMesh = mesh;
+                        }
+                    }
+
+                    // マスクツール編集中の処理
+                    var maskTex = MaskToolLauncher.ActiveMaskTexture;
+                    var maskSlot = MaskToolLauncher.ActiveMaskSlotName;
+                    var islandMappings = MaskToolLauncher.ActiveMaskIslandMappings;
+
+                    if (maskTex != null && islandMappings != null && !string.IsNullOrEmpty(maskSlot))
+                    {
+                        // スロット変更の検出 → 旧スロットを復元してから新スロットを適用
+                        if (_activeMaskSlot != null && _activeMaskSlot != maskSlot)
+                        {
+                            RestoreAllMaskSlotStates();
+                        }
+                        _activeMaskSlot = maskSlot;
+
+                        if (_isAtlasMode)
+                        {
+                            // アトラスモード: メッシュUVがアトラス空間なので直接マスクを設定
+                            var proxyMats = proxy.sharedMaterials;
+                            foreach (var mat in proxyMats)
+                            {
+                                if (mat != null)
+                                {
+                                    SaveMaskSlotState(mat, maskSlot);
+                                    SetMaskVisualization(mat, maskSlot, maskTex);
+                                }
+                            }
+                        }
+                        else
+                        {
+                            // 従来モード: アトラスマスクを元UV空間に合成してから設定
+                            int originalId = original.GetInstanceID();
+                            if (islandMappings.TryGetValue(originalId, out var mappings))
+                            {
+                                var compositedMask = CompositeMaskForRenderer(originalId, mappings, maskTex);
+
+                                var proxyMats = proxy.sharedMaterials;
+                                var affectedSubmeshes = new HashSet<int>();
+                                foreach (var m in mappings)
+                                    affectedSubmeshes.Add(m.submeshIndex);
+
+                                foreach (var submeshIdx in affectedSubmeshes)
+                                {
+                                    if (submeshIdx < proxyMats.Length && proxyMats[submeshIdx] != null)
+                                    {
+                                        SaveMaskSlotState(proxyMats[submeshIdx], maskSlot);
+                                        SetMaskVisualization(proxyMats[submeshIdx], maskSlot, compositedMask);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    else if (_activeMaskSlot != null)
+                    {
+                        // マスクツールが閉じた → 変更済みマテリアルを元に戻す
+                        RestoreAllMaskSlotStates();
+                        CleanupCompositedMasks();
+                        _activeMaskSlot = null;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Debug.LogError($"[ChimeraHairMaster] Error in OnFrame: {ex}");
+                }
+            }
+
+            /// <summary>
+            /// マスクテクスチャをlilToonの_Main2ndテクスチャ機能で可視化する
+            /// 出力先スロットに関係なく、常に_Main2nd Multiplyオーバーレイで表示する
+            /// → 塗った部分(黒)が暗くなり、未塗り(白)は変化なし
+            ///
+            /// 合成テクスチャは元UV空間に変換済みのため、Scale/Offset補正は不要
+            /// </summary>
+            private static void SetMaskVisualization(Material mat, string maskSlot, RenderTexture maskTex)
+            {
+                // 常に_Main2ndオーバーレイで可視化（出力先スロットに関係なく統一）
+                if (mat.HasProperty("_UseMain2ndTex"))
+                    mat.SetFloat("_UseMain2ndTex", 1f);
+
+                if (mat.HasProperty("_Main2ndTex"))
+                    mat.SetTexture("_Main2ndTex", maskTex);
+
+                if (mat.HasProperty("_Main2ndBlendMask"))
+                    mat.SetTexture("_Main2ndBlendMask", null);
+
+                if (mat.HasProperty("_Color2nd"))
+                    mat.SetColor("_Color2nd", new Color(1f, 1f, 1f, 1f));
+
+                if (mat.HasProperty("_Main2ndTexBlendMode"))
+                    mat.SetFloat("_Main2ndTexBlendMode", 3f); // Multiply
+            }
+
+            /// <summary>
+            /// マスク適用前の_Main2nd関連プロパティを保存（初回のみ）
+            /// </summary>
+            private void SaveMaskSlotState(Material mat, string maskSlot)
+            {
+                int matId = mat.GetInstanceID();
+
+                _savedMaskSlotStates ??= new Dictionary<int, (float, Texture?, Texture?, Color, float)>();
+                if (_savedMaskSlotStates.ContainsKey(matId))
+                    return;
+
+                // 常に_Main2ndの状態を保存（可視化は常に_Main2ndオーバーレイを使用）
+                _savedMaskSlotStates[matId] = (
+                    mat.HasProperty("_UseMain2ndTex") ? mat.GetFloat("_UseMain2ndTex") : 0f,
+                    mat.HasProperty("_Main2ndTex") ? mat.GetTexture("_Main2ndTex") : null,
+                    mat.HasProperty("_Main2ndBlendMask") ? mat.GetTexture("_Main2ndBlendMask") : null,
+                    mat.HasProperty("_Color2nd") ? mat.GetColor("_Color2nd") : Color.white,
+                    mat.HasProperty("_Main2ndTexBlendMode") ? mat.GetFloat("_Main2ndTexBlendMode") : 0f
+                );
+            }
+
+            /// <summary>
+            /// 保存済みの_Main2nd関連プロパティを全て復元
+            /// </summary>
+            private void RestoreAllMaskSlotStates()
+            {
+                if (_activeMaskSlot == null || _processedMaterials == null)
+                    return;
+
+                if (_savedMaskSlotStates != null)
+                {
+                    foreach (var mat in _processedMaterials.Values)
+                    {
+                        if (mat == null) continue;
+                        int matId = mat.GetInstanceID();
+                        if (!_savedMaskSlotStates.TryGetValue(matId, out var saved))
+                            continue;
+
+                        if (mat.HasProperty("_UseMain2ndTex")) mat.SetFloat("_UseMain2ndTex", saved.useTexValue);
+                        if (mat.HasProperty("_Main2ndTex")) mat.SetTexture("_Main2ndTex", saved.texture);
+                        if (mat.HasProperty("_Main2ndBlendMask")) mat.SetTexture("_Main2ndBlendMask", saved.blendMask);
+                        if (mat.HasProperty("_Color2nd")) mat.SetColor("_Color2nd", saved.color);
+                        if (mat.HasProperty("_Main2ndTexBlendMode")) mat.SetFloat("_Main2ndTexBlendMode", saved.blendMode);
+                    }
+
+                    _savedMaskSlotStates.Clear();
+                }
+            }
+
+            /// <summary>
+            /// 合成マスクRTとBlitマテリアルを解放
+            /// </summary>
+            private void CleanupCompositedMasks()
+            {
+                if (_compositedMasks != null)
+                {
+                    foreach (var rt in _compositedMasks.Values)
+                    {
+                        if (rt != null)
+                            rt.Release();
+                    }
+                    _compositedMasks.Clear();
+                }
+            }
+
+            /// <summary>
+            /// アトラスマスクRTから各アイランド領域を切り出し、元UV空間に再配置した合成テクスチャを生成
+            /// GL描画で各アイランドのアトラス領域→元UV領域へのマッピングを行う
+            /// </summary>
+            private RenderTexture CompositeMaskForRenderer(
+                int rendererInstanceId,
+                List<(int submeshIndex, Rect originalBounds, Vector2 atlasPosition, Vector2 atlasScale)> mappings,
+                RenderTexture atlasMask)
+            {
+                _compositedMasks ??= new Dictionary<int, RenderTexture>();
+
+                // キャッシュRTを取得/作成
+                if (!_compositedMasks.TryGetValue(rendererInstanceId, out var composited)
+                    || composited == null
+                    || composited.width != atlasMask.width
+                    || composited.height != atlasMask.height)
+                {
+                    if (composited != null)
+                        composited.Release();
+
+                    composited = new RenderTexture(atlasMask.width, atlasMask.height, 0, RenderTextureFormat.ARGB32);
+                    composited.filterMode = FilterMode.Bilinear;
+                    composited.Create();
+                    _compositedMasks[rendererInstanceId] = composited;
+                }
+
+                // Blitマテリアルの初期化（テクスチャをそのまま描画するシンプルなシェーダー）
+                if (_blitMaterial == null)
+                {
+                    _blitMaterial = new Material(Shader.Find("Hidden/Internal-GUITexture"));
+                }
+
+                // 白でクリア（Multiply用: 白=変化なし）
+                var prev = RenderTexture.active;
+                RenderTexture.active = composited;
+                GL.Clear(true, true, Color.white);
+
+                // GL描画: アトラスマスクの各アイランド領域を元UV位置にコピー
+                _blitMaterial.SetTexture("_MainTex", atlasMask);
+                _blitMaterial.SetPass(0);
+                GL.PushMatrix();
+                GL.LoadOrtho();
+
+                foreach (var mapping in mappings)
+                {
+                    // ソース: アトラスマスク上のアイランド領域
+                    float u0 = mapping.atlasPosition.x;
+                    float v0 = mapping.atlasPosition.y;
+                    float u1 = u0 + mapping.atlasScale.x;
+                    float v1 = v0 + mapping.atlasScale.y;
+
+                    // 出力先: 元UV空間でのアイランド位置
+                    float x0 = mapping.originalBounds.xMin;
+                    float y0 = mapping.originalBounds.yMin;
+                    float x1 = mapping.originalBounds.xMax;
+                    float y1 = mapping.originalBounds.yMax;
+
+                    GL.Begin(GL.QUADS);
+                    GL.TexCoord2(u0, v0); GL.Vertex3(x0, y0, 0);
+                    GL.TexCoord2(u1, v0); GL.Vertex3(x1, y0, 0);
+                    GL.TexCoord2(u1, v1); GL.Vertex3(x1, y1, 0);
+                    GL.TexCoord2(u0, v1); GL.Vertex3(x0, y1, 0);
+                    GL.End();
+                }
+
+                GL.PopMatrix();
+                RenderTexture.active = prev;
+
+                return composited;
+            }
+
+            public void Dispose()
+            {
+                // リマップ済みメッシュの破棄（キャッシュ所有の場合はスキップ）
+                if (_ownsMeshes && _remappedMeshes != null)
+                {
+                    foreach (var mesh in _remappedMeshes.Values)
+                    {
+                        if (mesh != null) Object.DestroyImmediate(mesh);
+                    }
+                    _remappedMeshes.Clear();
+                }
+
+                // マスク関連リソースの破棄
+                CleanupCompositedMasks();
+
+                if (_blitMaterial != null)
+                {
+                    Object.DestroyImmediate(_blitMaterial);
+                    _blitMaterial = null;
+                }
+
+                // テクスチャを破棄
+                if (_generatedTextures != null)
+                {
+                    foreach (var tex in _generatedTextures)
+                    {
+                        if (tex != null)
+                        {
+                            Object.DestroyImmediate(tex);
+                        }
+                    }
+                    _generatedTextures.Clear();
+                }
+
+                // マテリアルを破棄
+                if (_processedMaterials != null)
+                {
+                    foreach (var mat in _processedMaterials.Values)
+                    {
+                        if (mat != null)
+                        {
+                            Object.DestroyImmediate(mat);
+                        }
+                    }
+                    _processedMaterials.Clear();
+                }
+            }
+        }
+    }
+}

@@ -1,0 +1,21 @@
+{
+  "name": "com.nekoare.chimera-hair-master",
+  "version": "0.1.0",
+  "displayName": "Chimera Hair Master",
+  "description": "VRChat hair chimera creation support tool - color matching, UV integration, and material unification",
+  "unity": "2022.3",
+  "unityRelease": "6f1",
+  "documentationUrl": "",
+  "changelogUrl": "",
+  "licensesUrl": "",
+  "author": {
+    "name": "nekoare",
+    "url": ""
+  },
+  "vpmDependencies": {
+    "com.vrchat.base": ">=3.5.0",
+    "nadena.dev.ndmf": ">=1.4.0",
+    "jp.lilxyzw.liltoon": ">=1.7.0"
+  },
+  "samples": []
+}

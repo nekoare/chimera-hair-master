@@ -1,0 +1,28 @@
+{
+  "name": "com.nekoare.chimera-hair-master.runtime",
+  "rootNamespace": "ChimeraHairMaster",
+  "references": [
+    "VRC.SDK3A",
+    "VRC.SDKBase"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [
+    {
+      "name": "com.vrchat.avatars",
+      "expression": "",
+      "define": "CHM_VRCSDK3_AVATARS"
+    },
+    {
+      "name": "com.anatawa12.avatar-optimizer",
+      "expression": "",
+      "define": "CHM_AVATAR_OPTIMIZER"
+    }
+  ],
+  "noEngineReferences": false
+}

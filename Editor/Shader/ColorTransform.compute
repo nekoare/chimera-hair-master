@@ -1,0 +1,164 @@
+#pragma kernel CSMain
+#pragma kernel CSAtlas
+
+// ============================================
+// 共通変数
+// ============================================
+RWTexture2D<float4> _Source;
+RWTexture2D<float4> _Target;
+
+// ============================================
+// 色変換パラメータ
+// ============================================
+int _TransformMode;          // 0=Gradient, 1=HueShift
+float3 _TargetColorHSV;      // ターゲット色（HSV）
+float _SaturationPreserve;   // 彩度保持率
+float _ValuePreserve;        // 明度保持率
+
+// グラデーション用
+RWTexture2D<float4> _GradientTexture;
+int _GradientResolution;
+
+// ============================================
+// アトラス生成パラメータ
+// ============================================
+float2 _AtlasOffset;         // アトラス内でのオフセット
+float2 _AtlasScale;          // アトラス内でのスケール
+float _AtlasRotation;        // 回転（度）
+int2 _SourceSize;            // ソーステクスチャサイズ
+int2 _TargetSize;            // ターゲットテクスチャサイズ
+
+// ============================================
+// ユーティリティ関数
+// ============================================
+
+// RGB -> HSV変換
+float3 RGBtoHSV(float3 rgb)
+{
+    float4 K = float4(0.0, -1.0 / 3.0, 2.0 / 3.0, -1.0);
+    float4 p = lerp(float4(rgb.bg, K.wz), float4(rgb.gb, K.xy), step(rgb.b, rgb.g));
+    float4 q = lerp(float4(p.xyw, rgb.r), float4(rgb.r, p.yzx), step(p.x, rgb.r));
+
+    float d = q.x - min(q.w, q.y);
+    float e = 1.0e-10;
+    return float3(abs(q.z + (q.w - q.y) / (6.0 * d + e)), d / (q.x + e), q.x);
+}
+
+// HSV -> RGB変換
+float3 HSVtoRGB(float3 hsv)
+{
+    float4 K = float4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
+    float3 p = abs(frac(hsv.xxx + K.xyz) * 6.0 - K.www);
+    return hsv.z * lerp(K.xxx, saturate(p - K.xxx), hsv.y);
+}
+
+// 輝度を計算
+float GetLuminance(float3 rgb)
+{
+    return dot(rgb, float3(0.299, 0.587, 0.114));
+}
+
+// ============================================
+// 色変換カーネル
+// ============================================
+[numthreads(16, 16, 1)]
+void CSMain(uint3 id : SV_DispatchThreadID)
+{
+    uint width, height;
+    _Source.GetDimensions(width, height);
+    if (id.x >= width || id.y >= height) return;
+
+    float4 srcColor = _Source[id.xy];
+    float3 rgb = srcColor.rgb;
+    float alpha = srcColor.a;
+
+    // アルファが0の場合はスキップ
+    if (alpha < 0.001)
+    {
+        _Target[id.xy] = srcColor;
+        return;
+    }
+
+    float3 resultRGB = rgb;
+
+    if (_TransformMode == 0) // Gradient Mode
+    {
+        // 輝度に基づいてグラデーションから色を取得
+        float luminance = GetLuminance(rgb);
+        int gradientX = (int)(luminance * (_GradientResolution - 1));
+        gradientX = clamp(gradientX, 0, _GradientResolution - 1);
+
+        float4 gradientColor = _GradientTexture[int2(gradientX, 0)];
+        resultRGB = gradientColor.rgb;
+    }
+    else if (_TransformMode == 1) // HueShift Mode
+    {
+        // HSV色空間で変換
+        float3 srcHSV = RGBtoHSV(rgb);
+
+        // 色相をターゲットに合わせる
+        float newH = _TargetColorHSV.x;
+
+        // 彩度を調整（保持率に基づく）
+        float newS = lerp(_TargetColorHSV.y, srcHSV.y, _SaturationPreserve);
+
+        // 明度を調整（保持率に基づく）
+        float newV = lerp(_TargetColorHSV.z, srcHSV.z, _ValuePreserve);
+
+        resultRGB = HSVtoRGB(float3(newH, newS, newV));
+    }
+
+    _Target[id.xy] = float4(saturate(resultRGB), alpha);
+}
+
+// ============================================
+// アトラス生成カーネル
+// ============================================
+[numthreads(16, 16, 1)]
+void CSAtlas(uint3 id : SV_DispatchThreadID)
+{
+    // ターゲット（アトラス）内での位置
+    int2 atlasPos = int2(
+        (int)(_AtlasOffset.x * _TargetSize.x) + id.x,
+        (int)(_AtlasOffset.y * _TargetSize.y) + id.y
+    );
+
+    // 範囲チェック
+    int atlasWidth = (int)(_AtlasScale.x * _TargetSize.x);
+    int atlasHeight = (int)(_AtlasScale.y * _TargetSize.y);
+    
+    if (id.x >= (uint)atlasWidth || id.y >= (uint)atlasHeight) return;
+    if (atlasPos.x < 0 || atlasPos.x >= _TargetSize.x) return;
+    if (atlasPos.y < 0 || atlasPos.y >= _TargetSize.y) return;
+
+    // ソーステクスチャ内でのUV座標を計算
+    float u = (float)id.x / atlasWidth;
+    float v = (float)id.y / atlasHeight;
+
+    // 回転を適用
+    if (abs(_AtlasRotation) > 0.001)
+    {
+        float rad = radians(-_AtlasRotation);
+        float cosR = cos(rad);
+        float sinR = sin(rad);
+        float cu = u - 0.5;
+        float cv = v - 0.5;
+        u = cu * cosR - cv * sinR + 0.5;
+        v = cu * sinR + cv * cosR + 0.5;
+    }
+
+    // UV範囲外はクリア
+    if (u < 0 || u > 1 || v < 0 || v > 1)
+    {
+        return; // 透明のまま
+    }
+
+    // ソーステクスチャからサンプリング
+    int srcX = (int)(u * (_SourceSize.x - 1));
+    int srcY = (int)(v * (_SourceSize.y - 1));
+    srcX = clamp(srcX, 0, _SourceSize.x - 1);
+    srcY = clamp(srcY, 0, _SourceSize.y - 1);
+
+    float4 srcColor = _Source[int2(srcX, srcY)];
+    _Target[atlasPos] = srcColor;
+}

@@ -1,0 +1,1619 @@
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Text.RegularExpressions;
+using ChimeraHairMaster.Editor.Processing;
+using UnityEditor;
+using UnityEngine;
+
+namespace ChimeraHairMaster.Editor
+{
+    /// <summary>
+    /// ChimeraHairMasterコンポーネントのカスタムインスペクター
+    /// </summary>
+    [CustomEditor(typeof(ChimeraHairMaster))]
+    public class ChimeraHairMasterEditor : UnityEditor.Editor
+    {
+        #region Serialized Properties
+
+        private SerializedProperty isEnabledProp;
+        private SerializedProperty enableMeshMergeProp;
+        private SerializedProperty targetRenderersProp;
+        private SerializedProperty enableColorTransformProp;
+        private SerializedProperty targetColorProp;
+        private SerializedProperty colorTransformModeProp;
+        private SerializedProperty gradientCurveProp;
+        private SerializedProperty saturationPreserveProp;
+        private SerializedProperty valuePreserveProp;
+        private SerializedProperty brightnessUnifyModeProp;
+        private SerializedProperty textureResolutionProp;
+        private SerializedProperty colorChangeTargetsProp;
+        private SerializedProperty uvPlacementsProp;
+        private SerializedProperty baseMaterialProp;
+        private SerializedProperty previewMaterialProp;
+        private SerializedProperty meshMergeModeProp;
+        private SerializedProperty inheritProbeAnchorProp;
+        private SerializedProperty probeAnchorProp;
+        private SerializedProperty inheritBoundsProp;
+        private SerializedProperty rootBoneProp;
+        private SerializedProperty boundsProp;
+        private SerializedProperty previewEnabledProp;
+        private SerializedProperty previewResolutionProp;
+        private SerializedProperty previewMaterialHashProp;
+        private SerializedProperty rendererBrightnessAdjustmentsProp;
+        private SerializedProperty unifyMatCapProp;
+
+        #endregion
+
+        #region UI State
+
+        private bool showHelp = false;
+        private bool showBasicSettings = false;
+        private bool showColorSettings = true;
+        private bool showTextureSettings = false;
+        private bool showMeshSettings = false;
+        private bool showBrightnessAdjustment = false;
+
+        // 色合わせ適用オプション
+        private const string PREF_APPLY_TEXTURE = "CHM_ApplyTexture";
+        private const string PREF_UNIFY_SETTINGS = "CHM_UnifySettings";
+
+        // Renderer click highlight state
+        private static SkinnedMeshRenderer highlightRenderer;
+        private static double highlightExpiry = 0;
+        private const double HIGHLIGHT_DURATION = 2.0;
+
+        // テクスチャ色ピッカー用
+        private bool showTextureColorPicker = false;
+        private int selectedColorPickerRendererIndex = 0;
+        private Texture2D cachedTexturePreview;
+        private SkinnedMeshRenderer cachedTextureRenderer;
+        private Color[] extractedColors;
+
+        // Gradient用テクスチャ色ピッカー
+        private bool showGradientTextureColorPicker = false;
+        private int selectedGradientColorPickerRendererIndex = 0;
+        private Texture2D cachedGradientTexturePreview;
+        private SkinnedMeshRenderer cachedGradientTextureRenderer;
+        private Color[] extractedGradientColors;
+        private float gradientColorKeyPosition = 0.5f; // 追加するキーの位置
+
+        // マテリアルエディタ（Inspector内埋め込み用）
+        private MaterialEditor materialEditor;
+        private Material cachedPreviewMaterial;
+
+        #endregion
+
+        private void OnEnable()
+        {
+            if (target == null) return;
+
+            isEnabledProp = serializedObject.FindProperty("isEnabled");
+            enableMeshMergeProp = serializedObject.FindProperty("enableMeshMerge");
+            targetRenderersProp = serializedObject.FindProperty("targetRenderers");
+            enableColorTransformProp = serializedObject.FindProperty("enableColorTransform");
+            targetColorProp = serializedObject.FindProperty("targetColor");
+            colorTransformModeProp = serializedObject.FindProperty("colorTransformMode");
+            gradientCurveProp = serializedObject.FindProperty("gradientCurve");
+            saturationPreserveProp = serializedObject.FindProperty("saturationPreserve");
+            valuePreserveProp = serializedObject.FindProperty("valuePreserve");
+            brightnessUnifyModeProp = serializedObject.FindProperty("brightnessUnifyMode");
+            textureResolutionProp = serializedObject.FindProperty("textureResolution");
+            colorChangeTargetsProp = serializedObject.FindProperty("colorChangeTargets");
+            uvPlacementsProp = serializedObject.FindProperty("uvPlacements");
+            baseMaterialProp = serializedObject.FindProperty("baseMaterial");
+            previewMaterialProp = serializedObject.FindProperty("previewMaterial");
+            meshMergeModeProp = serializedObject.FindProperty("meshMergeMode");
+            inheritProbeAnchorProp = serializedObject.FindProperty("inheritProbeAnchor");
+            probeAnchorProp = serializedObject.FindProperty("probeAnchor");
+            inheritBoundsProp = serializedObject.FindProperty("inheritBounds");
+            rootBoneProp = serializedObject.FindProperty("rootBone");
+            boundsProp = serializedObject.FindProperty("bounds");
+            previewEnabledProp = serializedObject.FindProperty("previewEnabled");
+            previewResolutionProp = serializedObject.FindProperty("previewResolution");
+            previewMaterialHashProp = serializedObject.FindProperty("previewMaterialHash");
+            rendererBrightnessAdjustmentsProp = serializedObject.FindProperty("rendererBrightnessAdjustments");
+            unifyMatCapProp = serializedObject.FindProperty("unifyMatCap");
+
+            // マテリアル変更監視を開始
+            EditorApplication.update += OnEditorUpdate;
+            // SceneViewでのハイライト描画を登録
+            SceneView.duringSceneGui += OnSceneGUI;
+            
+            // ドメインリロード後に lastBaseMaterial が null にリセットされるため、
+            // OnEnable で現在の baseMaterial を記録しておく。
+            // これにより DrawBasicSettings での偽陽性な変更検知を防止する。
+            var component = target as ChimeraHairMaster;
+            lastBaseMaterial = component?.baseMaterial;
+
+            if (component != null)
+            {
+                // 既存のインメモリ previewMaterial をアセットに変換（マイグレーション）
+                // lilToon のシェーダー再インポート時にインメモリマテリアルはプロパティが失われるため
+                if (component.previewMaterial != null && !AssetDatabase.Contains(component.previewMaterial))
+                {
+                    string path = GetPreviewMaterialAssetPath(component);
+                    EnsureDirectoryExists(path);
+                    path = AssetDatabase.GenerateUniqueAssetPath(path);
+                    AssetDatabase.CreateAsset(component.previewMaterial, path);
+                    EditorUtility.SetDirty(component);
+                }
+
+                // 初期化時にpreviewMaterialが未生成で、baseMaterialがある場合は自動生成
+                if (component.previewMaterial == null && component.baseMaterial != null)
+                {
+                    CreatePreviewMaterial();
+                    serializedObject.Update();
+                }
+            }
+        }
+
+        private void OnDisable()
+        {
+            // マテリアル変更監視を停止
+            EditorApplication.update -= OnEditorUpdate;
+            // SceneViewのハイライト描画を解除
+            SceneView.duringSceneGui -= OnSceneGUI;
+            
+            // マテリアルエディタを破棄
+            CleanupMaterialEditor();
+        }
+        
+        private void CleanupMaterialEditor()
+        {
+            if (materialEditor != null)
+            {
+                DestroyImmediate(materialEditor);
+                materialEditor = null;
+            }
+            cachedPreviewMaterial = null;
+        }
+
+        /// <summary>
+        /// エディタ更新時にマテリアルハッシュをチェック
+        /// </summary>
+        private void OnEditorUpdate()
+        {
+            if (target == null) return;
+            
+            var component = target as ChimeraHairMaster;
+            if (component == null) return;
+            if (!component.previewEnabled) return;
+            if (component.previewMaterial == null) return;
+
+            // マテリアルのハッシュを計算
+            int currentHash = MaterialHasher.ComputeHash(component.previewMaterial);
+            
+            // ハッシュが変わっていたらコンポーネントを更新
+            if (component.previewMaterialHash != currentHash)
+            {
+                Debug.Log($"[ChimeraHairMaster] Material hash changed: {component.previewMaterialHash} -> {currentHash}");
+                Undo.RecordObject(component, "Update Preview Material Hash");
+                component.previewMaterialHash = currentHash;
+                EditorUtility.SetDirty(component);
+                
+                // シーンビューを強制的に再描画
+                UnityEditor.SceneView.RepaintAll();
+            }
+        }
+
+        public override void OnInspectorGUI()
+        {
+            serializedObject.Update();
+
+            DrawComponentHeader();
+            EditorGUILayout.Space(5);
+
+            DrawBasicSettings();
+            EditorGUILayout.Space(5);
+
+            DrawColorSettings();
+            EditorGUILayout.Space(10);
+
+            if (enableMeshMergeProp.boolValue)
+            {
+                DrawMeshSettings();
+                EditorGUILayout.Space(10);
+            }
+
+            DrawActionButtons();
+            EditorGUILayout.Space(10);
+
+            DrawMaterialEditorSection();
+
+            serializedObject.ApplyModifiedProperties();
+        }
+
+        private void DrawComponentHeader()
+        {
+            EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+            EditorGUILayout.LabelField("キメラヘアマスター", EditorStyles.boldLabel);
+            EditorGUILayout.EndVertical();
+
+            // 有効/無効トグル
+            EditorGUILayout.PropertyField(isEnabledProp, new GUIContent("有効"));
+
+            // ヘルプ表示トグル
+            showHelp = EditorGUILayout.Toggle("ヘルプ", showHelp);
+
+            if (!isEnabledProp.boolValue)
+            {
+                EditorGUILayout.HelpBox("コンポーネントが無効になっています。ビルド時に処理されません。", MessageType.Info);
+            }
+        }
+
+        private void DrawBasicSettings()
+        {
+            var component = target as ChimeraHairMaster;
+
+            // 配列プロパティを含むため通常のFoldoutを使用
+            showBasicSettings = EditorGUILayout.Foldout(showBasicSettings, "基本設定", true, EditorStyles.foldoutHeader);
+            if (showBasicSettings)
+            {
+                EditorGUI.indentLevel++;
+
+                // 対象Renderer一覧（読み取り専用表示）
+                EditorGUI.BeginDisabledGroup(true);
+                EditorGUILayout.PropertyField(targetRenderersProp, new GUIContent("対象Renderer"), true);
+                EditorGUI.EndDisabledGroup();
+
+                if (showHelp)
+                {
+                    EditorGUILayout.HelpBox(
+                        "対象Rendererの変更はEditorWindowから行ってください。\n" +
+                        "メニュー: キメラヘアマスター > ウィンドウを開く",
+                        MessageType.Info
+                    );
+                }
+
+                // 共有Rendererの警告
+                var sharedRendererWarning = GetSharedRendererWarning(component);
+                if (sharedRendererWarning != null)
+                {
+                    EditorGUILayout.HelpBox(sharedRendererWarning, MessageType.Warning);
+                }
+
+                EditorGUILayout.Space(10);
+
+                // テクスチャ設定
+                showTextureSettings = EditorGUILayout.Foldout(showTextureSettings, "テクスチャ設定", true);
+                if (showTextureSettings)
+                {
+                    EditorGUI.indentLevel++;
+
+                    if (enableMeshMergeProp.boolValue)
+                    {
+                        // 解像度（メッシュ統合時のみ）
+                        EditorGUILayout.PropertyField(textureResolutionProp, new GUIContent("解像度"));
+                        EditorGUILayout.Space(5);
+                    }
+
+                    // 色変更対象テクスチャ
+                    EditorGUILayout.PropertyField(colorChangeTargetsProp, new GUIContent("色変更対象"), true);
+
+                    if (enableMeshMergeProp.boolValue)
+                    {
+                        // UV配置（読み取り専用、メッシュ統合時のみ）
+                        EditorGUILayout.Space(5);
+                        EditorGUI.BeginDisabledGroup(true);
+                        EditorGUILayout.PropertyField(uvPlacementsProp, new GUIContent("UV配置"), true);
+                        EditorGUI.EndDisabledGroup();
+
+                        if (showHelp)
+                        {
+                            EditorGUILayout.HelpBox(
+                                "UV配置の変更はEditorWindowから行ってください。",
+                                MessageType.Info
+                            );
+                        }
+                    }
+
+                    EditorGUI.indentLevel--;
+                }
+
+                EditorGUILayout.Space(10);
+
+                // 基準マテリアル
+                EditorGUILayout.PropertyField(baseMaterialProp, new GUIContent("基準マテリアル"));
+
+                var currentBaseMaterial = baseMaterialProp.objectReferenceValue as Material;
+
+                // baseMaterialが変更された場合はpreviewMaterialを再生成
+                if (currentBaseMaterial != lastBaseMaterial)
+                {
+                    if (currentBaseMaterial != null)
+                    {
+                        CreatePreviewMaterial();
+                    }
+                    lastBaseMaterial = currentBaseMaterial;
+                }
+                // baseMaterialが設定されてpreviewMaterialがない場合も自動生成
+                else if (currentBaseMaterial != null && previewMaterialProp.objectReferenceValue == null)
+                {
+                    CreatePreviewMaterial();
+                }
+
+                EditorGUI.indentLevel--;
+            }
+        }
+
+        private void DrawColorSettings()
+        {
+            showColorSettings = EditorGUILayout.Foldout(showColorSettings, "色合わせ設定", true, EditorStyles.foldoutHeader);
+            if (showColorSettings)
+            {
+                EditorGUI.indentLevel++;
+
+                // 色合わせの有効/無効トグル
+                EditorGUILayout.PropertyField(enableColorTransformProp, new GUIContent("色合わせの有効化"));
+
+                if (showHelp)
+                {
+                    EditorGUILayout.HelpBox(
+                        "色合わせを行わない場合、テクスチャはそのまま統合されます。\n" +
+                        "複数のテクスチャを統合したいが、色は変えたくない場合に使用します。",
+                        MessageType.Info
+                    );
+                }
+
+                // 色合わせが無効な場合は他の設定を表示しない
+                if (!enableColorTransformProp.boolValue)
+                {
+                    EditorGUI.indentLevel--;
+                    return;
+                }
+
+                EditorGUILayout.Space(5);
+
+                // 色変換モード
+                EditorGUILayout.PropertyField(colorTransformModeProp, new GUIContent("色変換モード"));
+
+                ColorTransformMode transformMode = (ColorTransformMode)colorTransformModeProp.enumValueIndex;
+                switch (transformMode)
+                {
+                    case ColorTransformMode.Gradient:
+                        EditorGUILayout.PropertyField(gradientCurveProp, new GUIContent("グラデーション"));
+
+                        // テクスチャ色ピッカー（Gradient用）
+                        DrawGradientTextureColorPicker();
+
+                        if (showHelp)
+                        {
+                            EditorGUILayout.HelpBox(
+                                "グラデーションモード\n" +
+                                "元のテクスチャの明暗に対して設定したグラデーションに従って色を設定します。\n" +
+                                "グラデーションの左端の色が一番暗かった色に，右端の色が一番明るかった色になります。\n" +
+                                "明暗の差を出したいときに有効です。",
+                                MessageType.Info
+                            );
+                        }
+                        break;
+
+                    case ColorTransformMode.HueShift:
+                        EditorGUILayout.Space(5);
+                        EditorGUILayout.PropertyField(targetColorProp, new GUIContent("この色に変更"));
+
+                        // テクスチャ色ピッカー
+                        DrawTextureColorPicker();
+
+                        EditorGUILayout.Space(5);
+                        EditorGUILayout.PropertyField(saturationPreserveProp, new GUIContent("元の彩度を保持"));
+                        
+                        EditorGUILayout.BeginHorizontal();
+                        EditorGUILayout.PropertyField(valuePreserveProp, new GUIContent("元の明るさを保持"));
+                        if (GUILayout.Button("自動調整", GUILayout.Width(70)))
+                        {
+                            var component = (ChimeraHairMaster)target;
+                            Undo.RecordObject(component, "Auto Adjust Value Preserve");
+                            component.UpdateValuePreserveFromTargetColor();
+                            serializedObject.Update();
+                        }
+                        EditorGUILayout.EndHorizontal();
+                        
+                        EditorGUILayout.PropertyField(brightnessUnifyModeProp, new GUIContent("全体の明るさを合わせる(高負荷)"));
+                        
+                        if (showHelp)
+                        {
+                            EditorGUILayout.HelpBox(
+                                "色指定モード（デフォルト）\n" +
+                                "全体を指定した色に変更します。\n" +
+                                "元の髪の明暗の差が小さいときに有効です。",
+                                MessageType.Info
+                            );
+                        }
+                        break;
+                }
+
+                // 個別の明るさの調整（色合わせが有効な場合のみ表示）
+                EditorGUILayout.Space(10);
+                DrawBrightnessAdjustmentUI();
+
+                EditorGUI.indentLevel--;
+            }
+        }
+
+        /// <summary>
+        /// 個別の明るさの調整UI
+        /// </summary>
+        private void DrawBrightnessAdjustmentUI()
+        {
+            var component = (ChimeraHairMaster)target;
+            if (component.targetRenderers == null || component.targetRenderers.Count == 0)
+                return;
+
+            showBrightnessAdjustment = EditorGUILayout.Foldout(showBrightnessAdjustment, "個別の明るさの調整", true);
+
+            if (!showBrightnessAdjustment) return;
+
+            EditorGUI.indentLevel++;
+
+            // rendererBrightnessAdjustments リストを targetRenderers に同期
+            SyncBrightnessAdjustments(component);
+
+            // 各Rendererに対してスライダーを表示
+            for (int i = 0; i < component.targetRenderers.Count; i++)
+            {
+                var renderer = component.targetRenderers[i];
+                if (renderer == null) continue;
+
+                // 対応する調整値を取得
+                float currentOffset = 0f;
+                int adjustmentIndex = -1;
+                for (int j = 0; j < component.rendererBrightnessAdjustments.Count; j++)
+                {
+                    if (component.rendererBrightnessAdjustments[j].rendererIndex == i)
+                    {
+                        currentOffset = component.rendererBrightnessAdjustments[j].brightnessOffset;
+                        adjustmentIndex = j;
+                        break;
+                    }
+                }
+
+                // スライダー表示
+                EditorGUILayout.BeginHorizontal();
+
+                // Renderer名（短縮表示）
+                string displayName = renderer.name;
+                if (displayName.Length > 15) displayName = displayName.Substring(0, 15) + "...";
+
+                if (GUILayout.Button(displayName, EditorStyles.label, GUILayout.Width(120)))
+                {
+                    HighlightRenderer(renderer);
+                }
+
+                // 明度オフセットスライダー
+                EditorGUI.BeginChangeCheck();
+                float newOffset = EditorGUILayout.Slider(currentOffset, -1f, 1f);
+                if (EditorGUI.EndChangeCheck())
+                {
+                    Undo.RecordObject(component, "Adjust Renderer Brightness");
+
+                    if (adjustmentIndex >= 0)
+                    {
+                        component.rendererBrightnessAdjustments[adjustmentIndex].brightnessOffset = newOffset;
+                    }
+                    else
+                    {
+                        // 新しいエントリを追加
+                        component.rendererBrightnessAdjustments.Add(new RendererBrightnessAdjustment(i) { brightnessOffset = newOffset });
+                    }
+
+                    EditorUtility.SetDirty(component);
+                }
+
+                // リセットボタン
+                if (GUILayout.Button("リセット", GUILayout.Width(50)))
+                {
+                    Undo.RecordObject(component, "Reset Renderer Brightness");
+                    if (adjustmentIndex >= 0)
+                    {
+                        component.rendererBrightnessAdjustments[adjustmentIndex].brightnessOffset = 0f;
+                    }
+                    EditorUtility.SetDirty(component);
+                }
+
+                EditorGUILayout.EndHorizontal();
+            }
+
+            if (showHelp)
+            {
+                EditorGUILayout.HelpBox(
+                    "各Rendererの明るさを個別に調整できます。\n" +
+                    "正の値で明るく、負の値で暗くなります。\n" +
+                    "「リセット」ボタンでリセット（0に戻す）",
+                    MessageType.Info
+                );
+            }
+
+            EditorGUI.indentLevel--;
+        }
+
+        /// <summary>
+        /// rendererBrightnessAdjustments を targetRenderers と同期
+        /// </summary>
+        private void SyncBrightnessAdjustments(ChimeraHairMaster component)
+        {
+            // 不要なエントリを削除（存在しないrendererIndexを参照しているもの）
+            for (int i = component.rendererBrightnessAdjustments.Count - 1; i >= 0; i--)
+            {
+                int rendererIndex = component.rendererBrightnessAdjustments[i].rendererIndex;
+                if (rendererIndex < 0 || rendererIndex >= component.targetRenderers.Count)
+                {
+                    component.rendererBrightnessAdjustments.RemoveAt(i);
+                }
+            }
+        }
+
+        // ----------------------- Highlight helpers -----------------------
+        private static void HighlightRenderer(SkinnedMeshRenderer renderer, double duration = HIGHLIGHT_DURATION)
+        {
+            if (renderer == null) return;
+            highlightRenderer = renderer;
+            highlightExpiry = EditorApplication.timeSinceStartup + duration;
+
+            // Mimic Hierarchy single-click: ping only (no selection to avoid Inspector switch)
+            EditorGUIUtility.PingObject(renderer.gameObject);
+
+            SceneView.RepaintAll();
+        }
+
+        private static void OnSceneGUI(SceneView sv)
+        {
+            if (highlightRenderer == null) return;
+            if (EditorApplication.timeSinceStartup > highlightExpiry)
+            {
+                highlightRenderer = null;
+                SceneView.RepaintAll();
+                return;
+            }
+
+            var bounds = highlightRenderer.bounds;
+
+            Handles.zTest = UnityEngine.Rendering.CompareFunction.LessEqual;
+            Color prev = Handles.color;
+            Handles.color = new Color(0f, 0.7f, 1f, 0.95f);
+
+            var corners = GetBoundsCorners(bounds);
+            DrawBoundsWire(corners);
+
+            Handles.color = prev;
+        }
+
+        private static Vector3[] GetBoundsCorners(Bounds b)
+        {
+            var c = b.center;
+            var e = b.extents;
+            return new Vector3[]
+            {
+                c + new Vector3(-e.x, -e.y, -e.z),
+                c + new Vector3(e.x, -e.y, -e.z),
+                c + new Vector3(e.x, -e.y, e.z),
+                c + new Vector3(-e.x, -e.y, e.z),
+                c + new Vector3(-e.x, e.y, -e.z),
+                c + new Vector3(e.x, e.y, -e.z),
+                c + new Vector3(e.x, e.y, e.z),
+                c + new Vector3(-e.x, e.y, e.z)
+            };
+        }
+
+        private static void DrawBoundsWire(Vector3[] c)
+        {
+            if (c == null || c.Length < 8) return;
+            // bottom
+            Handles.DrawAAPolyLine(4f, c[0], c[1], c[2], c[3], c[0]);
+            // top
+            Handles.DrawAAPolyLine(4f, c[4], c[5], c[6], c[7], c[4]);
+            // vertical edges
+            for (int i = 0; i < 4; i++)
+            {
+                Handles.DrawAAPolyLine(4f, c[i], c[i + 4]);
+            }
+        }
+
+        /// <summary>
+        /// テクスチャから色を選択するUI
+        /// </summary>
+        private void DrawTextureColorPicker()
+        {
+            var component = (ChimeraHairMaster)target;
+            if (component.targetRenderers == null || component.targetRenderers.Count == 0)
+                return;
+
+            EditorGUILayout.Space(5);
+            showTextureColorPicker = EditorGUILayout.Foldout(showTextureColorPicker, "テクスチャから色を選択", true);
+
+            if (!showTextureColorPicker) return;
+
+            EditorGUI.indentLevel++;
+
+            // Renderer選択ボタン
+            EditorGUILayout.BeginHorizontal();
+            for (int i = 0; i < component.targetRenderers.Count; i++)
+            {
+                var renderer = component.targetRenderers[i];
+                if (renderer == null) continue;
+
+                string name = renderer.name;
+                if (name.Length > 10) name = name.Substring(0, 10) + "...";
+
+                bool isSelected = (i == selectedColorPickerRendererIndex);
+                GUI.backgroundColor = isSelected ? Color.cyan : Color.white;
+
+                if (GUILayout.Button(name, GUILayout.MaxWidth(80)))
+                {
+                    selectedColorPickerRendererIndex = i;
+                    cachedTexturePreview = null;
+                    extractedColors = null;
+                }
+            }
+            GUI.backgroundColor = Color.white;
+            EditorGUILayout.EndHorizontal();
+
+            // 選択中のRendererからテクスチャを取得
+            if (selectedColorPickerRendererIndex >= 0 && selectedColorPickerRendererIndex < component.targetRenderers.Count)
+            {
+                var selectedRenderer = component.targetRenderers[selectedColorPickerRendererIndex];
+                if (selectedRenderer != null)
+                {
+                    // テクスチャプレビューをキャッシュ
+                    if (cachedTexturePreview == null || cachedTextureRenderer != selectedRenderer)
+                    {
+                        cachedTextureRenderer = selectedRenderer;
+                        var materials = selectedRenderer.sharedMaterials;
+                        foreach (var mat in materials)
+                        {
+                            if (mat != null && mat.HasProperty("_MainTex"))
+                            {
+                                cachedTexturePreview = mat.GetTexture("_MainTex") as Texture2D;
+                                if (cachedTexturePreview != null)
+                                {
+                                    extractedColors = Processing.ColorProcessor.ExtractDominantColors(cachedTexturePreview, 5);
+                                    break;
+                                }
+                            }
+                        }
+                    }
+
+                    // テクスチャプレビュー表示
+                    if (cachedTexturePreview != null)
+                    {
+                        EditorGUILayout.Space(5);
+
+                        // プレビュー領域
+                        float previewSize = EditorGUIUtility.currentViewWidth - 60;
+                        previewSize = Mathf.Min(previewSize, 200);
+
+                        Rect previewRect = GUILayoutUtility.GetRect(previewSize, previewSize);
+                        previewRect.x += 15; // インデント調整
+                        previewRect.width = previewSize;
+                        previewRect.height = previewSize;
+
+                        // テクスチャを描画
+                        GUI.DrawTexture(previewRect, cachedTexturePreview, ScaleMode.ScaleToFit);
+
+                        // クリック検出
+                        Event e = Event.current;
+                        if (e.type == EventType.MouseDown && previewRect.Contains(e.mousePosition))
+                        {
+                            // クリック位置からテクスチャ座標を計算
+                            float aspectRatio = (float)cachedTexturePreview.width / cachedTexturePreview.height;
+                            Rect actualRect;
+
+                            if (aspectRatio > 1)
+                            {
+                                float h = previewRect.width / aspectRatio;
+                                actualRect = new Rect(previewRect.x, previewRect.y + (previewRect.height - h) / 2, previewRect.width, h);
+                            }
+                            else
+                            {
+                                float w = previewRect.height * aspectRatio;
+                                actualRect = new Rect(previewRect.x + (previewRect.width - w) / 2, previewRect.y, w, previewRect.height);
+                            }
+
+                            if (actualRect.Contains(e.mousePosition))
+                            {
+                                float u = (e.mousePosition.x - actualRect.x) / actualRect.width;
+                                float v = 1f - (e.mousePosition.y - actualRect.y) / actualRect.height;
+
+                                // 読み取り可能なテクスチャを取得
+                                var readableTex = Processing.ColorProcessor.GetReadableTexture(cachedTexturePreview);
+                                int px = Mathf.FloorToInt(u * readableTex.width);
+                                int py = Mathf.FloorToInt(v * readableTex.height);
+                                px = Mathf.Clamp(px, 0, readableTex.width - 1);
+                                py = Mathf.Clamp(py, 0, readableTex.height - 1);
+
+                                Color pickedColor = readableTex.GetPixel(px, py);
+
+                                if (readableTex != cachedTexturePreview)
+                                {
+                                    Object.DestroyImmediate(readableTex);
+                                }
+
+                                // ターゲット色に設定
+                                targetColorProp.colorValue = pickedColor;
+                                serializedObject.ApplyModifiedProperties();
+                                
+                                // プレビューを強制更新
+                                EditorUtility.SetDirty(component);
+                                UnityEditor.SceneView.RepaintAll();
+                                
+                                e.Use();
+                            }
+                        }
+
+                        EditorGUILayout.HelpBox("クリックで色を取得", MessageType.None);
+
+                        // 代表色パレット
+                        if (extractedColors != null && extractedColors.Length > 0)
+                        {
+                            EditorGUILayout.Space(5);
+                            EditorGUILayout.LabelField("候補色:");
+                            EditorGUILayout.BeginHorizontal();
+
+                            foreach (var color in extractedColors)
+                            {
+                                Rect colorRect = GUILayoutUtility.GetRect(30, 30);
+                                EditorGUI.DrawRect(colorRect, color);
+
+                                // 枠線
+                                Handles.color = Color.black;
+                                Handles.DrawLine(new Vector3(colorRect.x, colorRect.y), new Vector3(colorRect.xMax, colorRect.y));
+                                Handles.DrawLine(new Vector3(colorRect.xMax, colorRect.y), new Vector3(colorRect.xMax, colorRect.yMax));
+                                Handles.DrawLine(new Vector3(colorRect.xMax, colorRect.yMax), new Vector3(colorRect.x, colorRect.yMax));
+                                Handles.DrawLine(new Vector3(colorRect.x, colorRect.yMax), new Vector3(colorRect.x, colorRect.y));
+
+                                // クリック検出
+                                if (Event.current.type == EventType.MouseDown && colorRect.Contains(Event.current.mousePosition))
+                                {
+                                    targetColorProp.colorValue = color;
+                                    serializedObject.ApplyModifiedProperties();
+                                    
+                                    // プレビューを強制更新
+                                    EditorUtility.SetDirty(component);
+                                    UnityEditor.SceneView.RepaintAll();
+                                    
+                                    Event.current.Use();
+                                }
+                            }
+
+                            EditorGUILayout.EndHorizontal();
+                        }
+                    }
+                    else
+                    {
+                        EditorGUILayout.HelpBox("テクスチャが見つかりません", MessageType.Warning);
+                    }
+                }
+            }
+
+            EditorGUI.indentLevel--;
+        }
+
+        /// <summary>
+        /// Gradient用：テクスチャから色を選択するUI
+        /// </summary>
+        private void DrawGradientTextureColorPicker()
+        {
+            var component = (ChimeraHairMaster)target;
+            if (component.targetRenderers == null || component.targetRenderers.Count == 0)
+                return;
+
+            EditorGUILayout.Space(5);
+            showGradientTextureColorPicker = EditorGUILayout.Foldout(showGradientTextureColorPicker, "テクスチャから色を追加", true);
+
+            if (!showGradientTextureColorPicker) return;
+
+            EditorGUI.indentLevel++;
+
+            // Renderer選択ボタン
+            EditorGUILayout.BeginHorizontal();
+            for (int i = 0; i < component.targetRenderers.Count; i++)
+            {
+                var renderer = component.targetRenderers[i];
+                if (renderer == null) continue;
+
+                string name = renderer.name;
+                if (name.Length > 10) name = name.Substring(0, 10) + "...";
+
+                bool isSelected = (i == selectedGradientColorPickerRendererIndex);
+                GUI.backgroundColor = isSelected ? Color.cyan : Color.white;
+
+                if (GUILayout.Button(name, GUILayout.MaxWidth(80)))
+                {
+                    selectedGradientColorPickerRendererIndex = i;
+                    cachedGradientTexturePreview = null;
+                    extractedGradientColors = null;
+                }
+            }
+            GUI.backgroundColor = Color.white;
+            EditorGUILayout.EndHorizontal();
+
+            // 選択中のRendererからテクスチャを取得
+            if (selectedGradientColorPickerRendererIndex >= 0 && selectedGradientColorPickerRendererIndex < component.targetRenderers.Count)
+            {
+                var selectedRenderer = component.targetRenderers[selectedGradientColorPickerRendererIndex];
+                if (selectedRenderer != null)
+                {
+                    // テクスチャプレビューをキャッシュ
+                    if (cachedGradientTexturePreview == null || cachedGradientTextureRenderer != selectedRenderer)
+                    {
+                        cachedGradientTextureRenderer = selectedRenderer;
+                        var materials = selectedRenderer.sharedMaterials;
+                        foreach (var mat in materials)
+                        {
+                            if (mat != null && mat.HasProperty("_MainTex"))
+                            {
+                                cachedGradientTexturePreview = mat.GetTexture("_MainTex") as Texture2D;
+                                if (cachedGradientTexturePreview != null)
+                                {
+                                    extractedGradientColors = Processing.ColorProcessor.ExtractDominantColors(cachedGradientTexturePreview, 5);
+                                    break;
+                                }
+                            }
+                        }
+                    }
+
+                    // テクスチャプレビュー表示
+                    if (cachedGradientTexturePreview != null)
+                    {
+                        EditorGUILayout.Space(5);
+
+                        // キー位置スライダー
+                        EditorGUILayout.BeginHorizontal();
+                        EditorGUILayout.LabelField("暗い色", GUILayout.Width(80));
+                        gradientColorKeyPosition = EditorGUILayout.Slider(gradientColorKeyPosition, 0f, 1f);
+                        EditorGUILayout.LabelField("明るい色", GUILayout.Width(80));
+                        EditorGUILayout.EndHorizontal();
+
+                        EditorGUILayout.Space(5);
+
+                        // プレビュー領域
+                        float previewSize = EditorGUIUtility.currentViewWidth - 60;
+                        previewSize = Mathf.Min(previewSize, 200);
+
+                        Rect previewRect = GUILayoutUtility.GetRect(previewSize, previewSize);
+                        previewRect.x += 15; // インデント調整
+                        previewRect.width = previewSize;
+                        previewRect.height = previewSize;
+
+                        // テクスチャを描画
+                        GUI.DrawTexture(previewRect, cachedGradientTexturePreview, ScaleMode.ScaleToFit);
+
+                        // クリック検出
+                        Event e = Event.current;
+                        if (e.type == EventType.MouseDown && previewRect.Contains(e.mousePosition))
+                        {
+                            // クリック位置からテクスチャ座標を計算
+                            float aspectRatio = (float)cachedGradientTexturePreview.width / cachedGradientTexturePreview.height;
+                            Rect actualRect;
+
+                            if (aspectRatio > 1)
+                            {
+                                float h = previewRect.width / aspectRatio;
+                                actualRect = new Rect(previewRect.x, previewRect.y + (previewRect.height - h) / 2, previewRect.width, h);
+                            }
+                            else
+                            {
+                                float w = previewRect.height * aspectRatio;
+                                actualRect = new Rect(previewRect.x + (previewRect.width - w) / 2, previewRect.y, w, previewRect.height);
+                            }
+
+                            if (actualRect.Contains(e.mousePosition))
+                            {
+                                float u = (e.mousePosition.x - actualRect.x) / actualRect.width;
+                                float v = 1f - (e.mousePosition.y - actualRect.y) / actualRect.height;
+
+                                // 読み取り可能なテクスチャを取得
+                                var readableTex = Processing.ColorProcessor.GetReadableTexture(cachedGradientTexturePreview);
+                                int px = Mathf.FloorToInt(u * readableTex.width);
+                                int py = Mathf.FloorToInt(v * readableTex.height);
+                                px = Mathf.Clamp(px, 0, readableTex.width - 1);
+                                py = Mathf.Clamp(py, 0, readableTex.height - 1);
+
+                                Color pickedColor = readableTex.GetPixel(px, py);
+
+                                if (readableTex != cachedGradientTexturePreview)
+                                {
+                                    Object.DestroyImmediate(readableTex);
+                                }
+
+                                // Gradientにキーを追加
+                                AddColorKeyToGradient(component.gradientCurve, pickedColor, gradientColorKeyPosition);
+                                gradientCurveProp.gradientValue = component.gradientCurve;
+                                
+                                // プレビューを強制更新（ハッシュをリセットして次のUpdateで更新をトリガー）
+                                component.previewMaterialHash = 0;
+                                EditorUtility.SetDirty(component);
+                                serializedObject.ApplyModifiedProperties();
+                                UnityEditor.SceneView.RepaintAll();
+                                Repaint();
+                                
+                                e.Use();
+                            }
+                        }
+
+                        EditorGUILayout.HelpBox("クリックで色をグラデーションに追加\n端の色は少し極端な色の方が調整が上手くいくことが多いです。", MessageType.None);
+
+                        // 代表色パレット
+                        if (extractedGradientColors != null && extractedGradientColors.Length > 0)
+                        {
+                            EditorGUILayout.Space(5);
+                            EditorGUILayout.LabelField("候補色:");
+                            EditorGUILayout.BeginHorizontal();
+
+                            foreach (var color in extractedGradientColors)
+                            {
+                                Rect colorRect = GUILayoutUtility.GetRect(30, 30);
+                                EditorGUI.DrawRect(colorRect, color);
+
+                                // 枠線
+                                Handles.color = Color.black;
+                                Handles.DrawLine(new Vector3(colorRect.x, colorRect.y), new Vector3(colorRect.xMax, colorRect.y));
+                                Handles.DrawLine(new Vector3(colorRect.xMax, colorRect.y), new Vector3(colorRect.xMax, colorRect.yMax));
+                                Handles.DrawLine(new Vector3(colorRect.xMax, colorRect.yMax), new Vector3(colorRect.x, colorRect.yMax));
+                                Handles.DrawLine(new Vector3(colorRect.x, colorRect.yMax), new Vector3(colorRect.x, colorRect.y));
+
+                                // クリック検出
+                                if (Event.current.type == EventType.MouseDown && colorRect.Contains(Event.current.mousePosition))
+                                {
+                                    AddColorKeyToGradient(component.gradientCurve, color, gradientColorKeyPosition);
+                                    gradientCurveProp.gradientValue = component.gradientCurve;
+                                    
+                                    // プレビューを強制更新（ハッシュをリセットして次のUpdateで更新をトリガー）
+                                    component.previewMaterialHash = 0;
+                                    EditorUtility.SetDirty(component);
+                                    serializedObject.ApplyModifiedProperties();
+                                    UnityEditor.SceneView.RepaintAll();
+                                    Repaint();
+                                    
+                                    Event.current.Use();
+                                }
+                            }
+
+                            EditorGUILayout.EndHorizontal();
+                        }
+                    }
+                    else
+                    {
+                        EditorGUILayout.HelpBox("テクスチャが見つかりません", MessageType.Warning);
+                    }
+                }
+            }
+
+            EditorGUI.indentLevel--;
+        }
+
+        /// <summary>
+        /// Gradientにカラーキーを追加
+        /// </summary>
+        private void AddColorKeyToGradient(Gradient gradient, Color color, float position)
+        {
+            var colorKeys = new System.Collections.Generic.List<GradientColorKey>(gradient.colorKeys);
+            var alphaKeys = new System.Collections.Generic.List<GradientAlphaKey>(gradient.alphaKeys);
+
+            // 同じ位置にキーがあれば置き換え、なければ追加
+            bool found = false;
+            for (int i = 0; i < colorKeys.Count; i++)
+            {
+                if (Mathf.Abs(colorKeys[i].time - position) < 0.01f)
+                {
+                    colorKeys[i] = new GradientColorKey(color, position);
+                    found = true;
+                    break;
+                }
+            }
+
+            if (!found)
+            {
+                // 最大8キーまで
+                if (colorKeys.Count < 8)
+                {
+                    colorKeys.Add(new GradientColorKey(color, position));
+                }
+                else
+                {
+                    // 最も近い位置のキーを置き換え
+                    float minDist = float.MaxValue;
+                    int minIndex = 0;
+                    for (int i = 0; i < colorKeys.Count; i++)
+                    {
+                        float dist = Mathf.Abs(colorKeys[i].time - position);
+                        if (dist < minDist)
+                        {
+                            minDist = dist;
+                            minIndex = i;
+                        }
+                    }
+                    colorKeys[minIndex] = new GradientColorKey(color, position);
+                }
+            }
+
+            // 時間順にソート
+            colorKeys.Sort((a, b) => a.time.CompareTo(b.time));
+
+            gradient.SetKeys(colorKeys.ToArray(), alphaKeys.ToArray());
+        }
+
+        private Material lastBaseMaterial;
+        
+        /// <summary>
+        /// マテリアル設定（lilToon Inspector埋め込み）を描画
+        /// </summary>
+        private void DrawMaterialEditorSection()
+        {
+            var component = target as ChimeraHairMaster;
+            
+            // previewMaterialがないがbaseMaterialがある場合、自動生成を促す
+            if (previewMaterialProp.objectReferenceValue == null && baseMaterialProp.objectReferenceValue != null)
+            {
+                EditorGUILayout.HelpBox(
+                    "プレビューを開始すると、マテリアル設定が表示されます。",
+                    MessageType.Info
+                );
+                
+                // 手動生成ボタン
+                if (GUILayout.Button("プレビュー用マテリアルを生成", GUILayout.Height(25)))
+                {
+                    CreatePreviewMaterial();
+                    serializedObject.Update();
+                    Repaint();
+                }
+            }
+            // previewMaterialがある場合はマテリアルインスペクターを埋め込み表示
+            else if (previewMaterialProp.objectReferenceValue != null)
+            {
+                EditorGUILayout.LabelField("マテリアル設定", EditorStyles.boldLabel);
+                DrawEmbeddedMaterialEditor();
+            }
+            else if (baseMaterialProp.objectReferenceValue == null)
+            {
+                EditorGUILayout.HelpBox(
+                    "基準マテリアルを設定すると、マテリアル設定が表示されます。",
+                    MessageType.Info
+                );
+            }
+        }
+
+        private void DrawMeshSettings()
+        {
+            EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+            showMeshSettings = EditorGUILayout.Foldout(showMeshSettings, "メッシュ設定", true);
+            if (showMeshSettings)
+            {
+                EditorGUI.indentLevel++;
+
+                if (showHelp)
+                {
+                    EditorGUILayout.HelpBox(
+                        "統合後のメッシュのProbe AnchorとBoundsを設定できます。\n" +
+                        "Boundsが適切でないと、カメラの角度によってメッシュが消える場合があります。",
+                        MessageType.Info
+                    );
+                }
+
+                EditorGUILayout.Space(5);
+                
+                // Probe Anchor設定
+                EditorGUILayout.LabelField("Probe Anchor（ライティング基準点）", EditorStyles.boldLabel);
+                EditorGUILayout.PropertyField(inheritProbeAnchorProp, new GUIContent("設定モード"));
+                
+                var inheritProbeAnchorMode = (MeshSettingsInheritMode)inheritProbeAnchorProp.enumValueIndex;
+                if (inheritProbeAnchorMode == MeshSettingsInheritMode.Set || 
+                    inheritProbeAnchorMode == MeshSettingsInheritMode.SetOrInherit)
+                {
+                    EditorGUILayout.PropertyField(probeAnchorProp, new GUIContent("Probe Anchor"));
+                    if (showHelp)
+                    {
+                        EditorGUILayout.HelpBox(
+                            "統合メッシュがライティングを計算する際の基準点です。\n" +
+                            "通常はHeadボーンなどを指定します。",
+                            MessageType.None
+                        );
+                    }
+                }
+
+                EditorGUILayout.Space(10);
+
+                // Bounds設定
+                EditorGUILayout.LabelField("Bounds（バウンディングボックス）", EditorStyles.boldLabel);
+                EditorGUILayout.PropertyField(inheritBoundsProp, new GUIContent("設定モード"));
+                
+                var inheritBoundsMode = (MeshSettingsInheritMode)inheritBoundsProp.enumValueIndex;
+                if (inheritBoundsMode == MeshSettingsInheritMode.Set || 
+                    inheritBoundsMode == MeshSettingsInheritMode.SetOrInherit)
+                {
+                    EditorGUILayout.PropertyField(rootBoneProp, new GUIContent("Root Bone"));
+                    EditorGUILayout.PropertyField(boundsProp, new GUIContent("Bounds"));
+                    if (showHelp)
+                    {
+                        EditorGUILayout.HelpBox(
+                            "統合メッシュの描画範囲です。Root Boneからの相対座標で指定します。\n" +
+                            "デフォルト（Center: 0,0,0 Size: 2,2,2）で問題ない場合が多いですが、\n" +
+                            "メッシュが消える場合はSizeを大きくしてください。",
+                            MessageType.None
+                        );
+                    }
+
+                    // Bounds可視化用のGizmo描画ボタン
+                    var component = target as ChimeraHairMaster;
+                    if (component != null && component.rootBone != null)
+                    {
+                        EditorGUILayout.Space(5);
+                        if (GUILayout.Button("Boundsをシーンビューで確認"))
+                        {
+                            Selection.activeGameObject = component.gameObject;
+                            UnityEditor.SceneView.lastActiveSceneView.FrameSelected();
+                        }
+                    }
+                }
+
+                EditorGUI.indentLevel--;
+            }
+            EditorGUILayout.EndVertical();
+        }
+
+        private void DrawActionButtons()
+        {
+            var component = target as ChimeraHairMaster;
+            if (component == null) return;
+
+            EditorGUILayout.Space(5);
+
+            // 色合わせ適用セクション（メッシュ統合無効 & 色合わせ有効の場合のみ）
+            if (!component.enableMeshMerge && component.enableColorTransform)
+            {
+                DrawColorApplySection(component);
+                EditorGUILayout.Space(5);
+            }
+
+            // プレビュートグルボタン
+            EditorGUILayout.BeginHorizontal();
+
+            bool canPreview = CanGeneratePreview(component);
+            GUI.enabled = canPreview;
+
+            string previewButtonText = component.previewEnabled ? "プレビュー停止" : "プレビュー開始";
+            GUIStyle previewButtonStyle = component.previewEnabled ? 
+                new GUIStyle(GUI.skin.button) { normal = { textColor = Color.green } } : 
+                GUI.skin.button;
+
+            if (GUILayout.Button(previewButtonText, previewButtonStyle, GUILayout.Height(25)))
+            {
+                // プレビュー開始時にpreviewMaterialがなければ生成
+                if (!component.previewEnabled && component.previewMaterial == null && component.baseMaterial != null)
+                {
+                    CreatePreviewMaterial();
+                    serializedObject.Update();
+                }
+
+                component.previewEnabled = !component.previewEnabled;
+                EditorUtility.SetDirty(component);
+            }
+
+            GUI.enabled = true;
+
+            if (component.enableMeshMerge)
+            {
+                if (GUILayout.Button("マスクを編集する", GUILayout.Height(25)))
+                {
+                    MaskToolLauncher.OpenMaskTool(component, "_Main2ndBlendMask");
+                }
+            }
+
+            EditorGUILayout.EndHorizontal();
+
+            // プレビュー状態の表示
+            if (component.previewEnabled)
+            {
+                if (component.enableMeshMerge)
+                {
+                    EditorGUILayout.PropertyField(previewResolutionProp, new GUIContent("プレビュー解像度"));
+                }
+                if (!component.enableMeshMerge)
+                {
+                    EditorGUILayout.HelpBox(
+                        "プレビューが有効です。Scene上で見えを確認できます。\n" +
+                        "メインカラー2nd,3rd，発光設定の変更は元のマテリアルから操作してください。\n" +
+                        "それぞれのマテリアルの設定はプレビューマテリアルの数値(テクスチャを除く)に統一されます。",
+                        MessageType.Info
+                    );
+                    EditorGUILayout.PropertyField(unifyMatCapProp, new GUIContent("マットキャップを統一",
+                        "有効にすると、プレビューマテリアルのMatCap設定（1st/2nd）で統一されます。\n無効の場合、各Rendererの元マテリアルのMatCap設定をそのまま保持します。"));
+                }
+                else
+                {
+                    EditorGUILayout.HelpBox(
+                        "プレビューが有効です。Scene上で結果を確認できます。\n動作が重いときは停止してください。\nプレビューではノーマルマップ，AOマップが適用されていません。実際の見え方はGestureManager等で確認してください。",
+                        MessageType.Info
+                    );
+                }
+            }
+            else if (!canPreview)
+            {
+                EditorGUILayout.HelpBox(
+                    "プレビューを有効にするには、対象Rendererと基準マテリアルを設定してください。",
+                    MessageType.Info
+                );
+            }
+        }
+
+        /// <summary>
+        /// 色合わせ適用セクションを描画
+        /// </summary>
+        private void DrawColorApplySection(ChimeraHairMaster component)
+        {
+            EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+
+            EditorGUILayout.LabelField("色合わせの適用", EditorStyles.boldLabel);
+
+            // チェックボックス
+            bool applyTexture = EditorPrefs.GetBool(PREF_APPLY_TEXTURE, true);
+            bool unifySettings = EditorPrefs.GetBool(PREF_UNIFY_SETTINGS, true);
+
+            EditorGUI.BeginChangeCheck();
+            applyTexture = EditorGUILayout.ToggleLeft("テクスチャをマテリアルに適用", applyTexture);
+            unifySettings = EditorGUILayout.ToggleLeft("マテリアル設定を統一", unifySettings);
+            if (EditorGUI.EndChangeCheck())
+            {
+                EditorPrefs.SetBool(PREF_APPLY_TEXTURE, applyTexture);
+                EditorPrefs.SetBool(PREF_UNIFY_SETTINGS, unifySettings);
+            }
+
+            if (showHelp)
+            {
+                EditorGUILayout.HelpBox(
+                    "色合わせしたテクスチャをPNGとして出力します。\n" +
+                    "「テクスチャをマテリアルに適用」: 生成テクスチャを元マテリアルの_MainTexにセットします。\n" +
+                    "「マテリアル設定を統一」: プレビューマテリアルの数値設定を元マテリアルに上書きします。\n" +
+                    "適用後、コンポーネントは自動的に無効化されます。",
+                    MessageType.Info
+                );
+            }
+
+            // 適用ボタン
+            bool canApply = CanGeneratePreview(component);
+            GUI.enabled = canApply;
+
+            if (GUILayout.Button("色合わせを適用", GUILayout.Height(28)))
+            {
+                Processing.ColorApplier.Apply(component, applyTexture, unifySettings);
+                serializedObject.Update();
+            }
+
+            GUI.enabled = true;
+
+            if (!canApply)
+            {
+                EditorGUILayout.HelpBox(
+                    "適用するには、対象Rendererと基準マテリアルを設定してください。",
+                    MessageType.Warning
+                );
+            }
+
+            EditorGUILayout.EndVertical();
+        }
+
+        private bool CanGeneratePreview(ChimeraHairMaster component)
+        {
+            if (component == null) return false;
+            if (component.targetRenderers == null || component.targetRenderers.Count == 0) return false;
+            if (component.baseMaterial == null) return false;
+            return true;
+        }
+
+        /// <summary>
+        /// 他のCHMコンポーネントと共有されているRendererがあれば警告メッセージを返す
+        /// </summary>
+        private static string GetSharedRendererWarning(ChimeraHairMaster component)
+        {
+            if (component == null || component.targetRenderers == null || component.targetRenderers.Count == 0)
+                return null;
+
+            var otherComponents = component.gameObject.scene
+                .GetRootGameObjects()
+                .SelectMany(go => go.GetComponentsInChildren<ChimeraHairMaster>(true))
+                .Where(c => c != component && c.isEnabled && c.targetRenderers != null);
+
+            var sharedNames = new List<string>();
+            foreach (var other in otherComponents)
+            {
+                foreach (var renderer in component.targetRenderers)
+                {
+                    if (renderer != null && other.targetRenderers.Contains(renderer))
+                    {
+                        string name = $"{renderer.name} ({other.gameObject.name})";
+                        if (!sharedNames.Contains(name))
+                            sharedNames.Add(name);
+                    }
+                }
+            }
+
+            if (sharedNames.Count == 0)
+                return null;
+
+            return "以下のRendererが他のChimera Hair Masterと重複しています。\n" +
+                   "ビルド時に競合が発生し、結果が不定になります。\n" +
+                   string.Join("\n", sharedNames.Select(n => $"  - {n}"));
+        }
+
+        /// <summary>
+        /// プレビュー用マテリアルのアセット保存先パスを生成
+        /// シーンのパスベースでフォルダを決定し、オブジェクト名ベースのファイル名を生成
+        /// </summary>
+        private static string GetPreviewMaterialAssetPath(ChimeraHairMaster component)
+        {
+            var scene = component.gameObject.scene;
+            string baseDir;
+            if (!string.IsNullOrEmpty(scene.path))
+            {
+                string sceneDir = Path.GetDirectoryName(scene.path);
+                string sceneName = Path.GetFileNameWithoutExtension(scene.path);
+                baseDir = $"{sceneDir}/{sceneName}_CHM_Generated";
+            }
+            else
+            {
+                baseDir = "Assets/CHM_Generated";
+            }
+
+            string safeName = SanitizeFileName(component.gameObject.name);
+            return $"{baseDir}/{safeName}_Preview.mat";
+        }
+
+        /// <summary>
+        /// パス中のディレクトリが存在しなければ作成
+        /// </summary>
+        private static void EnsureDirectoryExists(string assetPath)
+        {
+            string dir = Path.GetDirectoryName(assetPath);
+            if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
+            {
+                Directory.CreateDirectory(dir);
+                AssetDatabase.Refresh();
+            }
+        }
+
+        /// <summary>
+        /// ファイル名として使用できない文字を除去
+        /// </summary>
+        private static string SanitizeFileName(string name)
+        {
+            return Regex.Replace(name, @"[<>:""/\\|?*]", "_");
+        }
+
+        /// <summary>
+        /// プレビュー用マテリアルを生成
+        /// baseMaterialから数値パラメータとトグルのみをコピーし、テクスチャはMatCapのみコピー
+        /// </summary>
+        private void CreatePreviewMaterial()
+        {
+            var component = target as ChimeraHairMaster;
+            if (component == null) return;
+            if (component.baseMaterial == null) return;
+
+            // テクスチャなしで新規マテリアル作成
+            var previewMat = CreateMaterialWithoutTextures(component.baseMaterial);
+            previewMat.name = component.baseMaterial.name + "_CHM_Preview";
+
+            // MatCapテクスチャのみコピー
+            CopyMatCapTextures(component.baseMaterial, previewMat);
+
+            // メッシュ統合なしの場合、2nd/3rd/発光セクションを無効化
+            if (!component.enableMeshMerge)
+            {
+                StripOverlayAndEmission(previewMat);
+            }
+
+            // アセットとして保存（シェーダー再インポート耐性）
+            string path = GetPreviewMaterialAssetPath(component);
+            EnsureDirectoryExists(path);
+            path = AssetDatabase.GenerateUniqueAssetPath(path);
+
+            // 既存の previewMaterial がアセットなら削除
+            if (component.previewMaterial != null && AssetDatabase.Contains(component.previewMaterial))
+            {
+                string oldPath = AssetDatabase.GetAssetPath(component.previewMaterial);
+                AssetDatabase.DeleteAsset(oldPath);
+            }
+
+            AssetDatabase.CreateAsset(previewMat, path);
+
+            // コンポーネントに設定
+            Undo.RecordObject(component, "Create Preview Material");
+            component.previewMaterial = previewMat;
+            EditorUtility.SetDirty(component);
+
+            // SerializedObjectを更新
+            serializedObject.Update();
+        }
+
+        /// <summary>
+        /// テクスチャを除いて数値パラメータとトグルのみをコピーした新規マテリアルを作成
+        /// すべてのテクスチャスロットを明示的にnullに設定
+        /// </summary>
+        private static Material CreateMaterialWithoutTextures(Material source)
+        {
+            // 同じシェーダーで新規マテリアルを作成
+            var newMat = new Material(source.shader);
+            
+            // レンダーキューをコピー
+            newMat.renderQueue = source.renderQueue;
+            
+            // シェーダーキーワードをコピー
+            newMat.shaderKeywords = source.shaderKeywords;
+            
+            // プロパティをコピー（テクスチャ以外）
+            var shader = source.shader;
+            int propertyCount = shader.GetPropertyCount();
+            
+            for (int i = 0; i < propertyCount; i++)
+            {
+                var propertyType = shader.GetPropertyType(i);
+                var propertyName = shader.GetPropertyName(i);
+                
+                switch (propertyType)
+                {
+                    case UnityEngine.Rendering.ShaderPropertyType.Color:
+                        newMat.SetColor(propertyName, source.GetColor(propertyName));
+                        break;
+                    case UnityEngine.Rendering.ShaderPropertyType.Vector:
+                        newMat.SetVector(propertyName, source.GetVector(propertyName));
+                        break;
+                    case UnityEngine.Rendering.ShaderPropertyType.Float:
+                    case UnityEngine.Rendering.ShaderPropertyType.Range:
+                        newMat.SetFloat(propertyName, source.GetFloat(propertyName));
+                        break;
+                    case UnityEngine.Rendering.ShaderPropertyType.Int:
+                        newMat.SetInt(propertyName, source.GetInt(propertyName));
+                        break;
+                    // Textureは明示的にnullに設定
+                    case UnityEngine.Rendering.ShaderPropertyType.Texture:
+                        newMat.SetTexture(propertyName, null);
+                        // テクスチャのScale/Offsetはコピー
+                        newMat.SetTextureScale(propertyName, source.GetTextureScale(propertyName));
+                        newMat.SetTextureOffset(propertyName, source.GetTextureOffset(propertyName));
+                        break;
+                }
+            }
+            
+            return newMat;
+        }
+
+        /// <summary>
+        /// マットキャップテクスチャのみをコピー
+        /// </summary>
+        private static void CopyMatCapTextures(Material source, Material dest)
+        {
+            // マットキャップ1st
+            string[] matCap1stProps = new string[]
+            {
+                "_MatCapTex",
+                "_MatCapBlendMask",
+                "_MatCapBumpMap"
+            };
+
+            foreach (var prop in matCap1stProps)
+            {
+                if (source.HasProperty(prop) && dest.HasProperty(prop))
+                {
+                    var tex = source.GetTexture(prop);
+                    if (tex != null)
+                    {
+                        dest.SetTexture(prop, tex);
+                    }
+                }
+            }
+
+            // マットキャップ2nd
+            string[] matCap2ndProps = new string[]
+            {
+                "_MatCap2ndTex",
+                "_MatCap2ndBlendMask",
+                "_MatCap2ndBumpMap"
+            };
+
+            foreach (var prop in matCap2ndProps)
+            {
+                if (source.HasProperty(prop) && dest.HasProperty(prop))
+                {
+                    var tex = source.GetTexture(prop);
+                    if (tex != null)
+                    {
+                        dest.SetTexture(prop, tex);
+                    }
+                }
+            }
+        }
+        
+        /// <summary>
+        /// lilToonのメインカラー2nd/3rd・発光設定の使用トグルを0に設定
+        /// これによりlilToonのカスタムGUIがこれらのセクションを非表示にする
+        /// </summary>
+        private static void StripOverlayAndEmission(Material mat)
+        {
+            string[] toggleProps = new[]
+            {
+                "_UseMain2ndTex",
+                "_UseMain3rdTex",
+                "_UseEmission",
+                "_UseEmission2nd"
+            };
+
+            foreach (var prop in toggleProps)
+            {
+                if (mat.HasProperty(prop))
+                {
+                    mat.SetFloat(prop, 0f);
+                }
+            }
+        }
+
+        /// <summary>
+        /// マテリアルエディタをInspector内に埋め込み描画
+        /// </summary>
+        private void DrawEmbeddedMaterialEditor()
+        {
+            var component = target as ChimeraHairMaster;
+            if (component == null || component.previewMaterial == null) return;
+            
+            // マテリアルが変わったらエディタを再作成
+            if (cachedPreviewMaterial != component.previewMaterial)
+            {
+                CleanupMaterialEditor();
+                cachedPreviewMaterial = component.previewMaterial;
+            }
+            
+            // MaterialEditorを作成
+            if (materialEditor == null)
+            {
+                materialEditor = (MaterialEditor)UnityEditor.Editor.CreateEditor(
+                    component.previewMaterial, 
+                    typeof(MaterialEditor));
+            }
+            
+            if (materialEditor != null)
+            {
+                EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+                
+                // ヘッダー（プレビュー表示）
+                materialEditor.DrawHeader();
+                
+                // シェーダーのインスペクター（lilToonのカスタムGUI）
+                if (materialEditor.customShaderGUI != null)
+                {
+                    materialEditor.customShaderGUI.OnGUI(
+                        materialEditor, 
+                        MaterialEditor.GetMaterialProperties(new Object[] { component.previewMaterial }));
+                }
+                else
+                {
+                    // カスタムGUIがない場合はデフォルトのインスペクター
+                    materialEditor.OnInspectorGUI();
+                }
+                
+                EditorGUILayout.EndVertical();
+            }
+        }
+
+        /// <summary>
+        /// Boundsをシーンビューに描画
+        /// </summary>
+        [DrawGizmo(GizmoType.Selected)]
+        private static void DrawBoundsGizmo(ChimeraHairMaster component, GizmoType gizmoType)
+        {
+            if (component == null || component.rootBone == null) return;
+
+            Matrix4x4 oldMatrix = Gizmos.matrix;
+
+            try
+            {
+                Gizmos.matrix = component.rootBone.localToWorldMatrix;
+                Gizmos.color = new Color(0, 1, 1, 0.3f);
+                Gizmos.DrawWireCube(component.bounds.center, component.bounds.size);
+            }
+            finally
+            {
+                Gizmos.matrix = oldMatrix;
+            }
+        }
+    }
+}
