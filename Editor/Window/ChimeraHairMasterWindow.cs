@@ -2617,11 +2617,58 @@ namespace ChimeraHairMaster.Editor
                 component.uvPlacements.Add(new UVIslandPlacement(renderer));
             }
 
+            // Hipsボーンを自動検出してProbe AnchorとRoot Boneに設定
+            var hips = FindAvatarHips(selectedAvatar);
+            if (hips != null)
+            {
+                component.probeAnchor = hips;
+                component.rootBone = hips;
+            }
+
             Selection.activeGameObject = chimeraObject;
 
             Undo.RegisterCreatedObjectUndo(chimeraObject, "Create Chimera Hair Master");
 
             return component;
+        }
+
+        /// <summary>
+        /// アバターのHipsボーンを検出する
+        /// </summary>
+        private static Transform FindAvatarHips(GameObject avatar)
+        {
+            if (avatar == null) return null;
+
+            // Humanoid AnimatorからHipsボーンを取得
+            var animator = avatar.GetComponent<Animator>();
+            if (animator != null && animator.isHuman)
+            {
+                var hips = animator.GetBoneTransform(HumanBodyBones.Hips);
+                if (hips != null) return hips;
+            }
+
+            // フォールバック: ボーン名で再帰検索
+            var hipsNames = new[] { "Hips", "Hip", "pelvis" };
+            foreach (var boneName in hipsNames)
+            {
+                var found = FindBoneByName(avatar.transform, boneName);
+                if (found != null) return found;
+            }
+
+            return null;
+        }
+
+        private static Transform FindBoneByName(Transform root, string boneName)
+        {
+            foreach (Transform child in root)
+            {
+                if (string.Equals(child.name, boneName, System.StringComparison.OrdinalIgnoreCase))
+                    return child;
+
+                var found = FindBoneByName(child, boneName);
+                if (found != null) return found;
+            }
+            return null;
         }
 
         #endregion

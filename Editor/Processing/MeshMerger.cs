@@ -117,8 +117,10 @@ namespace ChimeraHairMaster.Editor.Processing
                 case MeshSettingsInheritMode.DontSet:
                     return false;
                 case MeshSettingsInheritMode.SetOrInherit:
-                    // デフォルトBounds以外が設定されていれば適用
-                    return component.bounds.size != Vector3.one * 2 || component.bounds.center != Vector3.zero;
+                    // rootBoneが設定されている、またはデフォルトBounds以外が設定されていれば適用
+                    return component.rootBone != null ||
+                           component.bounds.size != Vector3.one * 2 ||
+                           component.bounds.center != Vector3.zero;
                 case MeshSettingsInheritMode.Inherit:
                 default:
                     // 親からの継承は現在未実装（将来的な拡張用）
