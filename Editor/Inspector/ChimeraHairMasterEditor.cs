@@ -1244,7 +1244,7 @@ namespace ChimeraHairMaster.Editor
         {
             EditorGUILayout.BeginVertical(EditorStyles.helpBox);
 
-            EditorGUILayout.LabelField("色合わせの適用", EditorStyles.boldLabel);
+            EditorGUILayout.LabelField("テクスチャとして保存機能", EditorStyles.boldLabel);
 
             // チェックボックス
             bool applyTexture = EditorPrefs.GetBool(PREF_APPLY_TEXTURE, true);
@@ -1274,7 +1274,7 @@ namespace ChimeraHairMaster.Editor
             bool canApply = CanGeneratePreview(component);
             GUI.enabled = canApply;
 
-            if (GUILayout.Button("色合わせを適用", GUILayout.Height(28)))
+            if (GUILayout.Button("テクスチャとして保存する", GUILayout.Height(28)))
             {
                 Processing.ColorApplier.Apply(component, applyTexture, unifySettings);
                 serializedObject.Update();
