@@ -72,6 +72,7 @@ namespace ChimeraHairMaster.Editor.NDMF
                         hash = hash * 31 + entry.rendererIndex;
                         hash = hash * 31 + entry.submeshIndex;
                         hash = hash * 31 + entry.isIncluded.GetHashCode();
+                        hash = hash * 31 + (entry.meshCutMask != null ? entry.meshCutMask.GetInstanceID() : 0);
                     }
                 }
 
@@ -1051,8 +1052,28 @@ namespace ChimeraHairMaster.Editor.NDMF
                             var renderer = component.targetRenderers[i];
                             if (renderer == null || renderer.sharedMesh == null) continue;
 
+                            // マスクカットを適用（UVリマップ前、元のUV座標でサンプリング）
+                            Mesh meshForRemap = renderer.sharedMesh;
+                            bool hasMaskCut = false;
+                            foreach (var entry in component.materialSelections)
+                            {
+                                if (!entry.isIncluded || entry.meshCutMask == null) continue;
+                                if (entry.rendererIndex != i) continue;
+
+                                if (!hasMaskCut)
+                                {
+                                    meshForRemap = Object.Instantiate(renderer.sharedMesh);
+                                    hasMaskCut = true;
+                                }
+                                MeshCutter.ApplyPreviewCut(meshForRemap, entry.submeshIndex, entry.meshCutMask);
+                            }
+
                             var remapped = MeshUVRemapper.RemapUVsByIslands(
-                                renderer.sharedMesh, atlasResult.IslandPlacements, i);
+                                meshForRemap, atlasResult.IslandPlacements, i);
+
+                            if (hasMaskCut)
+                                Object.DestroyImmediate(meshForRemap);
+
                             if (remapped != null)
                             {
                                 newMeshes[renderer.GetInstanceID()] = remapped;

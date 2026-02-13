@@ -459,6 +459,26 @@ namespace ChimeraHairMaster.Editor
                             EditorGUILayout.LabelField($"SubMesh {s}: {matName}");
 
                             EditorGUILayout.EndHorizontal();
+
+                            // マスクカット設定（統合対象 かつ メッシュ統合有効時のみ表示）
+                            if (currentValue && enableMeshMerge)
+                            {
+                                EditorGUI.indentLevel++;
+                                EditorGUILayout.BeginHorizontal();
+
+                                var currentMask = GetMeshCutMask(r, s);
+                                var newMask = (Texture2D)EditorGUILayout.ObjectField(
+                                    "カットマスク", currentMask, typeof(Texture2D), false);
+
+                                if (newMask != currentMask)
+                                {
+                                    SetMeshCutMask(r, s, newMask);
+                                    GUI.changed = true;
+                                }
+
+                                EditorGUILayout.EndHorizontal();
+                                EditorGUI.indentLevel--;
+                            }
                         }
 
                         EditorGUI.indentLevel--;
@@ -2257,6 +2277,33 @@ namespace ChimeraHairMaster.Editor
             else
             {
                 entry.isIncluded = included;
+            }
+        }
+
+        /// <summary>
+        /// 指定したRenderer/Submeshのメッシュカットマスクを取得
+        /// </summary>
+        private Texture2D GetMeshCutMask(int rendererIndex, int submeshIndex)
+        {
+            var entry = materialSelections.Find(e => e.rendererIndex == rendererIndex && e.submeshIndex == submeshIndex);
+            return entry?.meshCutMask;
+        }
+
+        /// <summary>
+        /// 指定したRenderer/Submeshのメッシュカットマスクを設定
+        /// </summary>
+        private void SetMeshCutMask(int rendererIndex, int submeshIndex, Texture2D mask)
+        {
+            var entry = materialSelections.Find(e => e.rendererIndex == rendererIndex && e.submeshIndex == submeshIndex);
+            if (entry == null)
+            {
+                entry = new MaterialSelectionEntry(rendererIndex, submeshIndex, true);
+                entry.meshCutMask = mask;
+                materialSelections.Add(entry);
+            }
+            else
+            {
+                entry.meshCutMask = mask;
             }
         }
 

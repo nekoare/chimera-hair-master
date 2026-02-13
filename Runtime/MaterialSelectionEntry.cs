@@ -25,6 +25,11 @@ namespace ChimeraHairMaster
         /// </summary>
         public bool isIncluded = true;
 
+        /// <summary>
+        /// メッシュカット用マスクテクスチャ（null = マスクなし、白=残す、黒=削除）
+        /// </summary>
+        public Texture2D meshCutMask;
+
         // UI表示用キャッシュ(シリアライズ不要)
         [NonSerialized] public string materialName;
         [NonSerialized] public string shaderName;

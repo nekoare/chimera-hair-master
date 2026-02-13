@@ -51,6 +51,7 @@ namespace ChimeraHairMaster.Editor
         private bool showBasicSettings = false;
         private bool showColorSettings = true;
         private bool showTextureSettings = false;
+        private bool showMeshCutSettings = false;
         private bool showMeshSettings = false;
         private bool showBrightnessAdjustment = false;
 
@@ -311,6 +312,13 @@ namespace ChimeraHairMaster.Editor
                     EditorGUI.indentLevel--;
                 }
 
+                // メッシュカット設定（メッシュ統合有効時のみ）
+                if (enableMeshMergeProp.boolValue)
+                {
+                    EditorGUILayout.Space(10);
+                    DrawMeshCutSettings(component);
+                }
+
                 EditorGUILayout.Space(10);
 
                 // 基準マテリアル
@@ -335,6 +343,74 @@ namespace ChimeraHairMaster.Editor
 
                 EditorGUI.indentLevel--;
             }
+        }
+
+        private void DrawMeshCutSettings(ChimeraHairMaster component)
+        {
+            showMeshCutSettings = EditorGUILayout.Foldout(showMeshCutSettings, "メッシュカット設定", true);
+            if (!showMeshCutSettings) return;
+
+            EditorGUI.indentLevel++;
+
+            if (showHelp)
+            {
+                EditorGUILayout.HelpBox(
+                    "マスクを使って髪のメッシュを統合から削除することが出来ます。マスクは元の髪のUVを参照します。",
+                    MessageType.Info
+                );
+            }
+
+            for (int r = 0; r < component.targetRenderers.Count; r++)
+            {
+                var renderer = component.targetRenderers[r];
+                if (renderer == null || renderer.sharedMesh == null) continue;
+
+                EditorGUILayout.LabelField(renderer.name, EditorStyles.boldLabel);
+
+                EditorGUI.indentLevel++;
+
+                int submeshCount = renderer.sharedMesh.subMeshCount;
+                var materials = renderer.sharedMaterials;
+
+                for (int s = 0; s < submeshCount; s++)
+                {
+                    if (!component.IsSubmeshIncluded(r, s)) continue;
+
+                    string matName = s < materials.Length && materials[s] != null
+                        ? materials[s].name
+                        : $"(Material {s})";
+
+                    // 現在のマスクを取得
+                    var entry = component.materialSelections.Find(
+                        e => e.rendererIndex == r && e.submeshIndex == s);
+                    var currentMask = entry?.meshCutMask;
+
+                    EditorGUI.BeginChangeCheck();
+                    var newMask = (Texture2D)EditorGUILayout.ObjectField(
+                        $"SubMesh {s}: {matName}", currentMask, typeof(Texture2D), false);
+
+                    if (EditorGUI.EndChangeCheck())
+                    {
+                        Undo.RecordObject(component, "Change Mesh Cut Mask");
+                        if (entry != null)
+                        {
+                            entry.meshCutMask = newMask;
+                        }
+                        else
+                        {
+                            var newEntry = new MaterialSelectionEntry(r, s, true);
+                            newEntry.meshCutMask = newMask;
+                            component.materialSelections.Add(newEntry);
+                        }
+                        EditorUtility.SetDirty(component);
+                    }
+                }
+
+                EditorGUI.indentLevel--;
+                EditorGUILayout.Space(3);
+            }
+
+            EditorGUI.indentLevel--;
         }
 
         private void DrawColorSettings()
