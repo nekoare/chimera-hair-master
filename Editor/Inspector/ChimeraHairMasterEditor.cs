@@ -55,6 +55,8 @@ namespace ChimeraHairMaster.Editor
         private bool showMeshSettings = false;
         private bool showBrightnessAdjustment = false;
         private bool showColorMaskSettings = false;
+        private bool showPhysBoneList = false;
+        private Dictionary<int, bool> physBoneFoldouts = new Dictionary<int, bool>();
 
         // 色合わせ適用オプション
         private const string PREF_APPLY_TEXTURE = "CHM_ApplyTexture";
@@ -267,6 +269,9 @@ namespace ChimeraHairMaster.Editor
                         MessageType.Info
                     );
                 }
+
+                // PhysBone一覧
+                DrawPhysBoneList(component);
 
                 // 共有Rendererの警告
                 var sharedRendererWarning = GetSharedRendererWarning(component);
@@ -696,6 +701,129 @@ namespace ChimeraHairMaster.Editor
             }
 
             EditorGUI.indentLevel--;
+        }
+
+        /// <summary>
+        /// 各Rendererに影響するPhysBone一覧を表示
+        /// </summary>
+        private void DrawPhysBoneList(ChimeraHairMaster component)
+        {
+#if CHM_VRCSDK3_AVATARS
+            if (component.targetRenderers == null || component.targetRenderers.Count == 0)
+                return;
+
+            showPhysBoneList = EditorGUILayout.Foldout(showPhysBoneList, "関連PhysBone", true);
+            if (!showPhysBoneList) return;
+
+            EditorGUI.indentLevel++;
+
+            if (showHelp)
+            {
+                EditorGUILayout.HelpBox(
+                    "各Rendererのメッシュに影響しているPhysBoneコンポーネントの一覧です。\n" +
+                    "クリックするとHierarchyでハイライトされます。",
+                    MessageType.Info
+                );
+            }
+
+            // アバタールートを探す（VRC_AvatarDescriptorを持つ親）
+            var avatarRoot = component.GetComponentInParent<VRC.SDK3.Avatars.Components.VRCAvatarDescriptor>();
+            if (avatarRoot == null)
+            {
+                EditorGUILayout.HelpBox("VRCAvatarDescriptorが見つかりません。", MessageType.Warning);
+                EditorGUI.indentLevel--;
+                return;
+            }
+
+            // アバター内の全PhysBoneを取得
+            var allPhysBones = avatarRoot.GetComponentsInChildren<VRC.SDK3.Dynamics.PhysBone.Components.VRCPhysBone>(true);
+
+            for (int r = 0; r < component.targetRenderers.Count; r++)
+            {
+                var renderer = component.targetRenderers[r];
+                if (renderer == null || renderer.sharedMesh == null) continue;
+
+                // RendererごとのFoldout
+                if (!physBoneFoldouts.ContainsKey(r)) physBoneFoldouts[r] = false;
+                physBoneFoldouts[r] = EditorGUILayout.Foldout(physBoneFoldouts[r], renderer.name, true);
+                if (!physBoneFoldouts[r]) continue;
+
+                EditorGUI.indentLevel++;
+
+                // ウェイトが塗られているBoneを抽出
+                var weightedBones = GetWeightedBones(renderer);
+
+                // 各PhysBoneがこのRendererに影響しているか判定
+                var affectingPhysBones = new List<VRC.SDK3.Dynamics.PhysBone.Components.VRCPhysBone>();
+                foreach (var pb in allPhysBones)
+                {
+                    var pbRoot = pb.rootTransform != null ? pb.rootTransform : pb.transform;
+                    if (IsAncestorOfAny(pbRoot, weightedBones))
+                    {
+                        affectingPhysBones.Add(pb);
+                    }
+                }
+
+                if (affectingPhysBones.Count == 0)
+                {
+                    EditorGUILayout.LabelField("(PhysBoneなし)");
+                    EditorGUI.indentLevel--;
+                    continue;
+                }
+
+                foreach (var pb in affectingPhysBones)
+                {
+                    EditorGUI.BeginDisabledGroup(true);
+                    EditorGUILayout.ObjectField(pb, typeof(VRC.SDK3.Dynamics.PhysBone.Components.VRCPhysBone), true);
+                    EditorGUI.EndDisabledGroup();
+                }
+
+                EditorGUI.indentLevel--;
+            }
+
+            EditorGUI.indentLevel--;
+#endif
+        }
+
+        /// <summary>
+        /// SkinnedMeshRendererからウェイトが塗られているBoneのセットを取得
+        /// </summary>
+        private static HashSet<Transform> GetWeightedBones(SkinnedMeshRenderer renderer)
+        {
+            var weightedBones = new HashSet<Transform>();
+            var bones = renderer.bones;
+            var boneWeights = renderer.sharedMesh.boneWeights;
+            if (bones == null || boneWeights == null) return weightedBones;
+
+            foreach (var bw in boneWeights)
+            {
+                if (bw.weight0 > 0 && bw.boneIndex0 < bones.Length && bones[bw.boneIndex0] != null)
+                    weightedBones.Add(bones[bw.boneIndex0]);
+                if (bw.weight1 > 0 && bw.boneIndex1 < bones.Length && bones[bw.boneIndex1] != null)
+                    weightedBones.Add(bones[bw.boneIndex1]);
+                if (bw.weight2 > 0 && bw.boneIndex2 < bones.Length && bones[bw.boneIndex2] != null)
+                    weightedBones.Add(bones[bw.boneIndex2]);
+                if (bw.weight3 > 0 && bw.boneIndex3 < bones.Length && bones[bw.boneIndex3] != null)
+                    weightedBones.Add(bones[bw.boneIndex3]);
+            }
+            return weightedBones;
+        }
+
+        /// <summary>
+        /// rootがweightedBonesのいずれかの祖先であるか判定
+        /// </summary>
+        private static bool IsAncestorOfAny(Transform root, HashSet<Transform> weightedBones)
+        {
+            foreach (var bone in weightedBones)
+            {
+                var current = bone;
+                while (current != null)
+                {
+                    if (current == root) return true;
+                    current = current.parent;
+                }
+            }
+            return false;
         }
 
         /// <summary>
