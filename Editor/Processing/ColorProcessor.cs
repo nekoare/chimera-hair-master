@@ -715,6 +715,82 @@ namespace ChimeraHairMaster.Editor.Processing
         }
 
         /// <summary>
+        /// 色合わせ無視マスクを適用
+        /// 元テクスチャと色変換済みテクスチャをマスクに基づいてブレンドする
+        /// </summary>
+        /// <param name="originalTexture">元テクスチャ（色変換前）</param>
+        /// <param name="transformedTexture">色変換済みテクスチャ</param>
+        /// <param name="mask">マスクテクスチャ（黒=元の色を維持、白=色変換を適用）</param>
+        /// <returns>マスク適用後のテクスチャ</returns>
+        public static Texture2D? ApplyColorMask(Texture2D originalTexture, Texture2D transformedTexture, Texture2D mask)
+        {
+            if (originalTexture == null || transformedTexture == null || mask == null)
+                return null;
+
+            var readableOriginal = GetReadableTexture(originalTexture);
+            var readableTransformed = GetReadableTexture(transformedTexture);
+            var readableMask = GetReadableTexture(mask);
+
+            int width = readableTransformed.width;
+            int height = readableTransformed.height;
+
+            Color[] originalPixels = readableOriginal.GetPixels();
+            Color[] transformedPixels = readableTransformed.GetPixels();
+            Color[] maskPixels = readableMask.GetPixels();
+            int maskWidth = readableMask.width;
+            int maskHeight = readableMask.height;
+
+            bool originalSizeMatch = (readableOriginal.width == width && readableOriginal.height == height);
+
+            Color[] outputPixels = new Color[width * height];
+            for (int y = 0; y < height; y++)
+            {
+                for (int x = 0; x < width; x++)
+                {
+                    int idx = y * width + x;
+                    float u = (float)x / width;
+                    float v = (float)y / height;
+
+                    // マスクをサンプリング（テクスチャサイズが異なる場合はリサンプル）
+                    int mx = Mathf.Clamp((int)(u * maskWidth), 0, maskWidth - 1);
+                    int my = Mathf.Clamp((int)(v * maskHeight), 0, maskHeight - 1);
+                    float maskValue = maskPixels[my * maskWidth + mx].grayscale;
+
+                    // 元テクスチャをサンプリング（サイズが異なる場合はリサンプル）
+                    Color origPixel;
+                    if (originalSizeMatch)
+                    {
+                        origPixel = originalPixels[idx];
+                    }
+                    else
+                    {
+                        int ox = Mathf.Clamp((int)(u * readableOriginal.width), 0, readableOriginal.width - 1);
+                        int oy = Mathf.Clamp((int)(v * readableOriginal.height), 0, readableOriginal.height - 1);
+                        origPixel = originalPixels[oy * readableOriginal.width + ox];
+                    }
+
+                    // 黒(0) = 元の色を維持, 白(1) = 色変換を適用
+                    outputPixels[idx] = Color.Lerp(origPixel, transformedPixels[idx], maskValue);
+                }
+            }
+
+            Texture2D output = new Texture2D(width, height, TextureFormat.RGBA32, true);
+            output.name = transformedTexture.name + "_Masked";
+            output.SetPixels(outputPixels);
+            output.Apply(true);
+
+            CompressToMatch(output, originalTexture.format);
+            ShaderUtils.EnableMipStreaming(output);
+
+            // 一時テクスチャをクリーンアップ
+            if (readableOriginal != originalTexture) Object.DestroyImmediate(readableOriginal);
+            if (readableTransformed != transformedTexture) Object.DestroyImmediate(readableTransformed);
+            if (readableMask != mask) Object.DestroyImmediate(readableMask);
+
+            return output;
+        }
+
+        /// <summary>
         /// テクスチャをコピー
         /// </summary>
         private static Texture2D CopyTexture(Texture2D source)

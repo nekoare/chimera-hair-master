@@ -89,7 +89,7 @@ namespace ChimeraHairMaster.Editor.NDMF
                 // Renderer単位の明度オフセットを取得
                 float brightnessOffset = GetRendererBrightnessOffset(component, rendererIndex);
 
-                ProcessRendererTextures(context, component, renderer, submeshIndices, settings, textureCache, brightnessAdjustedCache, brightnessOffset);
+                ProcessRendererTextures(context, component, rendererIndex, renderer, submeshIndices, settings, textureCache, brightnessAdjustedCache, brightnessOffset);
             }
 
             Debug.Log($"[ChimeraHairMaster] 色変換処理完了: {component.gameObject.name}, 処理テクスチャ数: {textureCache.Count}");
@@ -210,6 +210,7 @@ namespace ChimeraHairMaster.Editor.NDMF
         private void ProcessRendererTextures(
             BuildContext context,
             ChimeraHairMaster component,
+            int rendererIndex,
             SkinnedMeshRenderer renderer,
             List<int> submeshIndices,
             ColorTransformSettings settings,
@@ -303,6 +304,20 @@ namespace ChimeraHairMaster.Editor.NDMF
                         {
                             // 共有キャッシュに追加（オフセットなしの場合のみ）
                             textureCache[texture] = processedTexture;
+                        }
+                    }
+
+                    // 色合わせ無視マスクを適用
+                    if (processedTexture != null)
+                    {
+                        var colorMask = component.GetColorMask(rendererIndex, i);
+                        if (colorMask != null)
+                        {
+                            var masked = ColorProcessor.ApplyColorMask(texture, processedTexture, colorMask);
+                            if (masked != null)
+                            {
+                                processedTexture = masked;
+                            }
                         }
                     }
 

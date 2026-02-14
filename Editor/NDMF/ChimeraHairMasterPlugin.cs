@@ -25,9 +25,15 @@ namespace ChimeraHairMaster.Editor.NDMF
                 .Then.Run(TextureAtlasPass.Instance)
                 .Then.Run(MeshMergePass.Instance);
 
-            // Optimizing Phase: コンポーネント削除
+            // Optimizing Phase: コンポーネント削除（AAOより前に実行し、未知コンポーネント警告を回避）
             InPhase(BuildPhase.Optimizing)
+                .BeforePlugin("com.anatawa12.avatar-optimizer")
                 .Run(RemoveComponentsPass.Instance);
+
+            // Optimizing Phase: AAO後に不要なGameObjectをクリーンアップ
+            InPhase(BuildPhase.Optimizing)
+                .AfterPlugin("com.anatawa12.avatar-optimizer")
+                .Run(RendererCleanupPass.Instance);
         }
     }
 }

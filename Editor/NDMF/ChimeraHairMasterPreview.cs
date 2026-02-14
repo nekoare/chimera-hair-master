@@ -183,6 +183,17 @@ namespace ChimeraHairMaster.Editor.NDMF
                     }
                 }
 
+                // colorMasks（色合わせ無視マスク）
+                if (component.colorMasks != null)
+                {
+                    foreach (var entry in component.colorMasks)
+                    {
+                        hash = hash * 31 + entry.rendererIndex;
+                        hash = hash * 31 + entry.submeshIndex;
+                        hash = hash * 31 + (entry.mask != null ? entry.mask.GetInstanceID() : 0);
+                    }
+                }
+
                 return hash;
             }
         }
@@ -604,10 +615,10 @@ namespace ChimeraHairMaster.Editor.NDMF
                     {
                         if (mat == null) continue;
 
-                        // 明度オフセットがある場合はRenderer固有のキーを使用
-                        // 同じマテリアルでも異なる明度オフセットが適用される可能性があるため
-                        var materialKey = Mathf.Abs(brightnessOffset) > 0.001f
-                            ? null  // オフセットがある場合は常に新規作成
+                        // 明度オフセットまたは色合わせ無視マスクがある場合はサブメッシュ固有キーを使用
+                        var colorMask = component.GetColorMask(rendererIndex, submeshIndex);
+                        var materialKey = (Mathf.Abs(brightnessOffset) > 0.001f || colorMask != null)
+                            ? null  // オフセットまたはマスクがある場合は常に新規作成
                             : mat;
 
                         if (materialKey != null && processedMaterials.ContainsKey(materialKey)) continue;
@@ -686,23 +697,32 @@ namespace ChimeraHairMaster.Editor.NDMF
                                 brightnessAdjustedCache, settings);
                             if (baseTex == null) continue;
 
-                            // 明度オフセットを適用（常に新規生成）
+                            Texture2D currentTex = baseTex;
+
+                            // 明度オフセットを適用
                             if (Mathf.Abs(brightnessOffset) > 0.001f)
                             {
                                 var offsetApplied = Processing.ColorProcessor.ApplyBrightnessOffset(baseTex, brightnessOffset);
                                 if (offsetApplied != null)
                                 {
-                                    newMat.SetTexture(slot.propertyName, offsetApplied);
+                                    currentTex = offsetApplied;
                                     generatedTextures.Add(offsetApplied);
-                                    hasProcessedTexture = true;
                                 }
                             }
-                            else
+
+                            // 色合わせ無視マスクを適用
+                            if (colorMask != null)
                             {
-                                // キャッシュ所有テクスチャを直接参照（generatedTexturesには追加しない）
-                                newMat.SetTexture(slot.propertyName, baseTex);
-                                hasProcessedTexture = true;
+                                var masked = Processing.ColorProcessor.ApplyColorMask(tex, currentTex, colorMask);
+                                if (masked != null)
+                                {
+                                    currentTex = masked;
+                                    generatedTextures.Add(masked);
+                                }
                             }
+
+                            newMat.SetTexture(slot.propertyName, currentTex);
+                            hasProcessedTexture = true;
                         }
 
                         // メインテクスチャがcolorChangeTargetsに含まれていない場合も処理
@@ -717,19 +737,30 @@ namespace ChimeraHairMaster.Editor.NDMF
 
                                 if (baseTex != null)
                                 {
+                                    Texture2D currentTex = baseTex;
+
                                     if (Mathf.Abs(brightnessOffset) > 0.001f)
                                     {
                                         var offsetApplied = Processing.ColorProcessor.ApplyBrightnessOffset(baseTex, brightnessOffset);
                                         if (offsetApplied != null)
                                         {
-                                            newMat.SetTexture("_MainTex", offsetApplied);
+                                            currentTex = offsetApplied;
                                             generatedTextures.Add(offsetApplied);
                                         }
                                     }
-                                    else
+
+                                    // 色合わせ無視マスクを適用
+                                    if (colorMask != null)
                                     {
-                                        newMat.SetTexture("_MainTex", baseTex);
+                                        var masked = Processing.ColorProcessor.ApplyColorMask(tex, currentTex, colorMask);
+                                        if (masked != null)
+                                        {
+                                            currentTex = masked;
+                                            generatedTextures.Add(masked);
+                                        }
                                     }
+
+                                    newMat.SetTexture("_MainTex", currentTex);
                                 }
                             }
                         }
@@ -921,7 +952,8 @@ namespace ChimeraHairMaster.Editor.NDMF
                             if (renderer == null) continue;
 
                             float brightnessOffset = GetRendererBrightnessOffset(component, r);
-                            if (Mathf.Abs(brightnessOffset) < 0.001f) continue;
+                            bool hasAnyMask = component.colorMasks?.Any(e => e.rendererIndex == r && e.mask != null) ?? false;
+                            if (Mathf.Abs(brightnessOffset) < 0.001f && !hasAnyMask) continue;
 
                             savedMaterials[renderer] = renderer.sharedMaterials;
                             var mats = renderer.sharedMaterials;
@@ -932,6 +964,14 @@ namespace ChimeraHairMaster.Editor.NDMF
                                 var mat = mats[s];
                                 if (mat == null) continue;
                                 if (!component.IsSubmeshIncluded(r, s))
+                                {
+                                    newMats[s] = mat;
+                                    continue;
+                                }
+
+                                // このサブメッシュに修正が必要か確認
+                                var colorMask = component.GetColorMask(r, s);
+                                if (Mathf.Abs(brightnessOffset) < 0.001f && colorMask == null)
                                 {
                                     newMats[s] = mat;
                                     continue;
@@ -957,11 +997,26 @@ namespace ChimeraHairMaster.Editor.NDMF
                                     var processed = Processing.ColorProcessor.ProcessTexture(source, settings, true);
                                     if (processed == null) continue;
 
-                                    var offsetApplied = Processing.ColorProcessor.ApplyBrightnessOffset(processed, brightnessOffset);
-                                    if (offsetApplied != null)
+                                    // 明度オフセットを適用
+                                    if (Mathf.Abs(brightnessOffset) > 0.001f)
                                     {
-                                        Object.DestroyImmediate(processed);
-                                        processed = offsetApplied;
+                                        var offsetApplied = Processing.ColorProcessor.ApplyBrightnessOffset(processed, brightnessOffset);
+                                        if (offsetApplied != null)
+                                        {
+                                            Object.DestroyImmediate(processed);
+                                            processed = offsetApplied;
+                                        }
+                                    }
+
+                                    // 色合わせ無視マスクを適用
+                                    if (colorMask != null)
+                                    {
+                                        var masked = Processing.ColorProcessor.ApplyColorMask(tex, processed, colorMask);
+                                        if (masked != null)
+                                        {
+                                            Object.DestroyImmediate(processed);
+                                            processed = masked;
+                                        }
                                     }
 
                                     tempMat.SetTexture(slot.propertyName, processed);
@@ -985,11 +1040,26 @@ namespace ChimeraHairMaster.Editor.NDMF
                                         var processed = Processing.ColorProcessor.ProcessTexture(source, settings, true);
                                         if (processed != null)
                                         {
-                                            var offsetApplied = Processing.ColorProcessor.ApplyBrightnessOffset(processed, brightnessOffset);
-                                            if (offsetApplied != null)
+                                            // 明度オフセットを適用
+                                            if (Mathf.Abs(brightnessOffset) > 0.001f)
                                             {
-                                                Object.DestroyImmediate(processed);
-                                                processed = offsetApplied;
+                                                var offsetApplied = Processing.ColorProcessor.ApplyBrightnessOffset(processed, brightnessOffset);
+                                                if (offsetApplied != null)
+                                                {
+                                                    Object.DestroyImmediate(processed);
+                                                    processed = offsetApplied;
+                                                }
+                                            }
+
+                                            // 色合わせ無視マスクを適用
+                                            if (colorMask != null)
+                                            {
+                                                var masked = Processing.ColorProcessor.ApplyColorMask(tex, processed, colorMask);
+                                                if (masked != null)
+                                                {
+                                                    Object.DestroyImmediate(processed);
+                                                    processed = masked;
+                                                }
                                             }
 
                                             tempMat.SetTexture("_MainTex", processed);

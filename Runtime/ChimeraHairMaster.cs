@@ -110,6 +110,13 @@ namespace ChimeraHairMaster
         [SerializeField]
         public List<RendererBrightnessAdjustment> rendererBrightnessAdjustments = new List<RendererBrightnessAdjustment>();
 
+        /// <summary>
+        /// 色合わせ無視マスク一覧
+        /// サブメッシュごとにマスクを設定し、黒い部分を色合わせの対象から外す（元の色を維持）
+        /// </summary>
+        [SerializeField]
+        public List<ColorMaskEntry> colorMasks = new List<ColorMaskEntry>();
+
         #endregion
 
         #region テクスチャ設定
@@ -386,6 +393,18 @@ namespace ChimeraHairMaster
 
             // エントリが存在しない場合はデフォルトでtrue(統合対象)
             return entry?.isIncluded ?? true;
+        }
+
+        /// <summary>
+        /// 指定したRenderer/Submeshの色合わせ無視マスクを取得
+        /// </summary>
+        /// <param name="rendererIndex">targetRenderers内のインデックス</param>
+        /// <param name="submeshIndex">サブメッシュインデックス</param>
+        /// <returns>マスクテクスチャ（なければnull）</returns>
+        public Texture2D GetColorMask(int rendererIndex, int submeshIndex)
+        {
+            var entry = colorMasks.Find(e => e.rendererIndex == rendererIndex && e.submeshIndex == submeshIndex);
+            return entry?.mask;
         }
 
         /// <summary>

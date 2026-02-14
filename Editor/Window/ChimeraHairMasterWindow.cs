@@ -2464,17 +2464,18 @@ namespace ChimeraHairMaster.Editor
             float fitScaleX = (maxX > targetSize - padding) ? (targetSize - padding * 2) / maxX : 1f;
             float fitScaleY = (maxY > targetSize - padding) ? (targetSize - padding * 2) / maxY : 1f;
 
-            // はみ出ている場合のみ縮小を適用
-            if (fitScaleX < 1f || fitScaleY < 1f)
+            // はみ出ている場合のみ縮小を適用（uniform scalingで位置とスケールの整合性を保つ）
+            float fitScale = Mathf.Min(fitScaleX, fitScaleY);
+            if (fitScale < 1f)
             {
                 for (int i = 0; i < packedRects.Count; i++)
                 {
                     var rect = packedRects[i];
-                    rect.x = rect.x * fitScaleX + padding * (1f - fitScaleX);
-                    rect.y = rect.y * fitScaleY + padding * (1f - fitScaleY);
-                    rect.width *= fitScaleX;
-                    rect.height *= fitScaleY;
-                    rect.scale *= Mathf.Min(fitScaleX, fitScaleY); // scaleは代表値として小さい方を採用
+                    rect.x = rect.x * fitScale + padding * (1f - fitScale);
+                    rect.y = rect.y * fitScale + padding * (1f - fitScale);
+                    rect.width *= fitScale;
+                    rect.height *= fitScale;
+                    rect.scale *= fitScale;
                 }
             }
 

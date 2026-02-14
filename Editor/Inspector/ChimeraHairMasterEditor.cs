@@ -54,6 +54,7 @@ namespace ChimeraHairMaster.Editor
         private bool showMeshCutSettings = false;
         private bool showMeshSettings = false;
         private bool showBrightnessAdjustment = false;
+        private bool showColorMaskSettings = false;
 
         // 色合わせ適用オプション
         private const string PREF_APPLY_TEXTURE = "CHM_ApplyTexture";
@@ -504,6 +505,10 @@ namespace ChimeraHairMaster.Editor
                 EditorGUILayout.Space(10);
                 DrawBrightnessAdjustmentUI();
 
+                // 色合わせ無視マスク
+                EditorGUILayout.Space(10);
+                DrawColorMaskUI();
+
                 EditorGUI.indentLevel--;
             }
         }
@@ -599,6 +604,95 @@ namespace ChimeraHairMaster.Editor
                     "「リセット」ボタンでリセット（0に戻す）",
                     MessageType.Info
                 );
+            }
+
+            EditorGUI.indentLevel--;
+        }
+
+        /// <summary>
+        /// 色合わせ無視マスクUI
+        /// </summary>
+        private void DrawColorMaskUI()
+        {
+            var component = (ChimeraHairMaster)target;
+            if (component.targetRenderers == null || component.targetRenderers.Count == 0)
+                return;
+
+            showColorMaskSettings = EditorGUILayout.Foldout(showColorMaskSettings, "色合わせ無視(マスク)", true);
+
+            if (!showColorMaskSettings) return;
+
+            EditorGUI.indentLevel++;
+
+            if (showHelp)
+            {
+                EditorGUILayout.HelpBox(
+                    "マスクを使って色合わせを部分的に無視できます。\n" +
+                    "マスクは元の髪のUVを参照します。\n" +
+                    "黒い部分は色合わせが適用されず、元の色が維持されます。",
+                    MessageType.Info
+                );
+            }
+
+            for (int r = 0; r < component.targetRenderers.Count; r++)
+            {
+                var renderer = component.targetRenderers[r];
+                if (renderer == null || renderer.sharedMesh == null) continue;
+
+                EditorGUILayout.LabelField(renderer.name, EditorStyles.boldLabel);
+
+                EditorGUI.indentLevel++;
+
+                int submeshCount = renderer.sharedMesh.subMeshCount;
+                var materials = renderer.sharedMaterials;
+
+                for (int s = 0; s < submeshCount; s++)
+                {
+                    // 統合対象外のサブメッシュはスキップ
+                    if (!component.IsSubmeshIncluded(r, s)) continue;
+
+                    string matName = s < materials.Length && materials[s] != null
+                        ? materials[s].name
+                        : $"(Material {s})";
+
+                    // 現在のマスクを取得
+                    var currentMask = component.GetColorMask(r, s);
+
+                    EditorGUI.BeginChangeCheck();
+                    var newMask = (Texture2D)EditorGUILayout.ObjectField(
+                        $"SubMesh {s}: {matName}", currentMask, typeof(Texture2D), false);
+
+                    if (EditorGUI.EndChangeCheck())
+                    {
+                        Undo.RecordObject(component, "Change Color Mask");
+
+                        var entry = component.colorMasks.Find(e => e.rendererIndex == r && e.submeshIndex == s);
+                        if (newMask != null)
+                        {
+                            if (entry != null)
+                            {
+                                entry.mask = newMask;
+                            }
+                            else
+                            {
+                                component.colorMasks.Add(new ColorMaskEntry(r, s) { mask = newMask });
+                            }
+                        }
+                        else
+                        {
+                            // マスクをクリア：エントリを削除
+                            if (entry != null)
+                            {
+                                component.colorMasks.Remove(entry);
+                            }
+                        }
+
+                        EditorUtility.SetDirty(component);
+                    }
+                }
+
+                EditorGUI.indentLevel--;
+                EditorGUILayout.Space(3);
             }
 
             EditorGUI.indentLevel--;

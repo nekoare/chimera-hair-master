@@ -12,8 +12,15 @@ namespace ChimeraHairMaster.Editor.NDMF
     {
         public override string DisplayName => "CHM: Mesh Merge";
 
+        /// <summary>
+        /// AAO等の後続プラグインの処理完了後にクリーンアップするGameObjectのリスト
+        /// </summary>
+        internal static readonly List<GameObject> GameObjectsToCleanup = new List<GameObject>();
+
         protected override void Execute(BuildContext context)
         {
+            GameObjectsToCleanup.Clear();
+
             var components = context.AvatarRootObject.GetComponentsInChildren<ChimeraHairMaster>(true);
 
             foreach (var component in components)
@@ -109,9 +116,15 @@ namespace ChimeraHairMaster.Editor.NDMF
                 }
                 else
                 {
+                    // AAOとの互換性のため、GameObjectは即座に破壊せず無効化して記録する。
+                    // AAOがOptimizingフェーズで処理を終えた後、RendererCleanupPassで削除する。
                     string rendererName = renderer.name;
-                    Object.DestroyImmediate(renderer.gameObject);
-                    Debug.Log($"[ChimeraHairMaster] Renderer {rendererName} を削除しました（すべて統合済み）");
+                    renderer.enabled = false;
+                    renderer.sharedMesh = null;
+                    renderer.sharedMaterials = new Material[0];
+                    renderer.gameObject.SetActive(false);
+                    GameObjectsToCleanup.Add(renderer.gameObject);
+                    Debug.Log($"[ChimeraHairMaster] Renderer {rendererName} を無効化しました（クリーンアップ待ち）");
                 }
             }
 
