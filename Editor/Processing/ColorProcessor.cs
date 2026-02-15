@@ -28,28 +28,43 @@ namespace ChimeraHairMaster.Editor.Processing
                 return null;
             }
 
+            // DXT等の圧縮アーティファクトを回避するため、元画像ファイルから非圧縮版を読み込む
+            Texture2D? uncompressedSource = TextureUtils.LoadUncompressed(sourceTexture);
+            Texture2D actualSource = uncompressedSource ?? sourceTexture;
+
             Texture2D? result = null;
 
-            // GPU処理を試みる
-            if (preferGPU && ShaderUtils.IsGPUSupported())
+            try
             {
-                result = ProcessTextureGPU(sourceTexture, settings);
+                // GPU処理を試みる
+                if (preferGPU && ShaderUtils.IsGPUSupported())
+                {
+                    result = ProcessTextureGPU(actualSource, settings);
+                    if (result == null)
+                    {
+                        Debug.LogWarning("[ChimeraHairMaster] GPU処理に失敗しました。CPU処理にフォールバックします。");
+                    }
+                }
+
+                // CPU処理
                 if (result == null)
                 {
-                    Debug.LogWarning("[ChimeraHairMaster] GPU処理に失敗しました。CPU処理にフォールバックします。");
+                    result = ProcessTextureCPU(actualSource, settings);
+                }
+
+                // 元テクスチャと同じ圧縮形式を適用
+                if (result != null)
+                {
+                    CompressToMatch(result, sourceTexture.format);
                 }
             }
-
-            // CPU処理
-            if (result == null)
+            finally
             {
-                result = ProcessTextureCPU(sourceTexture, settings);
-            }
-
-            // 元テクスチャと同じ圧縮形式を適用
-            if (result != null)
-            {
-                CompressToMatch(result, sourceTexture.format);
+                // 非圧縮版の一時テクスチャを破棄
+                if (uncompressedSource != null)
+                {
+                    Object.DestroyImmediate(uncompressedSource);
+                }
             }
 
             return result;

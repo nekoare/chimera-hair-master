@@ -1022,12 +1022,17 @@ namespace ChimeraHairMaster.Editor.Processing
 
         /// <summary>
         /// 読み取り可能なテクスチャを取得
+        /// 圧縮テクスチャの場合は元画像ファイルから非圧縮版を読み込み、DXTアーティファクトを回避する
         /// </summary>
         private static Texture2D GetReadableTexture(Texture2D source)
         {
             if (source.isReadable) return source;
 
-            // RenderTextureを経由してコピー
+            // 圧縮テクスチャの場合、元画像ファイルから非圧縮版を読み込む
+            var uncompressed = TextureUtils.LoadUncompressed(source);
+            if (uncompressed != null) return uncompressed;
+
+            // フォールバック: RenderTextureを経由してコピー
             RenderTexture tmp = RenderTexture.GetTemporary(
                 source.width,
                 source.height,
