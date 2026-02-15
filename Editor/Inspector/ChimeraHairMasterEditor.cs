@@ -391,6 +391,8 @@ namespace ChimeraHairMaster.Editor
                         e => e.rendererIndex == r && e.submeshIndex == s);
                     var currentMask = entry?.meshCutMask;
 
+                    EditorGUILayout.BeginHorizontal();
+
                     EditorGUI.BeginChangeCheck();
                     var newMask = (Texture2D)EditorGUILayout.ObjectField(
                         $"SubMesh {s}: {matName}", currentMask, typeof(Texture2D), false);
@@ -410,6 +412,13 @@ namespace ChimeraHairMaster.Editor
                         }
                         EditorUtility.SetDirty(component);
                     }
+
+                    if (GUILayout.Button("マスクを作成", GUILayout.Width(80)))
+                    {
+                        OpenMaskToolForSubmesh(component, renderer, s);
+                    }
+
+                    EditorGUILayout.EndHorizontal();
                 }
 
                 EditorGUI.indentLevel--;
@@ -663,6 +672,8 @@ namespace ChimeraHairMaster.Editor
                     // 現在のマスクを取得
                     var currentMask = component.GetColorMask(r, s);
 
+                    EditorGUILayout.BeginHorizontal();
+
                     EditorGUI.BeginChangeCheck();
                     var newMask = (Texture2D)EditorGUILayout.ObjectField(
                         $"SubMesh {s}: {matName}", currentMask, typeof(Texture2D), false);
@@ -694,6 +705,13 @@ namespace ChimeraHairMaster.Editor
 
                         EditorUtility.SetDirty(component);
                     }
+
+                    if (GUILayout.Button("マスクを作成", GUILayout.Width(80)))
+                    {
+                        OpenMaskToolForSubmesh(component, renderer, s);
+                    }
+
+                    EditorGUILayout.EndHorizontal();
                 }
 
                 EditorGUI.indentLevel--;
@@ -824,6 +842,21 @@ namespace ChimeraHairMaster.Editor
                 }
             }
             return false;
+        }
+
+        /// <summary>
+        /// プレビューを停止してマスクツールを開く
+        /// </summary>
+        private void OpenMaskToolForSubmesh(ChimeraHairMaster component, SkinnedMeshRenderer renderer, int submeshIndex)
+        {
+            // プレビューを停止
+            if (component.previewEnabled)
+            {
+                component.previewEnabled = false;
+                EditorUtility.SetDirty(component);
+            }
+
+            MaskToolLauncher.OpenMaskToolForSubmesh(component, renderer, submeshIndex);
         }
 
         /// <summary>

@@ -98,6 +98,98 @@ namespace ChimeraHairMaster.Editor
             #endif
         }
 
+        /// <summary>
+        /// 単一RendererのSubMeshを対象にマスクツールを開く（非アトラスモード）
+        /// マスクツール v1.1以上が必要
+        /// </summary>
+        public static void OpenMaskToolForSubmesh(
+            ChimeraHairMaster component,
+            SkinnedMeshRenderer renderer,
+            int submeshIndex)
+        {
+            #if CHM_MASK_TOOL_SUBMESH
+            // VPM版 v1.1+ → 直接呼び出し
+            OpenMaskToolForSubmeshInternal(component, renderer, submeshIndex);
+            #elif CHM_MASK_CREATION_TOOL
+            // VPM版はあるがv1.1未満 → 更新ダイアログ
+            EditorUtility.DisplayDialog(
+                "マスクツールの更新が必要",
+                "この機能にはマスク作成支援ツール v1.1以上が必要です。同梱版パッケージを更新してください。",
+                "OK");
+            #else
+            if (MaskToolRegistry.HasSubmeshHandler)
+            {
+                // Assets版 v1.1+（submeshハンドラ登録済み）→ レジストリ経由
+                MaskToolRegistry.OpenForSubmesh(renderer, submeshIndex);
+            }
+            else if (MaskToolRegistry.HasHandler)
+            {
+                // Assets版はあるがv1.1未満 → 更新ダイアログ
+                if (EditorUtility.DisplayDialog(
+                    "マスクツールの更新が必要",
+                    "この機能には「塗って！選んで！マスク作れるやつ」v1.1以上が必要です。更新してください。",
+                    "商品ページを開く",
+                    "閉じる"))
+                {
+                    Application.OpenURL("https://neko-to-same.booth.pm/items/7951475");
+                }
+            }
+            else
+            {
+                // マスクツール未インストール
+                bool hasOldAssetsMaskTool = false;
+                foreach (var asm in System.AppDomain.CurrentDomain.GetAssemblies())
+                {
+                    if (asm.GetName().Name == "com.nekoare.mask-creation-tool.editor")
+                    {
+                        hasOldAssetsMaskTool = true;
+                        break;
+                    }
+                }
+
+                if (hasOldAssetsMaskTool)
+                {
+                    if (EditorUtility.DisplayDialog(
+                        "マスクツールの更新が必要",
+                        "インストール済みの「塗って！選んで！マスク作れるやつ」はこの機能に対応していません。v1.1以上に更新してください。",
+                        "商品ページを開く",
+                        "閉じる"))
+                    {
+                        Application.OpenURL("https://neko-to-same.booth.pm/items/7951475");
+                    }
+                }
+                else
+                {
+                    if (EditorUtility.DisplayDialog(
+                        "マスクツール未インストール",
+                        "この機能にはマスク作成支援ツールが必要です。マスクツール同梱版，もしくは「塗って！選んで！マスク作れるやつ」v1.1以上を導入してください。",
+                        "商品ページを開く",
+                        "閉じる"))
+                    {
+                        Application.OpenURL("https://neko-to-same.booth.pm/items/7951475");
+                    }
+                }
+            }
+            #endif
+        }
+
+        #if CHM_MASK_TOOL_SUBMESH
+        private static void OpenMaskToolForSubmeshInternal(
+            ChimeraHairMaster component,
+            SkinnedMeshRenderer renderer,
+            int submeshIndex)
+        {
+            var context = new MaskToolExternalContext
+            {
+                targetRenderer = renderer,
+                targetGameObject = renderer.gameObject,
+                selectedMaterialIndex = submeshIndex
+            };
+
+            MaskCreationToolWindow.OpenWithContext(context);
+        }
+        #endif
+
         #if CHM_MASK_CREATION_TOOL
         private static void OpenMaskToolInternal(
             ChimeraHairMaster component,

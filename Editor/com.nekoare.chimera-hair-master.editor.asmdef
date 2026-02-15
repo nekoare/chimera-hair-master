@@ -37,6 +37,11 @@
       "name": "com.nekoare.mask-creation-tool",
       "expression": "",
       "define": "CHM_MASK_CREATION_TOOL"
+    },
+    {
+      "name": "com.nekoare.mask-creation-tool",
+      "expression": "1.1.0",
+      "define": "CHM_MASK_TOOL_SUBMESH"
     }
   ],
   "noEngineReferences": false
