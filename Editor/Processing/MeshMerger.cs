@@ -464,10 +464,11 @@ namespace ChimeraHairMaster.Editor.Processing
 
             Debug.Log($"[ChimeraHairMaster] Applying BlendShapes for {renderer.gameObject.name}");
 
-            // BlendShapeを適用
-            var deltaVertices = new Vector3[vertices.Length];
-            var deltaNormals = new Vector3[normals.Length];
-            var deltaTangents = new Vector3[tangents.Length];
+            // BlendShapeを適用（GetBlendShapeFrameVerticesは3配列すべてmesh.vertexCountを要求する）
+            int vertexCount = mesh.vertexCount;
+            var deltaVertices = new Vector3[vertexCount];
+            var deltaNormals = new Vector3[vertexCount];
+            var deltaTangents = new Vector3[vertexCount];
 
             for (int blendShapeIndex = 0; blendShapeIndex < blendShapeCount; blendShapeIndex++)
             {
