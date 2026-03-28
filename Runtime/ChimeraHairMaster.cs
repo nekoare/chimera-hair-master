@@ -216,6 +216,40 @@ namespace ChimeraHairMaster
 
         #endregion
 
+        #region メッシュ変形設定
+
+        /// <summary>
+        /// メッシュ変形を有効にするかどうか
+        /// </summary>
+        [SerializeField]
+        public bool enableMeshDeformation = false;
+
+        /// <summary>
+        /// Renderer単位の変形データ一覧
+        /// </summary>
+        [SerializeField]
+        public List<RendererDeformation> rendererDeformations = new List<RendererDeformation>();
+
+        /// <summary>
+        /// Scene Editorで変形編集中のRendererインデックス（-1 = 編集中でない）
+        /// NDMFプレビューがこの値を監視し、編集中のRendererをプロキシ対象から除外する
+        /// ビルド時には無視される（エディタ専用）
+        /// </summary>
+        [SerializeField]
+        public int deformEditingRendererIndex = -1;
+
+        /// <summary>
+        /// 変形編集前の元メッシュ参照（ドメインリロード対策）
+        /// 編集中にスクリプトコンパイルが走ると EndEdit が呼ばれず
+        /// renderer.sharedMesh がデルタ適用済みのまま残るため、
+        /// 本当の原本メッシュをここに保持しておく。
+        /// ビルド時には無視される（エディタ専用）
+        /// </summary>
+        [SerializeField]
+        public Mesh deformOriginalMesh;
+
+        #endregion
+
         #region プレビュー設定
 
         /// <summary>

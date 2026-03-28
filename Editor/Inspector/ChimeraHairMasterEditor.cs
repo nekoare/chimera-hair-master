@@ -61,6 +61,10 @@ namespace ChimeraHairMaster.Editor
         // 色合わせ適用オプション
         private const string PREF_APPLY_TEXTURE = "CHM_ApplyTexture";
         private const string PREF_UNIFY_SETTINGS = "CHM_UnifySettings";
+        private const string PREF_APPLY_DEFORMATION = "CHM_ApplyDeformation";
+
+        // メッシュ変形UI
+        private MeshDeformationInspectorUI meshDeformationUI;
 
         // Renderer click highlight state
         private static SkinnedMeshRenderer highlightRenderer;
@@ -119,10 +123,16 @@ namespace ChimeraHairMaster.Editor
             rendererBrightnessAdjustmentsProp = serializedObject.FindProperty("rendererBrightnessAdjustments");
             unifyMatCapProp = serializedObject.FindProperty("unifyMatCap");
 
+            // メッシュ変形UI初期化
+            meshDeformationUI = new MeshDeformationInspectorUI();
+
             // マテリアル変更監視を開始
             EditorApplication.update += OnEditorUpdate;
             // SceneViewでのハイライト描画を登録
             SceneView.duringSceneGui += OnSceneGUI;
+            // 重複登録を防ぐため、先に解除してから登録
+            SceneView.duringSceneGui -= OnMeshDeformSceneGUI;
+            SceneView.duringSceneGui += OnMeshDeformSceneGUI;
             
             // ドメインリロード後に lastBaseMaterial が null にリセットされるため、
             // OnEnable で現在の baseMaterial を記録しておく。
@@ -158,9 +168,20 @@ namespace ChimeraHairMaster.Editor
             EditorApplication.update -= OnEditorUpdate;
             // SceneViewのハイライト描画を解除
             SceneView.duringSceneGui -= OnSceneGUI;
-            
+
+            // メッシュ変形のScene GUIは編集中なら解除しない
+            // （Inspectorが閉じても編集セッションを維持するため）
+            var activeEditor = MeshDeformationInspectorUI.ActiveSceneEditor;
+            if (activeEditor == null || activeEditor.CurrentMode == Deformation.MeshDeformationSceneEditor.EditMode.Off)
+            {
+                SceneView.duringSceneGui -= OnMeshDeformSceneGUI;
+            }
+
             // マテリアルエディタを破棄
             CleanupMaterialEditor();
+
+            // メッシュ変形エディタをクリーンアップ
+            meshDeformationUI?.Cleanup();
         }
         
         private void CleanupMaterialEditor()
@@ -205,6 +226,9 @@ namespace ChimeraHairMaster.Editor
         {
             serializedObject.Update();
 
+            // 変形編集中に他のパラメータが変更されたら編集を終了する
+            EditorGUI.BeginChangeCheck();
+
             DrawComponentHeader();
             EditorGUILayout.Space(5);
 
@@ -219,6 +243,20 @@ namespace ChimeraHairMaster.Editor
                 DrawMeshSettings();
                 EditorGUILayout.Space(10);
             }
+
+            if (EditorGUI.EndChangeCheck())
+            {
+                var editor = MeshDeformationInspectorUI.ActiveSceneEditor;
+                if (editor != null && editor.CurrentMode != Deformation.MeshDeformationSceneEditor.EditMode.Off)
+                {
+                    editor.EndEdit();
+                    UnityEditor.SceneView.RepaintAll();
+                }
+            }
+
+            // メッシュ変形セクション
+            meshDeformationUI?.Draw(serializedObject, target as ChimeraHairMaster);
+            EditorGUILayout.Space(10);
 
             DrawActionButtons();
             EditorGUILayout.Space(10);
@@ -886,6 +924,19 @@ namespace ChimeraHairMaster.Editor
             EditorGUIUtility.PingObject(renderer.gameObject);
 
             SceneView.RepaintAll();
+        }
+
+        // メッシュ変形のScene Viewハンドラ
+        // SceneEditorはstaticインスタンスなのでstaticメソッドで直接呼べる
+        private static void OnMeshDeformSceneGUI(SceneView sv)
+        {
+            // staticなSceneEditorが編集中なら描画を続行
+            // Inspectorが閉じていても編集セッションは維持される
+            var editor = MeshDeformationInspectorUI.ActiveSceneEditor;
+            if (editor != null && editor.CurrentMode != Deformation.MeshDeformationSceneEditor.EditMode.Off)
+            {
+                editor.OnSceneGUI(sv);
+            }
         }
 
         private static void OnSceneGUI(SceneView sv)
@@ -1580,14 +1631,29 @@ namespace ChimeraHairMaster.Editor
             // チェックボックス
             bool applyTexture = EditorPrefs.GetBool(PREF_APPLY_TEXTURE, true);
             bool unifySettings = EditorPrefs.GetBool(PREF_UNIFY_SETTINGS, true);
+            bool applyDeformation = EditorPrefs.GetBool(PREF_APPLY_DEFORMATION, false);
 
             EditorGUI.BeginChangeCheck();
             applyTexture = EditorGUILayout.ToggleLeft("テクスチャをマテリアルに適用", applyTexture);
             unifySettings = EditorGUILayout.ToggleLeft("マテリアル設定を統一", unifySettings);
+
+            // メッシュ変形データがある場合のみ表示
+            bool hasDeformation = component.enableMeshDeformation
+                && component.rendererDeformations != null
+                && component.rendererDeformations.Exists(d => d.deltas != null && d.deltas.Count > 0);
+            if (hasDeformation)
+            {
+                applyDeformation = EditorGUILayout.ToggleLeft(
+                    new GUIContent("変形も反映する",
+                        "メッシュ変形のデータを反映した変形済みメッシュを生成し、Rendererに設定します"),
+                    applyDeformation);
+            }
+
             if (EditorGUI.EndChangeCheck())
             {
                 EditorPrefs.SetBool(PREF_APPLY_TEXTURE, applyTexture);
                 EditorPrefs.SetBool(PREF_UNIFY_SETTINGS, unifySettings);
+                EditorPrefs.SetBool(PREF_APPLY_DEFORMATION, applyDeformation);
             }
 
             if (showHelp)
@@ -1596,6 +1662,7 @@ namespace ChimeraHairMaster.Editor
                     "色合わせしたテクスチャをPNGとして出力します。\n" +
                     "「テクスチャをマテリアルに適用」: 生成テクスチャを元マテリアルの_MainTexにセットします。\n" +
                     "「マテリアル設定を統一」: プレビューマテリアルの数値設定を元マテリアルに上書きします。\n" +
+                    "「変形も反映する」: メッシュ変形データを適用した変形済みメッシュを保存し、Rendererに設定します。\n" +
                     "適用後、コンポーネントは自動的に無効化されます。",
                     MessageType.Info
                 );
@@ -1605,9 +1672,16 @@ namespace ChimeraHairMaster.Editor
             bool canApply = CanGeneratePreview(component);
             GUI.enabled = canApply;
 
-            if (GUILayout.Button("テクスチャとして保存する", GUILayout.Height(28)))
+            if (GUILayout.Button("キメラヘアマスターを元の髪に反映する", GUILayout.Height(28)))
             {
                 Processing.ColorApplier.Apply(component, applyTexture, unifySettings);
+
+                // メッシュ変形の適用
+                if (applyDeformation && hasDeformation)
+                {
+                    ApplyDeformationToRenderers(component);
+                }
+
                 serializedObject.Update();
             }
 
@@ -1622,6 +1696,63 @@ namespace ChimeraHairMaster.Editor
             }
 
             EditorGUILayout.EndVertical();
+        }
+
+        /// <summary>
+        /// メッシュ変形データを適用した変形済みメッシュを保存し、Rendererに設定する
+        /// </summary>
+        private void ApplyDeformationToRenderers(ChimeraHairMaster component)
+        {
+            foreach (var deformation in component.rendererDeformations)
+            {
+                if (deformation.deltas == null || deformation.deltas.Count == 0) continue;
+                if (deformation.rendererIndex < 0 || deformation.rendererIndex >= component.targetRenderers.Count) continue;
+
+                var renderer = component.targetRenderers[deformation.rendererIndex];
+                if (renderer == null || renderer.sharedMesh == null) continue;
+
+                // 変形済みメッシュを生成
+                var deformedMesh = Processing.MeshDeformer.ExportDeformedMesh(renderer, deformation);
+                if (deformedMesh == null) continue;
+
+                // Renderer名 + 元メッシュのアセット名（fbx名など）で命名
+                var rendererName = renderer.name;
+                var originalPath = AssetDatabase.GetAssetPath(renderer.sharedMesh);
+                var assetName = string.IsNullOrEmpty(originalPath)
+                    ? ""
+                    : System.IO.Path.GetFileNameWithoutExtension(originalPath);
+                var meshName = string.IsNullOrEmpty(assetName)
+                    ? $"{rendererName}_Deformed"
+                    : $"{assetName}_{rendererName}_Deformed";
+                deformedMesh.name = meshName;
+
+                // 元メッシュと同じフォルダに保存
+                string folder = string.IsNullOrEmpty(originalPath)
+                    ? "Assets"
+                    : System.IO.Path.GetDirectoryName(originalPath);
+                var savePath = $"{folder}/{meshName}.asset";
+
+                // 同名ファイルが既にあればユニーク名にする
+                savePath = AssetDatabase.GenerateUniqueAssetPath(savePath);
+
+                AssetDatabase.CreateAsset(deformedMesh, savePath);
+                Debug.Log($"[ChimeraHairMaster] 変形済みメッシュを保存: {savePath}");
+
+                // Rendererに設定
+                Undo.RecordObject(renderer, "Apply Deformed Mesh");
+                renderer.sharedMesh = deformedMesh;
+
+                // 変形データをクリア（メッシュに反映済みなので不要）
+                deformation.deltas.Clear();
+            }
+
+            // 変形機能を無効化
+            component.enableMeshDeformation = false;
+            component.deformOriginalMesh = null;
+            component.deformEditingRendererIndex = -1;
+
+            AssetDatabase.SaveAssets();
+            EditorUtility.SetDirty(component);
         }
 
         private bool CanGeneratePreview(ChimeraHairMaster component)

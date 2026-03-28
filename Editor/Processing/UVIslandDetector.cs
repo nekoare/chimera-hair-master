@@ -4,6 +4,22 @@ using UnityEngine;
 namespace ChimeraHairMaster.Editor.Processing
 {
     /// <summary>
+    /// UVアイランドの情報（頂点インデックス付き）
+    /// </summary>
+    public struct IslandInfo
+    {
+        /// <summary>
+        /// アイランドのUVバウンディングボックス
+        /// </summary>
+        public Rect bounds;
+
+        /// <summary>
+        /// このアイランドに属する頂点インデックスの集合
+        /// </summary>
+        public HashSet<int> vertexIndices;
+    }
+
+    /// <summary>
     /// メッシュのUVアイランド（連結したUV領域）を検出するユーティリティ
     /// </summary>
     public static class UVIslandDetector
@@ -182,6 +198,88 @@ namespace ChimeraHairMaster.Editor.Processing
 
             return result;
         }
+        /// <summary>
+        /// 特定サブメッシュのUVアイランドを頂点インデックス付きで検出する
+        /// メッシュ変形でアイランド単位の操作に使用
+        /// </summary>
+        /// <param name="mesh">対象のメッシュ</param>
+        /// <param name="submeshIndex">対象サブメッシュのインデックス</param>
+        /// <returns>IslandInfo（バウンドと頂点インデックス）のリスト</returns>
+        public static List<IslandInfo> DetectIslandsWithVertices(Mesh mesh, int submeshIndex)
+        {
+            var result = new List<IslandInfo>();
+            if (mesh == null) return result;
+
+            var uvs = new List<Vector2>();
+            mesh.GetUVs(0, uvs);
+            if (uvs.Count == 0) return result;
+            if (submeshIndex < 0 || submeshIndex >= mesh.subMeshCount) return result;
+
+            var triangles = mesh.GetTriangles(submeshIndex);
+            if (triangles.Length == 0) return result;
+
+            // このサブメッシュで使用されている頂点インデックスを収集
+            var usedVertices = new HashSet<int>();
+            foreach (var idx in triangles)
+                usedVertices.Add(idx);
+
+            // Union-Find構造でUVの連結成分を検出
+            var parent = new int[uvs.Count];
+            for (int i = 0; i < parent.Length; i++)
+                parent[i] = i;
+
+            for (int i = 0; i < triangles.Length; i += 3)
+            {
+                Union(parent, triangles[i], triangles[i + 1]);
+                Union(parent, triangles[i + 1], triangles[i + 2]);
+            }
+
+            // 各グループのUV境界と頂点インデックスを収集
+            var groupBounds = new Dictionary<int, Rect>();
+            var groupVertices = new Dictionary<int, HashSet<int>>();
+
+            foreach (var vertexIndex in usedVertices)
+            {
+                int root = Find(parent, vertexIndex);
+                var uv = uvs[vertexIndex];
+                float u = Mathf.Repeat(uv.x, 1.0f);
+                float v = Mathf.Repeat(uv.y, 1.0f);
+
+                if (!groupBounds.ContainsKey(root))
+                {
+                    groupBounds[root] = new Rect(u, v, 0, 0);
+                    groupVertices[root] = new HashSet<int> { vertexIndex };
+                }
+                else
+                {
+                    var bounds = groupBounds[root];
+                    float minX = Mathf.Min(bounds.xMin, u);
+                    float minY = Mathf.Min(bounds.yMin, v);
+                    float maxX = Mathf.Max(bounds.xMax, u);
+                    float maxY = Mathf.Max(bounds.yMax, v);
+                    groupBounds[root] = new Rect(minX, minY, maxX - minX, maxY - minY);
+                    groupVertices[root].Add(vertexIndex);
+                }
+            }
+
+            // 小さすぎるグループをフィルタリング
+            const float minIslandSize = 0.01f;
+            foreach (var kvp in groupBounds)
+            {
+                var bounds = kvp.Value;
+                if (bounds.width < minIslandSize && bounds.height < minIslandSize)
+                    continue;
+
+                result.Add(new IslandInfo
+                {
+                    bounds = bounds,
+                    vertexIndices = groupVertices[kvp.Key]
+                });
+            }
+
+            return result;
+        }
+
         /// <summary>
         /// アイランド面積比を維持しつつ、正方形枠に収まるようリサイズして棚詰め配置
         /// </summary>

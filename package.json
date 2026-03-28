@@ -1,6 +1,6 @@
 {
   "name": "com.nekoare.chimera-hair-master",
-  "version": "1.0.8",
+  "version": "1.1.0",
   "displayName": "キメラヘアマスター",
   "description": "VRChat用キメラヘア作成支援ツール。カラーマッチング・UV統合・マテリアル統合機能を提供します。",
   "unity": "2022.3",

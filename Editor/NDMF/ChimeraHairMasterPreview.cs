@@ -91,6 +91,34 @@ namespace ChimeraHairMaster.Editor.NDMF
                     }
                 }
 
+                // メッシュ変形データ
+                // MeshDeformPassがビルドパスとして処理するが、
+                // ハッシュに含めることでデルタ変更時にプレビュー再構築をトリガーする
+                if (component.enableMeshDeformation && component.rendererDeformations != null)
+                {
+                    hash = hash * 31 + component.enableMeshDeformation.GetHashCode();
+
+                    // 編集中のRendererのデルタはハッシュから除外
+                    // （編集中はプロキシ対象外なので再構築不要）
+                    int editingIdx = component.deformEditingRendererIndex;
+                    bool isActuallyEditing = editingIdx >= 0
+                        && Deformation.MeshDeformationSceneEditor.ActiveEditingRendererIds.Count > 0;
+
+                    foreach (var deformation in component.rendererDeformations)
+                    {
+                        if (isActuallyEditing && deformation.rendererIndex == editingIdx)
+                            continue;
+
+                        hash = hash * 31 + deformation.rendererIndex;
+                        hash = hash * 31 + deformation.deltas.Count;
+                        foreach (var delta in deformation.deltas)
+                        {
+                            hash = hash * 31 + delta.vertexIndex;
+                            hash = hash * 31 + delta.offset.GetHashCode();
+                        }
+                    }
+                }
+
                 // ソーステクスチャの識別（InstanceID）
                 for (int r = 0; r < component.targetRenderers.Count; r++)
                 {
@@ -399,18 +427,26 @@ namespace ChimeraHairMaster.Editor.NDMF
                     if (!enabledComponents.Any()) continue;
 
                     // 対象のRendererを収集
+                    // メッシュ変形編集中はこのコンポーネントの全Rendererをプロキシ対象から除外する
+                    // （編集中はプレビューパイプライン不要、パフォーマンス改善）
+                    var editingIds = Deformation.MeshDeformationSceneEditor.ActiveEditingRendererIds;
                     var targetRenderers = new HashSet<Renderer>();
                     foreach (var component in enabledComponents)
                     {
+                        // deformEditingRendererIndexを監視して編集開始/終了でリビルドをトリガー
+                        int editingIdx = context.Observe(component, c => c.deformEditingRendererIndex);
+                        bool isActuallyEditing = editingIdx >= 0 && editingIds.Count > 0;
+
+                        // 編集中はこのコンポーネントの全Rendererをスキップ
+                        if (isActuallyEditing) continue;
+
                         var renderers = context.Observe(component, c => c.targetRenderers);
                         if (renderers == null) continue;
 
                         foreach (var renderer in renderers)
                         {
                             if (renderer != null)
-                            {
                                 targetRenderers.Add(renderer);
-                            }
                         }
                     }
 
@@ -443,7 +479,6 @@ namespace ChimeraHairMaster.Editor.NDMF
                     context.Observe(component, c => ComputePreviewRelevantHash(c));
                     // previewMaterialHashを明示的に監視（マテリアル内部変更検知用）
                     var hash = context.Observe(component, c => c.previewMaterialHash);
-                    Debug.Log($"[ChimeraHairMaster] Preview Instantiate - current hash: {hash}");
                 }
 
                 // 有効なコンポーネントをフィルタ
@@ -482,7 +517,72 @@ namespace ChimeraHairMaster.Editor.NDMF
                     }
                 }
 
-                if (processedMaterials.Count == 0)
+                // メッシュ変形プレビュー
+                // MeshDeformPassがビルドパスとして先に実行される場合があるため、
+                // renderer.sharedMeshがアセットかどうかで適用済みを判定し二重適用を防ぐ
+                foreach (var component in enabledComponents)
+                {
+                    if (!component.enableMeshDeformation) continue;
+                    if (component.rendererDeformations == null) continue;
+
+                    var editingIds = Deformation.MeshDeformationSceneEditor.ActiveEditingRendererIds;
+
+                    foreach (var deformation in component.rendererDeformations)
+                    {
+                        if (deformation.deltas == null || deformation.deltas.Count == 0) continue;
+                        if (deformation.rendererIndex < 0 || deformation.rendererIndex >= component.targetRenderers.Count) continue;
+
+                        var renderer = component.targetRenderers[deformation.rendererIndex];
+                        if (renderer == null || renderer.sharedMesh == null) continue;
+                        if (renderer.sharedMesh.vertexCount != deformation.expectedVertexCount) continue;
+
+                        int rendererId = renderer.GetInstanceID();
+                        bool isAsset = AssetDatabase.Contains(renderer.sharedMesh);
+                        bool isEditing = editingIds.Contains(rendererId);
+                        bool hasRemapped = remappedMeshes != null && remappedMeshes.ContainsKey(rendererId);
+
+                        // 編集中のRendererはスキップ（Scene Editorが直接操作中）
+                        if (isEditing) continue;
+
+                        // MeshDeformPassが既にメッシュを差し替え済みの場合スキップ
+                        // （MeshDeformPassは差し替えたメッシュに "_Deformed" サフィックスを付ける）
+                        // !isAsset だけでは Modular Avatar 等の他プラグインの Instantiate と区別できないため、
+                        // 名前でも判定する
+                        bool alreadyDeformedByPass = !isAsset && !hasRemapped
+                            && renderer.sharedMesh.name.EndsWith("_Deformed");
+                        if (alreadyDeformedByPass) continue;
+
+                        remappedMeshes ??= new Dictionary<int, Mesh>();
+
+                        Mesh baseMesh;
+                        if (remappedMeshes.TryGetValue(rendererId, out var existingMesh))
+                        {
+                            // キャッシュのメッシュを直接変更するとデルタが蓄積するため、
+                            // 必ずコピーしてから変形する
+                            baseMesh = Object.Instantiate(existingMesh);
+                            baseMesh.name = existingMesh.name + "_Deformed";
+                        }
+                        else
+                        {
+                            baseMesh = Object.Instantiate(renderer.sharedMesh);
+                            baseMesh.name = renderer.sharedMesh.name + "_DeformPreview";
+                        }
+
+                        var vertices = baseMesh.vertices;
+                        foreach (var delta in deformation.deltas)
+                        {
+                            if (delta.vertexIndex >= 0 && delta.vertexIndex < vertices.Length)
+                                vertices[delta.vertexIndex] += delta.offset;
+                        }
+                        baseMesh.vertices = vertices;
+                        baseMesh.RecalculateNormals();
+                        baseMesh.RecalculateBounds();
+
+                        remappedMeshes[rendererId] = baseMesh;
+                    }
+                }
+
+                if (processedMaterials.Count == 0 && (remappedMeshes == null || remappedMeshes.Count == 0))
                 {
                     return Task.FromResult<IRenderFilterNode>(new PreviewNode(null, null));
                 }

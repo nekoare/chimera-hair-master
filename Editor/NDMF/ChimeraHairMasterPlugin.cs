@@ -15,11 +15,11 @@ namespace ChimeraHairMaster.Editor.NDMF
         protected override void Configure()
         {
             // Transforming Phase - 全パスをチェーン接続で順序を保証
-            // 順序: ColorTransform → TextureAtlas → MeshMerge
-            // 順序: MeshCut → ColorTransform → TextureAtlas → MeshMerge
+            // 順序: MeshDeform → MeshCut → ColorTransform → TextureAtlas → MeshMerge
             InPhase(BuildPhase.Transforming)
                 .BeforePlugin("nadena.dev.modular-avatar")
-                .Run(MeshCutPass.Instance)
+                .Run(MeshDeformPass.Instance)
+                .Then.Run(MeshCutPass.Instance)
                 .Then.Run(ColorTransformPass.Instance)
                 .PreviewingWith(new ChimeraHairMasterPreview())
                 .Then.Run(TextureAtlasPass.Instance)
