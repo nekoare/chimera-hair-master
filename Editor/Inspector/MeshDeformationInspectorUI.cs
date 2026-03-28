@@ -65,6 +65,7 @@ namespace ChimeraHairMaster.Editor
             if (!enableProp.boolValue)
             {
                 EditorGUI.indentLevel--;
+                EditorGUILayout.EndVertical();
                 return;
             }
 
