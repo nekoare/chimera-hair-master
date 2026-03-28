@@ -308,6 +308,7 @@ namespace ChimeraHairMaster.Editor.Deformation
             _baseVertices = null;
             _activeDeltaMap.Clear();
             _bakedVerticesWorld = null;
+            if (_bakeTempMesh != null) { Object.DestroyImmediate(_bakeTempMesh); _bakeTempMesh = null; }
             _selectedVertices.Clear();
             _cachedIslands = null;
             _selectedIslandIndex = -1;
@@ -1513,15 +1514,24 @@ namespace ChimeraHairMaster.Editor.Deformation
         /// 作業メッシュの頂点をワールド空間に変換してキャッシュする。
         /// 表示・選択のヒットテストに使用する。
         /// </summary>
+        private Mesh _bakeTempMesh;
+
         private void UpdateBakedVertices(SkinnedMeshRenderer renderer)
         {
-            var localVerts = _workingMesh.vertices;
-            if (_bakedVerticesWorld == null || _bakedVerticesWorld.Length != localVerts.Length)
-                _bakedVerticesWorld = new Vector3[localVerts.Length];
+            if (_bakeTempMesh == null)
+                _bakeTempMesh = new Mesh();
+
+            // BakeMesh: Bone変形を反映したローカル空間の頂点を取得
+            // useScale=false → Rendererのスケールは含まない（TransformPointで適用）
+            renderer.BakeMesh(_bakeTempMesh, false);
+            var bakedLocal = _bakeTempMesh.vertices;
+
+            if (_bakedVerticesWorld == null || _bakedVerticesWorld.Length != bakedLocal.Length)
+                _bakedVerticesWorld = new Vector3[bakedLocal.Length];
 
             var t = renderer.transform;
-            for (int i = 0; i < localVerts.Length; i++)
-                _bakedVerticesWorld[i] = t.TransformPoint(localVerts[i]);
+            for (int i = 0; i < bakedLocal.Length; i++)
+                _bakedVerticesWorld[i] = t.TransformPoint(bakedLocal[i]);
         }
 
         private static Material GetGLMaterial()
