@@ -12,7 +12,7 @@ namespace ChimeraHairMaster
     [AddComponentMenu("Chimera Hair Master/Chimera Hair Master")]
     [DisallowMultipleComponent]
     [HelpURL("")]
-    public class ChimeraHairMaster : MonoBehaviour, IEditorOnly
+    public class ChimeraHairMaster : MonoBehaviour, IEditorOnly, IMeshDeformationTarget
     {
         #region 基本設定
 
@@ -247,6 +247,27 @@ namespace ChimeraHairMaster
         /// </summary>
         [SerializeField]
         public Mesh deformOriginalMesh;
+
+        #endregion
+
+        #region IMeshDeformationTarget 実装
+
+        public List<SkinnedMeshRenderer> DeformTargetRenderers => targetRenderers;
+        public List<RendererDeformation> RendererDeformations => rendererDeformations;
+
+        public int DeformEditingRendererIndex
+        {
+            get => deformEditingRendererIndex;
+            set => deformEditingRendererIndex = value;
+        }
+
+        public Mesh DeformOriginalMesh
+        {
+            get => deformOriginalMesh;
+            set => deformOriginalMesh = value;
+        }
+
+        public UnityEngine.Object UndoTarget => this;
 
         #endregion
 

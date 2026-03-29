@@ -37,9 +37,16 @@ namespace ChimeraHairMaster.Editor.Deformation
         public static readonly HashSet<int> ActiveEditingRendererIds = new HashSet<int>();
 
         /// <summary>
-        /// 編集対象のCHMコンポーネント
+        /// 編集対象コンポーネント
         /// </summary>
-        public ChimeraHairMaster TargetComponent { get; private set; }
+        public IMeshDeformationTarget TargetComponent { get; private set; }
+
+        /// <summary>
+        /// TargetComponentが有効かどうか。
+        /// インターフェース参照はUnityの破棄済みオブジェクト検出が効かないため、
+        /// UndoTarget（UnityEngine.Object）経由でUnityのnullチェックを行う。
+        /// </summary>
+        private bool IsTargetAlive => TargetComponent?.UndoTarget != null;
 
         /// <summary>
         /// 編集対象のRendererインデックス
@@ -144,7 +151,7 @@ namespace ChimeraHairMaster.Editor.Deformation
         /// <summary>
         /// 編集モードを開始する
         /// </summary>
-        public void BeginEdit(ChimeraHairMaster component, int rendererIndex, EditMode mode)
+        public void BeginEdit(IMeshDeformationTarget component, int rendererIndex, EditMode mode)
         {
             // 同じコンポーネント・同じRendererでモードだけ切り替える場合はメッシュを再作成しない
             if (CurrentMode != EditMode.Off
@@ -171,9 +178,9 @@ namespace ChimeraHairMaster.Editor.Deformation
             // ドメインリロード対策: 前回の編集セッションが中断された場合、
             // renderer.sharedMesh がデルタ適用済みのまま残っている可能性がある。
             // コンポーネントに保存された原本メッシュがあればそちらを復元する。
-            if (component.deformOriginalMesh != null)
+            if (component.DeformOriginalMesh != null)
             {
-                renderer.sharedMesh = component.deformOriginalMesh;
+                renderer.sharedMesh = component.DeformOriginalMesh;
             }
 
             // 元メッシュを保存し、作業用コピーを作成
@@ -193,9 +200,9 @@ namespace ChimeraHairMaster.Editor.Deformation
             // 1. staticセットに登録（Instantiateでのデルタ二重適用防止）
             // 2. コンポーネントのフィールドを更新（GetTargetGroupsでのプロキシ除外トリガー）
             ActiveEditingRendererIds.Add(renderer.GetInstanceID());
-            Undo.RegisterCompleteObjectUndo(TargetComponent, "Begin Mesh Deformation Edit");
-            TargetComponent.deformEditingRendererIndex = rendererIndex;
-            TargetComponent.deformOriginalMesh = _originalMesh;
+            Undo.RegisterCompleteObjectUndo(TargetComponent.UndoTarget, "Begin Mesh Deformation Edit");
+            TargetComponent.DeformEditingRendererIndex = rendererIndex;
+            TargetComponent.DeformOriginalMesh = _originalMesh;
 
             // UVアイランドモードならアイランドをキャッシュ
             if (mode == EditMode.UVIsland)
@@ -265,30 +272,29 @@ namespace ChimeraHairMaster.Editor.Deformation
             // 自動終了イベントを解除
             UnregisterAutoEndEditCallbacks();
 
-            // EndEditの全変更（デルタ保存 + エディタ専用フィールドクリア）を
-            // Undoで追跡可能にするため、変更前の状態を即座にスナップショットする。
-            // RecordObject（遅延diff）ではなくRegisterCompleteObjectUndo（即座キャプチャ）を使う。
-            // これにより、セッション間を跨いだUndoチェーンが維持される。
-            if (TargetComponent != null)
+            // コンポーネントが破棄済みかチェック
+            // インターフェース参照はUnityの破棄検出が効かないため、UndoTarget経由で確認
+            bool targetAlive = IsTargetAlive;
+
+            // コンポーネントが生存中ならUndoスナップショットとデルタ保存を行う
+            if (targetAlive)
             {
-                Undo.RegisterCompleteObjectUndo(TargetComponent, "End Mesh Deformation Edit");
+                Undo.RegisterCompleteObjectUndo(TargetComponent.UndoTarget, "End Mesh Deformation Edit");
+                SaveDeltasToComponent();
             }
 
-            // デルタをコンポーネントに保存（Undoスナップショット後なので追跡される）
-            SaveDeltasToComponent();
-
             // NDMFプレビューの二重適用防止を解除
-            var renderer = GetActiveRenderer();
+            var renderer = targetAlive ? GetActiveRenderer() : null;
             if (renderer != null)
             {
                 ActiveEditingRendererIds.Remove(renderer.GetInstanceID());
             }
 
             // エディタ専用フィールドをクリア
-            if (TargetComponent != null)
+            if (targetAlive)
             {
-                TargetComponent.deformEditingRendererIndex = -1;
-                TargetComponent.deformOriginalMesh = null;
+                TargetComponent.DeformEditingRendererIndex = -1;
+                TargetComponent.DeformOriginalMesh = null;
             }
 
             // 元のメッシュに戻す
@@ -340,13 +346,13 @@ namespace ChimeraHairMaster.Editor.Deformation
         /// </summary>
         private void OnUndoRedo()
         {
-            if (CurrentMode == EditMode.Off || TargetComponent == null) return;
+            if (CurrentMode == EditMode.Off || !IsTargetAlive) return;
 
             // コンポーネントのシリアライズデータからデルタを再読み込み
             _activeDeltaMap.Clear();
-            if (TargetComponent.rendererDeformations != null)
+            if (TargetComponent.RendererDeformations != null)
             {
-                var deformation = TargetComponent.rendererDeformations.Find(
+                var deformation = TargetComponent.RendererDeformations.Find(
                     d => d.rendererIndex == ActiveRendererIndex);
                 if (deformation?.deltas != null)
                 {
@@ -403,7 +409,11 @@ namespace ChimeraHairMaster.Editor.Deformation
         public void OnSceneGUI(UnityEditor.SceneView sceneView)
         {
             if (CurrentMode == EditMode.Off) return;
-            if (TargetComponent == null || GetActiveRenderer() == null) return;
+            if (!IsTargetAlive || GetActiveRenderer() == null)
+            {
+                EndEdit();
+                return;
+            }
 
             var e = Event.current;
 
@@ -943,7 +953,7 @@ namespace ChimeraHairMaster.Editor.Deformation
             var label = $"メッシュ変形: {modeName}{toolName}";
 
             Undo.IncrementCurrentGroup();
-            Undo.RegisterCompleteObjectUndo(TargetComponent, label);
+            Undo.RegisterCompleteObjectUndo(TargetComponent.UndoTarget, label);
             Undo.SetCurrentGroupName(label);
             _undoGroupId = Undo.GetCurrentGroup();
             _undoOpen = true;
@@ -1653,7 +1663,7 @@ namespace ChimeraHairMaster.Editor.Deformation
         {
             _activeDeltaMap.Clear();
 
-            var deformation = TargetComponent.rendererDeformations?.Find(
+            var deformation = TargetComponent.RendererDeformations?.Find(
                 d => d.rendererIndex == ActiveRendererIndex);
             if (deformation == null) return;
 
@@ -1663,7 +1673,7 @@ namespace ChimeraHairMaster.Editor.Deformation
 
         private void SaveDeltasToComponent()
         {
-            if (TargetComponent == null || ActiveRendererIndex < 0) return;
+            if (!IsTargetAlive || ActiveRendererIndex < 0) return;
 
             var deformation = GetOrCreateDeformation();
             if (deformation == null) return;
@@ -1684,12 +1694,12 @@ namespace ChimeraHairMaster.Editor.Deformation
 
         private RendererDeformation GetOrCreateDeformation()
         {
-            if (TargetComponent == null || ActiveRendererIndex < 0) return null;
+            if (!IsTargetAlive || ActiveRendererIndex < 0) return null;
 
             var renderer = GetActiveRenderer();
             if (renderer == null || renderer.sharedMesh == null) return null;
 
-            var existing = TargetComponent.rendererDeformations.Find(
+            var existing = TargetComponent.RendererDeformations.Find(
                 d => d.rendererIndex == ActiveRendererIndex);
 
             if (existing != null) return existing;
@@ -1698,7 +1708,7 @@ namespace ChimeraHairMaster.Editor.Deformation
                 ActiveRendererIndex,
                 _originalMesh != null ? _originalMesh.vertexCount : renderer.sharedMesh.vertexCount);
 
-            TargetComponent.rendererDeformations.Add(newDeformation);
+            TargetComponent.RendererDeformations.Add(newDeformation);
             return newDeformation;
         }
 
@@ -1736,9 +1746,9 @@ namespace ChimeraHairMaster.Editor.Deformation
 
         private SkinnedMeshRenderer GetActiveRenderer()
         {
-            if (TargetComponent == null || ActiveRendererIndex < 0) return null;
-            if (ActiveRendererIndex >= TargetComponent.targetRenderers.Count) return null;
-            return TargetComponent.targetRenderers[ActiveRendererIndex];
+            if (!IsTargetAlive || ActiveRendererIndex < 0) return null;
+            if (ActiveRendererIndex >= TargetComponent.DeformTargetRenderers.Count) return null;
+            return TargetComponent.DeformTargetRenderers[ActiveRendererIndex];
         }
 
         /// <summary>
@@ -1765,7 +1775,7 @@ namespace ChimeraHairMaster.Editor.Deformation
 
             // Undo記録
             Undo.IncrementCurrentGroup();
-            Undo.RegisterCompleteObjectUndo(TargetComponent, "メッシュ変形: スムーズ");
+            Undo.RegisterCompleteObjectUndo(TargetComponent.UndoTarget, "メッシュ変形: スムーズ");
 
             var vertices = _workingMesh.vertices;
             var triangles = _workingMesh.triangles;
@@ -1823,13 +1833,13 @@ namespace ChimeraHairMaster.Editor.Deformation
         {
             // リセット前の状態を完全にUndoに記録
             SaveDeltasToComponent();
-            Undo.RegisterCompleteObjectUndo(TargetComponent, "Reset Mesh Deformation");
+            Undo.RegisterCompleteObjectUndo(TargetComponent.UndoTarget, "Reset Mesh Deformation");
 
             // デルタをクリアしてコンポーネントに保存
             _activeDeltaMap.Clear();
             ApplyDeltasToWorkingMesh();
             SaveDeltasToComponent();
-            EditorUtility.SetDirty(TargetComponent);
+            EditorUtility.SetDirty(TargetComponent.UndoTarget);
         }
 
         #endregion
@@ -1868,8 +1878,15 @@ namespace ChimeraHairMaster.Editor.Deformation
         {
             if (CurrentMode == EditMode.Off) return;
 
-            // CHMコンポーネントのあるGameObjectが選択されたままなら終了しない
-            if (TargetComponent != null && Selection.activeGameObject == TargetComponent.gameObject) return;
+            // コンポーネントが破棄されていたら即終了
+            if (!IsTargetAlive)
+            {
+                EndEdit();
+                return;
+            }
+
+            // 編集対象コンポーネントのあるGameObjectが選択されたままなら終了しない
+            if (Selection.activeGameObject == TargetComponent.gameObject) return;
 
             EndEdit();
         }
@@ -1911,30 +1928,38 @@ namespace ChimeraHairMaster.Editor.Deformation
 
         private static void CleanupOrphanedEditingSessions()
         {
-            var allComponents = Object.FindObjectsByType<ChimeraHairMaster>(FindObjectsSortMode.None);
-            foreach (var component in allComponents)
-            {
-                if (component.deformOriginalMesh != null)
-                {
-                    // deformOriginalMeshが残っている = EndEditが呼ばれなかった
-                    // rendererのsharedMeshを復元
-                    if (component.deformEditingRendererIndex >= 0
-                        && component.deformEditingRendererIndex < component.targetRenderers.Count)
-                    {
-                        var renderer = component.targetRenderers[component.deformEditingRendererIndex];
-                        if (renderer != null)
-                        {
-                            renderer.sharedMesh = component.deformOriginalMesh;
-                        }
-                    }
-                    component.deformOriginalMesh = null;
-                    component.deformEditingRendererIndex = -1;
-                    EditorUtility.SetDirty(component);
-                }
-            }
+            // CHMコンポーネントの復旧
+            CleanupTargets(Object.FindObjectsByType<ChimeraHairMaster>(FindObjectsSortMode.None));
+
+            // スタンドアロンコンポーネントの復旧
+            CleanupTargets(Object.FindObjectsByType<MeshDeformationStandalone>(FindObjectsSortMode.None));
 
             // static状態もクリア
             MeshDeformationSceneEditor.ActiveEditingRendererIds.Clear();
+        }
+
+        private static void CleanupTargets<T>(T[] targets) where T : MonoBehaviour, IMeshDeformationTarget
+        {
+            foreach (var target in targets)
+            {
+                if (target.DeformOriginalMesh != null)
+                {
+                    // DeformOriginalMeshが残っている = EndEditが呼ばれなかった
+                    // rendererのsharedMeshを復元
+                    if (target.DeformEditingRendererIndex >= 0
+                        && target.DeformEditingRendererIndex < target.DeformTargetRenderers.Count)
+                    {
+                        var renderer = target.DeformTargetRenderers[target.DeformEditingRendererIndex];
+                        if (renderer != null)
+                        {
+                            renderer.sharedMesh = target.DeformOriginalMesh;
+                        }
+                    }
+                    target.DeformOriginalMesh = null;
+                    target.DeformEditingRendererIndex = -1;
+                    EditorUtility.SetDirty(target);
+                }
+            }
         }
     }
 }

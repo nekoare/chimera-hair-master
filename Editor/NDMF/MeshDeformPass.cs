@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using ChimeraHairMaster.Editor.Processing;
 using nadena.dev.ndmf;
 using UnityEngine;
@@ -14,18 +15,55 @@ namespace ChimeraHairMaster.Editor.NDMF
 
         protected override void Execute(BuildContext context)
         {
-            var components = context.AvatarRootObject.GetComponentsInChildren<ChimeraHairMaster>(true);
+            // CHMで変形済みのRendererを追跡（二重適用防止）
+            var deformedRenderers = new HashSet<int>();
 
+            // CHMコンポーネントのメッシュ変形を処理
+            var components = context.AvatarRootObject.GetComponentsInChildren<ChimeraHairMaster>(true);
             foreach (var component in components)
             {
                 if (!component.isEnabled) continue;
                 if (!component.enableMeshDeformation) continue;
 
+                // 変形対象のRendererを記録（CHM固有フィールドへの直接アクセス: ビルドパスのみ）
+                if (component.rendererDeformations != null)
+                {
+                    foreach (var deformation in component.rendererDeformations)
+                    {
+                        if (deformation.deltas != null && deformation.deltas.Count > 0
+                            && deformation.rendererIndex >= 0
+                            && deformation.rendererIndex < component.targetRenderers.Count)
+                        {
+                            var renderer = component.targetRenderers[deformation.rendererIndex];
+                            if (renderer != null)
+                                deformedRenderers.Add(renderer.GetInstanceID());
+                        }
+                    }
+                }
+
                 MeshDeformer.ApplyDeformation(component);
 
-                // エディタ専用フィールドをクリーンアップ（ビルド時に残留しないよう）
                 component.deformEditingRendererIndex = -1;
                 component.deformOriginalMesh = null;
+            }
+
+            // スタンドアロンコンポーネントのメッシュ変形を処理
+            var standaloneComponents = context.AvatarRootObject.GetComponentsInChildren<MeshDeformationStandalone>(true);
+            foreach (var standalone in standaloneComponents)
+            {
+                // CHMで既に変形済みのRendererがあれば警告
+                if (standalone.targetRenderer != null
+                    && deformedRenderers.Contains(standalone.targetRenderer.GetInstanceID()))
+                {
+                    Debug.LogWarning(
+                        $"[ChimeraHairMaster] {standalone.targetRenderer.name} はキメラヘアマスターとメッシュ変形(スタンドアロン)の両方で変形されています。" +
+                        "二重に変形が適用されます。");
+                }
+
+                MeshDeformer.ApplyDeformation(standalone);
+
+                standalone.deformEditingRendererIndex = -1;
+                standalone.deformOriginalMesh = null;
             }
         }
     }

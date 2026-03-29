@@ -18,11 +18,6 @@ namespace ChimeraHairMaster.Editor
         /// </summary>
         private static MeshDeformationSceneEditor _sceneEditor;
 
-        private bool _showSection
-        {
-            get => SessionState.GetBool("CHM_MeshDeform_ShowSection", false);
-            set => SessionState.SetBool("CHM_MeshDeform_ShowSection", value);
-        }
         private int _selectedRendererIndex = 0;
 
         private bool _showDisplaySettings
@@ -49,27 +44,10 @@ namespace ChimeraHairMaster.Editor
         /// <summary>
         /// メッシュ変形セクションを描画する
         /// </summary>
-        public void Draw(SerializedObject serializedObject, ChimeraHairMaster component)
+        public void Draw(IMeshDeformationTarget component)
         {
-            var enableProp = serializedObject.FindProperty("enableMeshDeformation");
-
-            _showSection = EditorGUILayout.Foldout(_showSection, "メッシュ変形", true, EditorStyles.foldoutHeader);
-            if (!_showSection) return;
-
             EditorGUILayout.BeginVertical(EditorStyles.helpBox);
             EditorGUI.indentLevel++;
-
-            // 有効/無効トグル
-            EditorGUILayout.PropertyField(enableProp, new GUIContent("有効"));
-
-            if (!enableProp.boolValue)
-            {
-                EditorGUI.indentLevel--;
-                EditorGUILayout.EndVertical();
-                return;
-            }
-
-            EditorGUILayout.Space(5);
 
             // Renderer選択
             DrawRendererSelection(component);
@@ -109,18 +87,25 @@ namespace ChimeraHairMaster.Editor
             EditorGUILayout.EndVertical();
         }
 
-        private void DrawRendererSelection(ChimeraHairMaster component)
+        private void DrawRendererSelection(IMeshDeformationTarget component)
         {
-            if (component.targetRenderers == null || component.targetRenderers.Count == 0)
+            if (component.DeformTargetRenderers == null || component.DeformTargetRenderers.Count == 0)
             {
                 EditorGUILayout.HelpBox("対象Rendererが設定されていません", MessageType.Info);
                 return;
             }
 
-            var names = new string[component.targetRenderers.Count];
-            for (int i = 0; i < component.targetRenderers.Count; i++)
+            // Rendererが1つだけならセレクタを表示しない（スタンドアロン等）
+            if (component.DeformTargetRenderers.Count == 1)
             {
-                var r = component.targetRenderers[i];
+                _selectedRendererIndex = 0;
+                return;
+            }
+
+            var names = new string[component.DeformTargetRenderers.Count];
+            for (int i = 0; i < component.DeformTargetRenderers.Count; i++)
+            {
+                var r = component.DeformTargetRenderers[i];
                 names[i] = r != null ? r.name : "(missing)";
             }
 
@@ -140,7 +125,7 @@ namespace ChimeraHairMaster.Editor
             }
         }
 
-        private void DrawEditModeButtons(ChimeraHairMaster component)
+        private void DrawEditModeButtons(IMeshDeformationTarget component)
         {
             var currentMode = SceneEditor.CurrentMode;
             bool isEditing = currentMode != MeshDeformationSceneEditor.EditMode.Off;
@@ -226,12 +211,12 @@ namespace ChimeraHairMaster.Editor
             }
         }
 
-        private void DrawExportButtons(ChimeraHairMaster component)
+        private void DrawExportButtons(IMeshDeformationTarget component)
         {
-            if (component.rendererDeformations == null || component.rendererDeformations.Count == 0)
+            if (component.RendererDeformations == null || component.RendererDeformations.Count == 0)
                 return;
 
-            var deformation = component.rendererDeformations.Find(
+            var deformation = component.RendererDeformations.Find(
                 d => d.rendererIndex == _selectedRendererIndex);
             if (deformation == null || deformation.deltas.Count == 0)
                 return;
@@ -253,12 +238,12 @@ namespace ChimeraHairMaster.Editor
             EditorGUILayout.EndHorizontal();
         }
 
-        private void ExportMesh(ChimeraHairMaster component, RendererDeformation deformation, bool replaceOriginal)
+        private void ExportMesh(IMeshDeformationTarget component, RendererDeformation deformation, bool replaceOriginal)
         {
-            if (_selectedRendererIndex < 0 || _selectedRendererIndex >= component.targetRenderers.Count)
+            if (_selectedRendererIndex < 0 || _selectedRendererIndex >= component.DeformTargetRenderers.Count)
                 return;
 
-            var renderer = component.targetRenderers[_selectedRendererIndex];
+            var renderer = component.DeformTargetRenderers[_selectedRendererIndex];
             if (renderer == null || renderer.sharedMesh == null) return;
 
             var exportedMesh = MeshDeformer.ExportDeformedMesh(renderer, deformation);
@@ -289,7 +274,7 @@ namespace ChimeraHairMaster.Editor
                     "この操作はUndo可能です。",
                     "入れ替える", "キャンセル"))
                 {
-                    Undo.RegisterCompleteObjectUndo(component, "Replace Mesh with Deformed");
+                    Undo.RegisterCompleteObjectUndo(component.UndoTarget, "Replace Mesh with Deformed");
                     Undo.RecordObject(renderer, "Replace Mesh with Deformed");
                     renderer.sharedMesh = exportedMesh;
 
@@ -309,14 +294,14 @@ namespace ChimeraHairMaster.Editor
             }
         }
 
-        private void DrawResetButton(ChimeraHairMaster component)
+        private void DrawResetButton(IMeshDeformationTarget component)
         {
-            var deformation = component.rendererDeformations?.Find(
+            var deformation = component.RendererDeformations?.Find(
                 d => d.rendererIndex == _selectedRendererIndex);
 
             // デルタがある、またはドメインリロードで残った原本メッシュがある場合に表示
             bool hasDeltas = deformation != null && deformation.deltas.Count > 0;
-            bool hasOrphanedMesh = component.deformOriginalMesh != null;
+            bool hasOrphanedMesh = component.DeformOriginalMesh != null;
             if (!hasDeltas && !hasOrphanedMesh) return;
 
             GUI.backgroundColor = new Color(1f, 0.5f, 0.5f);
@@ -335,30 +320,30 @@ namespace ChimeraHairMaster.Editor
                     }
                     else
                     {
-                        Undo.RegisterCompleteObjectUndo(component, "Reset Mesh Deformation");
+                        Undo.RegisterCompleteObjectUndo(component.UndoTarget, "Reset Mesh Deformation");
 
                         // デルタをクリア
                         if (deformation != null)
                             deformation.deltas.Clear();
 
                         // ドメインリロードで残った原本メッシュがあれば復元
-                        if (component.deformOriginalMesh != null)
+                        if (component.DeformOriginalMesh != null)
                         {
                             if (_selectedRendererIndex >= 0
-                                && _selectedRendererIndex < component.targetRenderers.Count)
+                                && _selectedRendererIndex < component.DeformTargetRenderers.Count)
                             {
-                                var renderer = component.targetRenderers[_selectedRendererIndex];
+                                var renderer = component.DeformTargetRenderers[_selectedRendererIndex];
                                 if (renderer != null)
                                 {
                                     Undo.RecordObject(renderer, "Reset Mesh Deformation");
-                                    renderer.sharedMesh = component.deformOriginalMesh;
+                                    renderer.sharedMesh = component.DeformOriginalMesh;
                                 }
                             }
-                            component.deformOriginalMesh = null;
+                            component.DeformOriginalMesh = null;
                         }
 
-                        // deformEditingRendererIndexも念のためクリア
-                        component.deformEditingRendererIndex = -1;
+                        // DeformEditingRendererIndexも念のためクリア
+                        component.DeformEditingRendererIndex = -1;
                     }
                 }
             }

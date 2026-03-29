@@ -12,21 +12,21 @@ namespace ChimeraHairMaster.Editor.Processing
         /// CHMコンポーネントの変形データをもとに、対象Rendererのメッシュを変形する
         /// NDMFパスから呼ばれる。メッシュは複製してから変形する（元メッシュを壊さない）
         /// </summary>
-        public static void ApplyDeformation(ChimeraHairMaster component)
+        public static void ApplyDeformation(IMeshDeformationTarget target)
         {
-            if (component.rendererDeformations == null || component.rendererDeformations.Count == 0)
+            if (target.RendererDeformations == null || target.RendererDeformations.Count == 0)
                 return;
 
-            foreach (var deformation in component.rendererDeformations)
+            foreach (var deformation in target.RendererDeformations)
             {
                 if (deformation.deltas == null || deformation.deltas.Count == 0)
                     continue;
 
                 int rendererIndex = deformation.rendererIndex;
-                if (rendererIndex < 0 || rendererIndex >= component.targetRenderers.Count)
+                if (rendererIndex < 0 || rendererIndex >= target.DeformTargetRenderers.Count)
                     continue;
 
-                var renderer = component.targetRenderers[rendererIndex];
+                var renderer = target.DeformTargetRenderers[rendererIndex];
                 if (renderer == null || renderer.sharedMesh == null)
                     continue;
 

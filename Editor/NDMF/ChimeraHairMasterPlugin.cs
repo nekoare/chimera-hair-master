@@ -19,6 +19,7 @@ namespace ChimeraHairMaster.Editor.NDMF
             InPhase(BuildPhase.Transforming)
                 .BeforePlugin("nadena.dev.modular-avatar")
                 .Run(MeshDeformPass.Instance)
+                .PreviewingWith(new MeshDeformationStandalonePreview())
                 .Then.Run(MeshCutPass.Instance)
                 .Then.Run(ColorTransformPass.Instance)
                 .PreviewingWith(new ChimeraHairMasterPreview())

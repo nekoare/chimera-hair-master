@@ -255,7 +255,7 @@ namespace ChimeraHairMaster.Editor
             }
 
             // メッシュ変形セクション
-            meshDeformationUI?.Draw(serializedObject, target as ChimeraHairMaster);
+            DrawMeshDeformationSection();
             EditorGUILayout.Space(10);
 
             DrawActionButtons();
@@ -1532,6 +1532,69 @@ namespace ChimeraHairMaster.Editor
                 EditorGUI.indentLevel--;
             }
             EditorGUILayout.EndVertical();
+        }
+
+        private bool showMeshDeformSection
+        {
+            get => SessionState.GetBool("CHM_MeshDeform_ShowSection", false);
+            set => SessionState.SetBool("CHM_MeshDeform_ShowSection", value);
+        }
+
+        private void DrawMeshDeformationSection()
+        {
+            var component = target as ChimeraHairMaster;
+            if (component == null) return;
+
+            showMeshDeformSection = EditorGUILayout.Foldout(showMeshDeformSection, "メッシュ変形", true, EditorStyles.foldoutHeader);
+            if (!showMeshDeformSection) return;
+
+            // 有効/無効トグル（CHM固有: スタンドアロンでは常に有効）
+            var enableProp = serializedObject.FindProperty("enableMeshDeformation");
+
+            EditorGUI.BeginChangeCheck();
+            EditorGUILayout.PropertyField(enableProp, new GUIContent("有効"));
+            if (EditorGUI.EndChangeCheck() && enableProp.boolValue)
+            {
+                // 有効化しようとした時にスタンドアロンとの重複をチェック
+                var conflict = FindStandaloneConflict(component);
+                if (conflict != null)
+                {
+                    // 有効化を取り消し
+                    enableProp.boolValue = false;
+                    EditorUtility.DisplayDialog(
+                        "メッシュ変形の重複",
+                        $"{conflict} にメッシュ変形を使っているため変形が重複します。\n" +
+                        "コンポーネントを削除するか、変形後のメッシュをエクスポートしてから試してください。",
+                        "OK");
+                }
+            }
+
+            if (!enableProp.boolValue) return;
+
+            EditorGUILayout.Space(5);
+            meshDeformationUI?.Draw(component);
+        }
+
+        /// <summary>
+        /// CHMの対象RendererがスタンドアロンのRendererと重複していないかチェック。
+        /// 重複がある場合は競合元の説明を返す。なければnull。
+        /// </summary>
+        private static string FindStandaloneConflict(ChimeraHairMaster component)
+        {
+            if (component.targetRenderers == null || component.targetRenderers.Count == 0)
+                return null;
+
+            var allStandalone = Object.FindObjectsByType<MeshDeformationStandalone>(FindObjectsSortMode.None);
+            foreach (var standalone in allStandalone)
+            {
+                if (standalone.targetRenderer != null
+                    && component.targetRenderers.Contains(standalone.targetRenderer))
+                {
+                    return $"メッシュ変形 ({standalone.gameObject.name}) の {standalone.targetRenderer.name}";
+                }
+            }
+
+            return null;
         }
 
         private void DrawActionButtons()
