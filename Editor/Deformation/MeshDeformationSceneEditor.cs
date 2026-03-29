@@ -18,7 +18,8 @@ namespace ChimeraHairMaster.Editor.Deformation
         {
             Off,
             UVIsland,
-            Vertex
+            Vertex,
+            Lattice
         }
 
         #endregion
@@ -69,11 +70,25 @@ namespace ChimeraHairMaster.Editor.Deformation
         public DistanceMetric Metric { get; set; } = DistanceMetric.Euclidean;
 
         /// <summary>
-        /// 対称編集の有効軸
+        /// 対称編集の有効軸（変更時にマッピングキャッシュをクリア）
+        /// 現在UIには露出していないが、将来の再導入に備えてロジックを保持している。
         /// </summary>
-        public bool SymmetryX { get; set; } = false;
-        public bool SymmetryY { get; set; } = false;
-        public bool SymmetryZ { get; set; } = false;
+        private bool _symmetryX, _symmetryY, _symmetryZ;
+        public bool SymmetryX
+        {
+            get => _symmetryX;
+            set { if (_symmetryX != value) { _symmetryX = value; _symmetryMap = null; } }
+        }
+        public bool SymmetryY
+        {
+            get => _symmetryY;
+            set { if (_symmetryY != value) { _symmetryY = value; _symmetryMap = null; } }
+        }
+        public bool SymmetryZ
+        {
+            get => _symmetryZ;
+            set { if (_symmetryZ != value) { _symmetryZ = value; _symmetryMap = null; } }
+        }
 
         /// <summary>
         /// バックフェースカリング（裏向きの頂点を非表示・選択不可にする）
@@ -90,6 +105,10 @@ namespace ChimeraHairMaster.Editor.Deformation
         private int _selectedIslandIndex = -1;
         private HashSet<int> _selectedIslandIndices = new HashSet<int>();
         private List<IslandInfo> _cachedIslands;
+
+        // 頂点描画用のキャッシュリスト（毎フレームのGC alloc回避）
+        private readonly List<Vector3> _drawWorldPositions = new List<Vector3>();
+        private readonly List<Color> _drawDotColors = new List<Color>();
 
         // 作業用メッシュ
         private Mesh _workingMesh;
@@ -204,10 +223,14 @@ namespace ChimeraHairMaster.Editor.Deformation
             TargetComponent.DeformEditingRendererIndex = rendererIndex;
             TargetComponent.DeformOriginalMesh = _originalMesh;
 
-            // UVアイランドモードならアイランドをキャッシュ
+            // モード固有の初期化
             if (mode == EditMode.UVIsland)
             {
                 CacheIslands();
+            }
+            else if (mode == EditMode.Lattice)
+            {
+                CreateLattice(2, 2, 2);
             }
 
             // 選択リセット
@@ -238,6 +261,12 @@ namespace ChimeraHairMaster.Editor.Deformation
             // ドラッグ中なら終了
             if (_isDragging) EndDrag();
 
+            // ラティスモードから他のモードに切り替える場合はラティスを閉じる（デルタは保存済み）
+            if (CurrentMode == EditMode.Lattice && _lattice != null && newMode != EditMode.Lattice)
+            {
+                DisposeLattice();
+            }
+
             // デルタを保存
             SaveDeltasToComponent();
 
@@ -248,7 +277,7 @@ namespace ChimeraHairMaster.Editor.Deformation
             _selectedIslandIndex = -1;
             _selectedIslandIndices.Clear();
 
-            // UVアイランドモードならキャッシュ再構築
+            // モード固有の初期化
             if (newMode == EditMode.UVIsland)
             {
                 CacheIslands();
@@ -256,6 +285,11 @@ namespace ChimeraHairMaster.Editor.Deformation
             else
             {
                 _cachedIslands = null;
+            }
+
+            if (newMode == EditMode.Lattice && _lattice == null)
+            {
+                CreateLattice(2, 2, 2);
             }
         }
 
@@ -339,6 +373,7 @@ namespace ChimeraHairMaster.Editor.Deformation
 
             CurrentMode = EditMode.Off;
             ActiveRendererIndex = -1;
+            OperationVersion++;
         }
 
         /// <summary>
@@ -363,6 +398,18 @@ namespace ChimeraHairMaster.Editor.Deformation
 
             // 作業メッシュを更新（_baseVertices + 新しいデルタ）
             ApplyDeltasToWorkingMesh();
+
+            // Undo/Redo発生をInspectorUI側に通知（スライダー等のリセット用）
+            OperationVersion++;
+
+            // ラティスモード中なら制御点もUndoStateから復元
+            if (CurrentMode == EditMode.Lattice && _lattice != null && _latticeUndoState != null
+                && _latticeUndoState.controlPoints != null
+                && _latticeUndoState.controlPoints.Length == _lattice.ControlPointCount)
+            {
+                System.Array.Copy(_latticeUndoState.controlPoints, _lattice.ControlPoints,
+                    _lattice.ControlPointCount);
+            }
 
             // ギズモ位置を選択頂点の現在の頂点位置に合わせる
             if (_selectedVertices.Count > 0 || _selectedIslandIndex >= 0)
@@ -436,6 +483,16 @@ namespace ChimeraHairMaster.Editor.Deformation
                 UnityEditorInternal.InternalEditorUtility.RepaintAllViews();
             }
 
+            // ラティスモードは専用のハンドル処理
+            if (CurrentMode == EditMode.Lattice)
+            {
+                DrawLatticeHandles();
+                DrawOperationGuide(sceneView);
+                if (e.type == EventType.Layout)
+                    HandleUtility.AddDefaultControl(GUIUtility.GetControlID(FocusType.Passive));
+                return;
+            }
+
             // ギズモを先に処理（ギズモがイベントを消費したら選択処理はスキップ）
             DrawGizmoHandles();
 
@@ -462,10 +519,22 @@ namespace ChimeraHairMaster.Editor.Deformation
         {
             Handles.BeginGUI();
 
-            var modeName = CurrentMode == EditMode.UVIsland ? "UVアイランド編集" : "頂点編集";
+            string modeName;
+            if (CurrentMode == EditMode.UVIsland) modeName = "UVアイランド編集";
+            else if (CurrentMode == EditMode.Lattice) modeName = "ラティス編集";
+            else modeName = "頂点編集";
 
             string guide;
-            if (CurrentMode == EditMode.UVIsland)
+            if (CurrentMode == EditMode.Lattice)
+            {
+                guide = $"--- {modeName} ---\n" +
+                        "クリック: 制御点選択\n" +
+                        "ドラッグ: 制御点を自由移動\n" +
+                        "Ctrl+クリック: 追加/解除\n" +
+                        "Shift+クリック: 追加\n" +
+                        "選択後: XYZ軸ハンドルで移動";
+            }
+            else if (CurrentMode == EditMode.UVIsland)
             {
                 guide = $"--- {modeName} ---\n" +
                         "クリック: アイランド選択\n" +
@@ -927,6 +996,7 @@ namespace ChimeraHairMaster.Editor.Deformation
 
         private void BeginDrag()
         {
+            if (!IsTargetAlive) return;
             _isDragging = true;
             _dragStartHandlePos = _handlePosition;
             _dragStartHandleRot = _handleRotation;
@@ -1014,6 +1084,8 @@ namespace ChimeraHairMaster.Editor.Deformation
             else
             {
             }
+
+            OperationVersion++;
         }
 
         #endregion
@@ -1327,8 +1399,10 @@ namespace ChimeraHairMaster.Editor.Deformation
             }
 
             // 色の決定と描画データの収集
-            var worldPositions = new List<Vector3>();
-            var dotColors = new List<Color>();
+            _drawWorldPositions.Clear();
+            _drawDotColors.Clear();
+            var worldPositions = _drawWorldPositions;
+            var dotColors = _drawDotColors;
 
             var selectedColor = new Color(1f, 0.4f, 0f, 1f);
             var unselectedColor = new Color(0f, 0.8f, 1f, 0.6f);
@@ -1757,6 +1831,26 @@ namespace ChimeraHairMaster.Editor.Deformation
         public int SelectedVertexCount => _selectedVertices.Count;
 
         /// <summary>
+        /// 操作バージョン。SceneView上の変形操作完了・編集終了時にインクリメントされる。
+        /// InspectorUI側でこの値の変化を検知して状態をリセットできる。
+        /// </summary>
+        public int OperationVersion { get; private set; } = 0;
+
+        /// <summary>
+        /// 選択頂点のハッシュ（選択内容が変わると値が変わる）
+        /// </summary>
+        public int SelectionHash
+        {
+            get
+            {
+                int hash = _selectedVertices.Count;
+                foreach (int vi in _selectedVertices)
+                    hash = hash * 31 + vi;
+                return hash;
+            }
+        }
+
+        /// <summary>
         /// 現在のアクティブなデルタ数を取得
         /// </summary>
         public int ActiveDeltaCount => _activeDeltaMap.Count(kvp => kvp.Value.sqrMagnitude > 0.000001f);
@@ -1770,7 +1864,7 @@ namespace ChimeraHairMaster.Editor.Deformation
         /// </summary>
         public void ApplySmooth(float factor)
         {
-            if (CurrentMode == EditMode.Off || _workingMesh == null) return;
+            if (CurrentMode == EditMode.Off || !IsTargetAlive || _workingMesh == null) return;
             if (_selectedVertices.Count == 0) return;
 
             // Undo記録
@@ -1829,6 +1923,62 @@ namespace ChimeraHairMaster.Editor.Deformation
             UnityEditor.SceneView.RepaintAll();
         }
 
+        /// <summary>
+        /// 選択頂点を法線方向に膨張/収縮する
+        /// amount > 0 で膨張、amount < 0 で収縮
+        /// </summary>
+        /// <summary>
+        /// 法線方向に膨張/収縮する。Undoは呼び出し元で管理する。
+        /// </summary>
+        public void ApplyInflate(float amount)
+        {
+            if (CurrentMode == EditMode.Off || !IsTargetAlive || _workingMesh == null) return;
+            if (_selectedVertices.Count == 0) return;
+
+            var normals = _workingMesh.normals;
+
+            foreach (int vi in _selectedVertices)
+            {
+                if (vi >= _baseVertices.Length || vi >= normals.Length) continue;
+
+                var normal = normals[vi].normalized;
+                if (normal.sqrMagnitude < 0.0001f) continue; // 不正な法線はスキップ
+
+                var currentDelta = _activeDeltaMap.TryGetValue(vi, out var d) ? d : Vector3.zero;
+                _activeDeltaMap[vi] = currentDelta + normal * amount;
+            }
+
+            // 対称適用
+            if (SymmetryX || SymmetryY || SymmetryZ)
+            {
+                ApplySymmetricInflate(normals, amount);
+            }
+
+            ApplyDeltasToWorkingMesh();
+            SaveDeltasToComponent();
+            UpdateHandleFromSelection();
+            UnityEditor.SceneView.RepaintAll();
+        }
+
+        private void ApplySymmetricInflate(Vector3[] normals, float amount)
+        {
+            EnsureSymmetryMap();
+            if (_symmetryMap == null) return;
+
+            foreach (int vi in _selectedVertices)
+            {
+                if (!_symmetryMap.TryGetValue(vi, out int mirrorVi)) continue;
+                if (_selectedVertices.Contains(mirrorVi)) continue; // 既に選択済みならスキップ
+                if (mirrorVi >= normals.Length) continue;
+
+                var normal = normals[mirrorVi].normalized;
+                if (normal.sqrMagnitude < 0.0001f) continue;
+
+                var currentDelta = _activeDeltaMap.TryGetValue(mirrorVi, out var d) ? d : Vector3.zero;
+                _activeDeltaMap[mirrorVi] = currentDelta + normal * amount;
+            }
+        }
+
         public void ResetDeltas()
         {
             // リセット前の状態を完全にUndoに記録
@@ -1840,6 +1990,356 @@ namespace ChimeraHairMaster.Editor.Deformation
             ApplyDeltasToWorkingMesh();
             SaveDeltasToComponent();
             EditorUtility.SetDirty(TargetComponent.UndoTarget);
+        }
+
+        #endregion
+
+        #region ラティス変形
+
+        private LatticeData _lattice;
+        private HashSet<int> _selectedControlPoints = new HashSet<int>();
+        private LatticeUndoState _latticeUndoState;
+
+        /// <summary>ラティスが存在するか</summary>
+        public bool HasLattice => _lattice != null;
+
+        /// <summary>現在のラティス分割数</summary>
+        public (int x, int y, int z) LatticeDivisions =>
+            _lattice != null ? (_lattice.DivisionsX, _lattice.DivisionsY, _lattice.DivisionsZ) : (3, 3, 3);
+
+        /// <summary>
+        /// ラティスの分割数を変更して再作成する。現在の変形はデルタとして保持される。
+        /// </summary>
+        public void RecreateLattice(int divX, int divY, int divZ)
+        {
+            if (_lattice == null) return;
+
+            // 現在のデルタは既に保存済みなのでラティスを破棄して再作成するだけ
+            DisposeLattice();
+            CreateLattice(divX, divY, divZ);
+        }
+
+        /// <summary>
+        /// ラティス制御点のUndo追跡用ScriptableObject。
+        /// Unity の Undo は UnityEngine.Object のシリアライズ状態のみ追跡するため、
+        /// 制御点配列をこのオブジェクトに格納して Undo/Redo を可能にする。
+        /// </summary>
+        private class LatticeUndoState : ScriptableObject
+        {
+            public Vector3[] controlPoints;
+        }
+
+        /// <summary>
+        /// ラティスを作成する
+        /// </summary>
+        public void CreateLattice(int divX, int divY, int divZ)
+        {
+            if (CurrentMode == EditMode.Off || _workingMesh == null) return;
+
+            var vertices = _workingMesh.vertices;
+
+            // バウンディングボックス計算（選択頂点があればそこから、なければ全体）
+            Bounds bounds;
+            if (_selectedVertices.Count > 0)
+            {
+                var enumerator = _selectedVertices.GetEnumerator();
+                enumerator.MoveNext();
+                bounds = new Bounds(vertices[enumerator.Current], Vector3.zero);
+                while (enumerator.MoveNext())
+                    bounds.Encapsulate(vertices[enumerator.Current]);
+            }
+            else
+            {
+                bounds = _workingMesh.bounds;
+            }
+
+            // マージンを追加（5%）
+            bounds.Expand(bounds.size * 0.05f);
+
+            // 厚みがゼロの軸にデフォルト厚みを設定
+            var size = bounds.size;
+            float minThickness = bounds.size.magnitude * 0.01f;
+            if (size.x < minThickness) size.x = minThickness;
+            if (size.y < minThickness) size.y = minThickness;
+            if (size.z < minThickness) size.z = minThickness;
+            bounds.size = size;
+
+            _lattice = new LatticeData
+            {
+                DivisionsX = divX,
+                DivisionsY = divY,
+                DivisionsZ = divZ,
+                OriginalBounds = bounds
+            };
+
+            // 制御点を配置
+            int totalCPs = _lattice.ControlPointCount;
+            _lattice.OriginalControlPoints = new Vector3[totalCPs];
+            _lattice.ControlPoints = new Vector3[totalCPs];
+
+            for (int iz = 0; iz <= divZ; iz++)
+            for (int iy = 0; iy <= divY; iy++)
+            for (int ix = 0; ix <= divX; ix++)
+            {
+                float tx = (float)ix / divX;
+                float ty = (float)iy / divY;
+                float tz = (float)iz / divZ;
+
+                var pos = bounds.min + Vector3.Scale(bounds.size, new Vector3(tx, ty, tz));
+                int idx = _lattice.GridToIndex(ix, iy, iz);
+                _lattice.OriginalControlPoints[idx] = pos;
+                _lattice.ControlPoints[idx] = pos;
+            }
+
+            // 各頂点のラティス空間座標を計算
+            _lattice.LatticeCoords = new Vector3[vertices.Length];
+            for (int i = 0; i < vertices.Length; i++)
+            {
+                var v = vertices[i];
+                _lattice.LatticeCoords[i] = new Vector3(
+                    Mathf.Clamp01((v.x - bounds.min.x) / bounds.size.x),
+                    Mathf.Clamp01((v.y - bounds.min.y) / bounds.size.y),
+                    Mathf.Clamp01((v.z - bounds.min.z) / bounds.size.z)
+                );
+            }
+
+            // キャンセル用にデルタをスナップショット
+            _lattice.PreLatticeDeltas = new System.Collections.Generic.Dictionary<int, Vector3>(_activeDeltaMap);
+
+            // Undo追跡用のScriptableObjectを作成
+            if (_latticeUndoState != null) Object.DestroyImmediate(_latticeUndoState);
+            _latticeUndoState = ScriptableObject.CreateInstance<LatticeUndoState>();
+            _latticeUndoState.hideFlags = HideFlags.HideAndDontSave;
+            _latticeUndoState.controlPoints = (Vector3[])_lattice.ControlPoints.Clone();
+
+            _selectedControlPoints.Clear();
+            UnityEditor.SceneView.RepaintAll();
+        }
+
+        /// <summary>
+        /// ラティスを閉じる（デルタは既に保存済み）
+        /// </summary>
+        public void CloseLattice()
+        {
+            if (_lattice == null) return;
+
+            DisposeLattice();
+            SwitchMode(EditMode.Vertex);
+        }
+
+        /// <summary>
+        /// ラティス変形をキャンセルし、作成前の状態に戻す
+        /// </summary>
+        public void CancelLattice()
+        {
+            if (_lattice == null) return;
+
+            int divX = _lattice.DivisionsX;
+            int divY = _lattice.DivisionsY;
+            int divZ = _lattice.DivisionsZ;
+
+            // ラティス作成前のデルタに戻す
+            _activeDeltaMap.Clear();
+            if (_lattice.PreLatticeDeltas != null)
+            {
+                foreach (var kvp in _lattice.PreLatticeDeltas)
+                    _activeDeltaMap[kvp.Key] = kvp.Value;
+            }
+
+            ApplyDeltasToWorkingMesh();
+            SaveDeltasToComponent();
+
+            // ラティスを再作成（同じ分割数で初期状態に戻す）
+            DisposeLattice();
+            CreateLattice(divX, divY, divZ);
+        }
+
+        private void DisposeLattice()
+        {
+            _lattice = null;
+            _selectedControlPoints.Clear();
+            if (_latticeUndoState != null)
+            {
+                Object.DestroyImmediate(_latticeUndoState);
+                _latticeUndoState = null;
+            }
+        }
+
+        /// <summary>
+        /// 制御点の変更からメッシュデルタを再計算する
+        /// </summary>
+        private void RecalculateLatticeDeformation()
+        {
+            if (_lattice == null || _baseVertices == null) return;
+
+            // ラティス作成前のデルタをベースに、ラティス変形分を加算
+            for (int i = 0; i < _baseVertices.Length; i++)
+            {
+                var uvw = _lattice.LatticeCoords[i];
+                var deformedPos = _lattice.EvaluateLattice(uvw);
+                var originalPos = _lattice.EvaluateOriginalLattice(uvw);
+                var latticeDelta = deformedPos - originalPos;
+
+                // ラティス作成前のデルタ + ラティスによる追加デルタ
+                var preDelta = _lattice.PreLatticeDeltas.TryGetValue(i, out var pd) ? pd : Vector3.zero;
+                if (latticeDelta.sqrMagnitude > 0.0000001f || preDelta.sqrMagnitude > 0.0000001f)
+                {
+                    _activeDeltaMap[i] = preDelta + latticeDelta;
+                }
+                else
+                {
+                    _activeDeltaMap.Remove(i);
+                }
+            }
+
+            ApplyDeltasToWorkingMesh();
+        }
+
+        /// <summary>
+        /// ラティスモードのSceneGUI処理（制御点の操作と描画）
+        /// </summary>
+        private void DrawLatticeHandles()
+        {
+            if (_lattice == null) return;
+
+            var renderer = GetActiveRenderer();
+            if (renderer == null) return;
+
+            var transform = renderer.transform;
+            var e = Event.current;
+            bool isShift = e.shift;
+            bool isCtrl = e.control || e.command;
+
+            // 全制御点をFreeMoveHandle（ドット）で先に処理（ピック優先）
+            for (int i = 0; i < _lattice.ControlPointCount; i++)
+            {
+                var localPos = _lattice.ControlPoints[i];
+                var worldPos = transform.TransformPoint(localPos);
+                float handleSize = HandleUtility.GetHandleSize(worldPos) * 0.05f;
+
+                bool isSelected = _selectedControlPoints.Contains(i);
+                Handles.color = isSelected ? new Color(1f, 0.6f, 0f) : new Color(0.2f, 0.8f, 1f);
+
+                EditorGUI.BeginChangeCheck();
+                var newWorldPos = Handles.FreeMoveHandle(
+                    worldPos, handleSize, Vector3.zero, Handles.DotHandleCap);
+                if (EditorGUI.EndChangeCheck())
+                {
+                    // 修飾キーによる選択処理
+                    if (isCtrl)
+                    {
+                        // Ctrl: トグル
+                        if (_selectedControlPoints.Contains(i))
+                            _selectedControlPoints.Remove(i);
+                        else
+                            _selectedControlPoints.Add(i);
+                    }
+                    else if (isShift)
+                    {
+                        // Shift: 追加
+                        _selectedControlPoints.Add(i);
+                    }
+                    else
+                    {
+                        // 修飾キーなし: この点のみ選択
+                        _selectedControlPoints.Clear();
+                        _selectedControlPoints.Add(i);
+                    }
+
+                    // 位置が実際に変わった場合はドラッグ → 選択中の全制御点を移動
+                    if (Vector3.Distance(worldPos, newWorldPos) > 0.00001f)
+                    {
+                        var worldDelta = newWorldPos - worldPos;
+                        ApplyLatticeControlPointsMove(worldDelta, transform);
+                    }
+                }
+            }
+
+            // 選択中の制御点群の中心にPositionHandle（XYZ軸移動）を表示
+            if (_selectedControlPoints.Count > 0)
+            {
+                var center = Vector3.zero;
+                foreach (int idx in _selectedControlPoints)
+                    center += transform.TransformPoint(_lattice.ControlPoints[idx]);
+                center /= _selectedControlPoints.Count;
+
+                EditorGUI.BeginChangeCheck();
+                var newCenter = Handles.PositionHandle(center, Quaternion.identity);
+                if (EditorGUI.EndChangeCheck())
+                {
+                    var worldDelta = newCenter - center;
+                    ApplyLatticeControlPointsMove(worldDelta, transform);
+                }
+            }
+
+            // ワイヤーフレーム描画
+            DrawLatticeWireframe(transform);
+        }
+
+        /// <summary>
+        /// 選択中の全制御点をワールド空間のデルタ分だけ移動する
+        /// </summary>
+        private void ApplyLatticeControlPointsMove(Vector3 worldDelta, Transform transform)
+        {
+            Undo.RegisterCompleteObjectUndo(TargetComponent.UndoTarget, "メッシュ変形: ラティス制御点移動");
+            if (_latticeUndoState != null)
+                Undo.RegisterCompleteObjectUndo(_latticeUndoState, "メッシュ変形: ラティス制御点移動");
+
+            var localDelta = transform.InverseTransformVector(worldDelta);
+            foreach (int idx in _selectedControlPoints)
+            {
+                _lattice.ControlPoints[idx] += localDelta;
+            }
+
+            RecalculateLatticeDeformation();
+            SaveDeltasToComponent();
+
+            if (_latticeUndoState != null)
+                _latticeUndoState.controlPoints = (Vector3[])_lattice.ControlPoints.Clone();
+        }
+
+        /// <summary>
+        /// ラティスのワイヤーフレームを描画
+        /// </summary>
+        private void DrawLatticeWireframe(Transform transform)
+        {
+            if (_lattice == null) return;
+
+            Handles.color = new Color(0.5f, 0.9f, 1f, 0.5f);
+
+            int nx = _lattice.DivisionsX + 1;
+            int ny = _lattice.DivisionsY + 1;
+            int nz = _lattice.DivisionsZ + 1;
+
+            // X方向のエッジ
+            for (int iz = 0; iz < nz; iz++)
+            for (int iy = 0; iy < ny; iy++)
+            for (int ix = 0; ix < nx - 1; ix++)
+            {
+                var a = transform.TransformPoint(_lattice.ControlPoints[_lattice.GridToIndex(ix, iy, iz)]);
+                var b = transform.TransformPoint(_lattice.ControlPoints[_lattice.GridToIndex(ix + 1, iy, iz)]);
+                Handles.DrawLine(a, b);
+            }
+
+            // Y方向のエッジ
+            for (int iz = 0; iz < nz; iz++)
+            for (int ix = 0; ix < nx; ix++)
+            for (int iy = 0; iy < ny - 1; iy++)
+            {
+                var a = transform.TransformPoint(_lattice.ControlPoints[_lattice.GridToIndex(ix, iy, iz)]);
+                var b = transform.TransformPoint(_lattice.ControlPoints[_lattice.GridToIndex(ix, iy + 1, iz)]);
+                Handles.DrawLine(a, b);
+            }
+
+            // Z方向のエッジ
+            for (int iy = 0; iy < ny; iy++)
+            for (int ix = 0; ix < nx; ix++)
+            for (int iz = 0; iz < nz - 1; iz++)
+            {
+                var a = transform.TransformPoint(_lattice.ControlPoints[_lattice.GridToIndex(ix, iy, iz)]);
+                var b = transform.TransformPoint(_lattice.ControlPoints[_lattice.GridToIndex(ix, iy, iz + 1)]);
+                Handles.DrawLine(a, b);
+            }
         }
 
         #endregion

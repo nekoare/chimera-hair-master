@@ -11,19 +11,19 @@ namespace ChimeraHairMaster.Editor
     /// </summary>
     public class MeshDeformationInspectorUI
     {
-        /// <summary>
-        /// SceneEditorはstaticインスタンスとして保持する。
-        /// Inspectorの OnEnable/OnDisable でインスタンスが作り直されても
-        /// 編集セッション（作業メッシュ・デルタ・選択状態）が維持される。
-        /// </summary>
         private static MeshDeformationSceneEditor _sceneEditor;
 
         private int _selectedRendererIndex = 0;
+        private float _inflateAmount = 0f;
+        private int _lastSelectionHash = 0;
+        private int _lastOperationVersion = 0;
+        private bool _inflateDragging = false;
+        private int _inflateUndoGroup = -1;
 
-        private bool _showDisplaySettings
+        private bool _showAdvancedSettings
         {
-            get => SessionState.GetBool("CHM_MeshDeform_ShowDisplay", false);
-            set => SessionState.SetBool("CHM_MeshDeform_ShowDisplay", value);
+            get => SessionState.GetBool("CHM_MeshDeform_ShowAdvanced", false);
+            set => SessionState.SetBool("CHM_MeshDeform_ShowAdvanced", value);
         }
 
         public MeshDeformationSceneEditor SceneEditor
@@ -36,9 +36,6 @@ namespace ChimeraHairMaster.Editor
             }
         }
 
-        /// <summary>
-        /// staticなSceneEditorへの外部アクセス用（Scene GUIコールバックなどから使用）
-        /// </summary>
         public static MeshDeformationSceneEditor ActiveSceneEditor => _sceneEditor;
 
         /// <summary>
@@ -49,39 +46,39 @@ namespace ChimeraHairMaster.Editor
             EditorGUILayout.BeginVertical(EditorStyles.helpBox);
             EditorGUI.indentLevel++;
 
-            // Renderer選択
+            // Renderer選択（複数Rendererの場合のみ）
             DrawRendererSelection(component);
 
             EditorGUILayout.Space(5);
 
-            // 編集モードボタン
+            // 編集モードボタン（縦並び、大→小の順）
             DrawEditModeButtons(component);
 
-            // 編集中の場合、設定・ステータスを表示
+            // 編集中の場合、モード別UIを表示
             if (SceneEditor.CurrentMode != MeshDeformationSceneEditor.EditMode.Off)
             {
-                // 頂点モードのみブラシ設定を表示
-                if (SceneEditor.CurrentMode == MeshDeformationSceneEditor.EditMode.Vertex)
-                {
-                    EditorGUILayout.Space(5);
-                    DrawBrushSettings();
-                }
-                // 表示設定は両モード共通
-                EditorGUILayout.Space(3);
-                DrawDisplaySettings();
                 EditorGUILayout.Space(5);
-                DrawEditStatus();
+
+                if (SceneEditor.CurrentMode == MeshDeformationSceneEditor.EditMode.Lattice)
+                {
+                    DrawLatticeSettings();
+                }
+                else
+                {
+                    // 頂点ツール（膨張/収縮・スムージング）
+                    DrawVertexTools();
+
+                    // 詳細設定（折りたたみ）
+                    EditorGUILayout.Space(3);
+                    DrawAdvancedSettings();
+                }
             }
 
             EditorGUILayout.Space(5);
 
-            // エクスポートボタン
-            DrawExportButtons(component);
-
-            EditorGUILayout.Space(5);
-
-            // リセットボタン
+            // リセット → エクスポート の順
             DrawResetButton(component);
+            DrawExportButtons(component);
 
             EditorGUI.indentLevel--;
             EditorGUILayout.EndVertical();
@@ -95,7 +92,6 @@ namespace ChimeraHairMaster.Editor
                 return;
             }
 
-            // Rendererが1つだけならセレクタを表示しない（スタンドアロン等）
             if (component.DeformTargetRenderers.Count == 1)
             {
                 _selectedRendererIndex = 0;
@@ -115,7 +111,6 @@ namespace ChimeraHairMaster.Editor
             _selectedRendererIndex = EditorGUILayout.Popup("対象Renderer", _selectedRendererIndex, names);
             if (EditorGUI.EndChangeCheck())
             {
-                // Renderer切替時、編集中なら新しいRendererで編集セッションを再開
                 var currentMode = SceneEditor.CurrentMode;
                 if (currentMode != MeshDeformationSceneEditor.EditMode.Off)
                 {
@@ -128,88 +123,196 @@ namespace ChimeraHairMaster.Editor
         private void DrawEditModeButtons(IMeshDeformationTarget component)
         {
             var currentMode = SceneEditor.CurrentMode;
-            bool isEditing = currentMode != MeshDeformationSceneEditor.EditMode.Off;
 
-            EditorGUILayout.BeginHorizontal();
+            // パーツ変形（UVアイランド）
+            DrawModeButton(component, "パーツ変形", "■ パーツ変形中",
+                MeshDeformationSceneEditor.EditMode.UVIsland, currentMode,
+                new Color(0.4f, 0.8f, 1f));
 
-            // UVアイランドモード
-            var islandActive = currentMode == MeshDeformationSceneEditor.EditMode.UVIsland;
-            GUI.backgroundColor = islandActive ? new Color(0.4f, 0.8f, 1f) : Color.white;
-            if (GUILayout.Button(islandActive ? "■ UVアイランド編集中" : "UVアイランド編集"))
+            // 頂点変形
+            DrawModeButton(component, "頂点変形", "■ 頂点変形中",
+                MeshDeformationSceneEditor.EditMode.Vertex, currentMode,
+                new Color(1f, 0.7f, 0.3f));
+
+            // 全体の形を調整（ラティス変形）
+            DrawModeButton(component, "全体の形を調整 (ラティス変形)", "■ ラティス編集中",
+                MeshDeformationSceneEditor.EditMode.Lattice, currentMode,
+                new Color(0.5f, 1f, 0.5f));
+
+            // ラティス編集中のみ「戻す」ボタンを直下に表示
+            if (currentMode == MeshDeformationSceneEditor.EditMode.Lattice && SceneEditor.HasLattice)
             {
-                if (islandActive)
-                    SceneEditor.EndEdit();
-                else
-                    SceneEditor.BeginEdit(component, _selectedRendererIndex,
-                        MeshDeformationSceneEditor.EditMode.UVIsland);
-                UnityEditor.SceneView.RepaintAll();
-            }
-
-            // 頂点モード
-            var vertexActive = currentMode == MeshDeformationSceneEditor.EditMode.Vertex;
-            GUI.backgroundColor = vertexActive ? new Color(1f, 0.7f, 0.3f) : Color.white;
-            if (GUILayout.Button(vertexActive ? "■ 頂点編集中" : "頂点編集"))
-            {
-                if (vertexActive)
-                    SceneEditor.EndEdit();
-                else
-                    SceneEditor.BeginEdit(component, _selectedRendererIndex,
-                        MeshDeformationSceneEditor.EditMode.Vertex);
-                UnityEditor.SceneView.RepaintAll();
-            }
-
-            GUI.backgroundColor = Color.white;
-            EditorGUILayout.EndHorizontal();
-        }
-
-        private void DrawBrushSettings()
-        {
-            EditorGUILayout.LabelField("編集設定", EditorStyles.boldLabel);
-            SceneEditor.BrushRadius = EditorGUILayout.Slider(
-                new GUIContent("影響範囲 (m)", "選択した頂点の周囲にどこまで変形の影響を広げるか。ドラッグ中にマウスホイールで変更可能"),
-                SceneEditor.BrushRadius, 0.001f, 1.0f);
-            SceneEditor.Falloff = (FalloffType)EditorGUILayout.EnumPopup(
-                new GUIContent("距離減衰", "影響範囲の端に向かって変形量をどう弱めるか\n・均一: 範囲内すべて同じ強さ\n・直線: 距離に比例して弱まる\n・スムーズ: 自然な曲線で弱まる\n・中心優先: 中心付近に影響を集中"),
-                SceneEditor.Falloff);
-            SceneEditor.Metric = (DistanceMetric)EditorGUILayout.EnumPopup(
-                new GUIContent("距離の扱い", "頂点間の距離をどう計算するか\n・空間上の距離: 直線距離で計算（高速）\n・つかんでいる表面の距離: メッシュの面に沿って計算（裏側に貫通しない）"),
-                SceneEditor.Metric);
-        }
-
-        private void DrawDisplaySettings()
-        {
-            _showDisplaySettings = EditorGUILayout.Foldout(_showDisplaySettings, "表示設定", true);
-            if (_showDisplaySettings)
-            {
-                EditorGUI.indentLevel++;
-                SceneEditor.BackfaceCulling = EditorGUILayout.Toggle(
-                    new GUIContent("背面カリング", "こちらを向いていない頂点を非表示にして選択対象から除外する"),
-                    SceneEditor.BackfaceCulling);
-                SceneEditor.ZTest = EditorGUILayout.Toggle(
-                    new GUIContent("Z-test（遮蔽非表示）", "他のメッシュの裏に隠れている頂点を非表示にする"),
-                    SceneEditor.ZTest);
-                EditorGUI.indentLevel--;
-            }
-        }
-
-        private void DrawEditStatus()
-        {
-            EditorGUILayout.BeginVertical(EditorStyles.helpBox);
-            EditorGUILayout.LabelField($"選択頂点数: {SceneEditor.SelectedVertexCount}");
-            EditorGUILayout.LabelField($"変形頂点数: {SceneEditor.ActiveDeltaCount}");
-            EditorGUILayout.EndVertical();
-
-            // 選択中の頂点に対するツール
-            if (SceneEditor.SelectedVertexCount > 0)
-            {
-                EditorGUILayout.Space(3);
-                if (GUILayout.Button(new GUIContent("スムージング",
-                    "選択頂点の位置を周囲の頂点に近づけて滑らかにする。複数回押すとより滑らかに。ガタガタになってしまった時に調整できます。")))
+                EditorGUILayout.Space(5);
+                GUI.backgroundColor = new Color(1f, 0.5f, 0.5f);
+                if (GUILayout.Button(new GUIContent("ラティス変形前に戻す",
+                    "ラティスで行ったすべての変形を取り消し、作成前の状態に戻します")))
                 {
-                    SceneEditor.ApplySmooth(0.5f);
+                    SceneEditor.CancelLattice();
+                }
+                GUI.backgroundColor = Color.white;
+            }
+        }
+
+        private void DrawModeButton(IMeshDeformationTarget component, string label, string activeLabel,
+            MeshDeformationSceneEditor.EditMode mode, MeshDeformationSceneEditor.EditMode currentMode,
+            Color activeColor)
+        {
+            bool isActive = currentMode == mode;
+            GUI.backgroundColor = isActive ? activeColor : Color.white;
+            if (GUILayout.Button(isActive ? activeLabel : label, GUILayout.Height(EditorGUIUtility.singleLineHeight * 1.5f)))
+            {
+                if (isActive)
+                    SceneEditor.EndEdit();
+                else
+                    SceneEditor.BeginEdit(component, _selectedRendererIndex, mode);
+                UnityEditor.SceneView.RepaintAll();
+            }
+            GUI.backgroundColor = Color.white;
+        }
+
+        #region ラティス設定
+
+        private void DrawLatticeSettings()
+        {
+            EditorGUILayout.LabelField("ラティス設定", EditorStyles.boldLabel);
+
+            EditorGUILayout.HelpBox(
+                "制御点をドラッグで移動、クリックで選択するとXYZ軸ハンドルが表示されます。\n" +
+                "変形はリアルタイムに反映されます。",
+                MessageType.Info);
+
+            var div = SceneEditor.LatticeDivisions;
+            EditorGUI.BeginChangeCheck();
+            int newDivX = EditorGUILayout.IntSlider("X分割", div.x, 1, 5);
+            int newDivY = EditorGUILayout.IntSlider("Y分割", div.y, 1, 5);
+            int newDivZ = EditorGUILayout.IntSlider("Z分割", div.z, 1, 5);
+            if (EditorGUI.EndChangeCheck())
+            {
+                SceneEditor.RecreateLattice(newDivX, newDivY, newDivZ);
+            }
+
+        }
+
+        #endregion
+
+        #region 頂点ツール
+
+        private void DrawVertexTools()
+        {
+            // 選択状態のリセット検知
+            int currentHash = SceneEditor.SelectionHash;
+            int currentVersion = SceneEditor.OperationVersion;
+            if (currentHash != _lastSelectionHash || currentVersion != _lastOperationVersion)
+            {
+                _lastSelectionHash = currentHash;
+                _lastOperationVersion = currentVersion;
+                _inflateAmount = 0f;
+            }
+
+            if (SceneEditor.SelectedVertexCount == 0) return;
+
+            EditorGUILayout.LabelField("選択中の頂点ツール", EditorStyles.boldLabel);
+
+            // 膨張/収縮スライダー
+            int hotBefore = GUIUtility.hotControl;
+
+            EditorGUI.BeginChangeCheck();
+            float newInflate = EditorGUILayout.Slider(_inflateAmount, -0.02f, 0.02f);
+
+            // スライダーの左右にラベルを表示
+            EditorGUILayout.BeginHorizontal();
+            GUILayout.Label("収縮 ←", EditorStyles.label);
+            GUILayout.FlexibleSpace();
+            GUILayout.Label("→ 膨張", EditorStyles.label);
+            EditorGUILayout.EndHorizontal();
+            if (EditorGUI.EndChangeCheck())
+            {
+                if (!_inflateDragging)
+                {
+                    _inflateDragging = true;
+                    Undo.IncrementCurrentGroup();
+                    Undo.RegisterCompleteObjectUndo(SceneEditor.TargetComponent.UndoTarget, "メッシュ変形: 膨張/収縮");
+                    Undo.SetCurrentGroupName("メッシュ変形: 膨張/収縮");
+                    _inflateUndoGroup = Undo.GetCurrentGroup();
+                }
+
+                float delta = newInflate - _inflateAmount;
+                _inflateAmount = newInflate;
+                if (Mathf.Abs(delta) > 0.00001f)
+                {
+                    SceneEditor.ApplyInflate(delta);
                 }
             }
+
+            if (_inflateDragging && GUIUtility.hotControl != hotBefore && GUIUtility.hotControl == 0)
+            {
+                if (_inflateUndoGroup >= 0)
+                    Undo.CollapseUndoOperations(_inflateUndoGroup);
+                _inflateDragging = false;
+                _inflateUndoGroup = -1;
+            }
+
+            if (Mathf.Abs(_inflateAmount) > 0.0001f)
+            {
+                if (GUILayout.Button("スライダーを0にリセット"))
+                {
+                    Undo.IncrementCurrentGroup();
+                    Undo.RegisterCompleteObjectUndo(SceneEditor.TargetComponent.UndoTarget, "メッシュ変形: 膨張/収縮リセット");
+                    SceneEditor.ApplyInflate(-_inflateAmount);
+                    _inflateAmount = 0f;
+                }
+            }
+
+            EditorGUILayout.Space(3);
+
+            // スムージング
+            if (GUILayout.Button(new GUIContent("スムージング",
+                "選択頂点の位置を周囲の頂点に近づけて滑らかにする。複数回押すとより滑らかに")))
+            {
+                SceneEditor.ApplySmooth(0.5f);
+                _inflateAmount = 0f;
+            }
         }
+
+        #endregion
+
+        #region 詳細設定
+
+        private void DrawAdvancedSettings()
+        {
+            _showAdvancedSettings = EditorGUILayout.Foldout(_showAdvancedSettings, "詳細設定", true);
+            if (!_showAdvancedSettings) return;
+
+            EditorGUI.indentLevel++;
+
+            // ブラシ設定（頂点モードのみ）
+            if (SceneEditor.CurrentMode == MeshDeformationSceneEditor.EditMode.Vertex)
+            {
+                SceneEditor.BrushRadius = EditorGUILayout.Slider(
+                    new GUIContent("影響範囲 (m)", "選択した頂点の周囲にどこまで変形の影響を広げるか。ドラッグ中にマウスホイールで変更可能"),
+                    SceneEditor.BrushRadius, 0.001f, 1.0f);
+                SceneEditor.Falloff = (FalloffType)EditorGUILayout.EnumPopup(
+                    new GUIContent("距離減衰", "影響範囲の端に向かって変形量をどう弱めるか"),
+                    SceneEditor.Falloff);
+                SceneEditor.Metric = (DistanceMetric)EditorGUILayout.EnumPopup(
+                    new GUIContent("距離の扱い", "頂点間の距離をどう計算するか"),
+                    SceneEditor.Metric);
+            }
+
+            // 表示設定
+            SceneEditor.BackfaceCulling = EditorGUILayout.Toggle(
+                new GUIContent("背面カリング", "こちらを向いていない頂点を非表示にして選択対象から除外する"),
+                SceneEditor.BackfaceCulling);
+            SceneEditor.ZTest = EditorGUILayout.Toggle(
+                new GUIContent("Z-test（遮蔽非表示）", "他のメッシュの裏に隠れている頂点を非表示にする"),
+                SceneEditor.ZTest);
+
+            EditorGUI.indentLevel--;
+        }
+
+        #endregion
+
+        #region エクスポート・リセット
 
         private void DrawExportButtons(IMeshDeformationTarget component)
         {
@@ -220,8 +323,6 @@ namespace ChimeraHairMaster.Editor
                 d => d.rendererIndex == _selectedRendererIndex);
             if (deformation == null || deformation.deltas.Count == 0)
                 return;
-
-            EditorGUILayout.LabelField("エクスポート", EditorStyles.boldLabel);
 
             EditorGUILayout.BeginHorizontal();
 
@@ -278,11 +379,8 @@ namespace ChimeraHairMaster.Editor
                     Undo.RecordObject(renderer, "Replace Mesh with Deformed");
                     renderer.sharedMesh = exportedMesh;
 
-                    // デルタをクリア（メッシュに焼き込み済みなので不要）
-                    // クリアしないとMeshDeformPassがビルド時に二重適用する
                     deformation.deltas.Clear();
 
-                    // 編集中なら終了
                     if (SceneEditor.CurrentMode != MeshDeformationSceneEditor.EditMode.Off
                         && SceneEditor.ActiveRendererIndex == _selectedRendererIndex)
                     {
@@ -299,7 +397,6 @@ namespace ChimeraHairMaster.Editor
             var deformation = component.RendererDeformations?.Find(
                 d => d.rendererIndex == _selectedRendererIndex);
 
-            // デルタがある、またはドメインリロードで残った原本メッシュがある場合に表示
             bool hasDeltas = deformation != null && deformation.deltas.Count > 0;
             bool hasOrphanedMesh = component.DeformOriginalMesh != null;
             if (!hasDeltas && !hasOrphanedMesh) return;
@@ -312,7 +409,6 @@ namespace ChimeraHairMaster.Editor
                     "このRendererの変形データをすべてリセットしますか？",
                     "リセット", "キャンセル"))
                 {
-                    // 編集中ならScene Editorのリセット処理を使う
                     if (SceneEditor.CurrentMode != MeshDeformationSceneEditor.EditMode.Off
                         && SceneEditor.ActiveRendererIndex == _selectedRendererIndex)
                     {
@@ -322,11 +418,9 @@ namespace ChimeraHairMaster.Editor
                     {
                         Undo.RegisterCompleteObjectUndo(component.UndoTarget, "Reset Mesh Deformation");
 
-                        // デルタをクリア
                         if (deformation != null)
                             deformation.deltas.Clear();
 
-                        // ドメインリロードで残った原本メッシュがあれば復元
                         if (component.DeformOriginalMesh != null)
                         {
                             if (_selectedRendererIndex >= 0
@@ -342,24 +436,19 @@ namespace ChimeraHairMaster.Editor
                             component.DeformOriginalMesh = null;
                         }
 
-                        // DeformEditingRendererIndexも念のためクリア
                         component.DeformEditingRendererIndex = -1;
                     }
                 }
             }
             GUI.backgroundColor = Color.white;
+
+            EditorGUILayout.Space(3);
         }
 
-        /// <summary>
-        /// クリーンアップ（Editor OnDisable時に呼ぶ）
-        /// SceneEditorはstaticなので編集セッションは終了しない。
-        /// Inspectorが閉じても編集は維持され、再度開いた時に再接続できる。
-        /// </summary>
+        #endregion
+
         public void Cleanup()
         {
-            // SceneEditorはstaticなのでEndEditは呼ばない。
-            // 編集セッションはユーザーが明示的に終了ボタンを押すか、
-            // コンポーネントが破棄された時にのみ終了する。
         }
     }
 }

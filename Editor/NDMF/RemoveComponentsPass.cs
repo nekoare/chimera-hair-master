@@ -13,14 +13,18 @@ namespace ChimeraHairMaster.Editor.NDMF
         protected override void Execute(BuildContext context)
         {
             var components = context.AvatarRootObject.GetComponentsInChildren<ChimeraHairMaster>(true);
-
             foreach (var component in components)
             {
-                // コンポーネントを削除
                 Object.DestroyImmediate(component);
             }
 
-            Debug.Log($"[ChimeraHairMaster] コンポーネント削除完了: {components.Length}個");
+            var standaloneComponents = context.AvatarRootObject.GetComponentsInChildren<MeshDeformationStandalone>(true);
+            foreach (var component in standaloneComponents)
+            {
+                Object.DestroyImmediate(component);
+            }
+
+            Debug.Log($"[ChimeraHairMaster] コンポーネント削除完了: CHM {components.Length}個, スタンドアロン {standaloneComponents.Length}個");
         }
     }
 }

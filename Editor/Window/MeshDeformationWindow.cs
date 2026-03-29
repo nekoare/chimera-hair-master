@@ -11,6 +11,38 @@ namespace ChimeraHairMaster.Editor
     /// </summary>
     public class MeshDeformationWindow : EditorWindow
     {
+        // Hierarchy右クリックメニュー
+        [MenuItem("GameObject/CHM - メッシュ変形を追加", false, 20)]
+        private static void AddFromHierarchy()
+        {
+            var go = Selection.activeGameObject;
+            if (go == null) return;
+
+            var renderer = go.GetComponent<SkinnedMeshRenderer>();
+            if (renderer == null)
+            {
+                EditorUtility.DisplayDialog("メッシュ変形",
+                    "選択したGameObjectにSkinnedMeshRendererがありません。", "OK");
+                return;
+            }
+
+            var conflict = FindConflict(renderer);
+            if (conflict != null)
+            {
+                EditorUtility.DisplayDialog("メッシュ変形", conflict, "OK");
+                return;
+            }
+
+            var component = Undo.AddComponent<MeshDeformationStandalone>(go);
+            component.targetRenderer = renderer;
+        }
+
+        [MenuItem("GameObject/CHM - メッシュ変形を追加", true)]
+        private static bool AddFromHierarchyValidate()
+        {
+            return Selection.activeGameObject != null;
+        }
+
         [MenuItem("キメラヘアマスター/メッシュ変形")]
         public static void ShowWindow()
         {

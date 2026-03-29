@@ -80,6 +80,7 @@ namespace ChimeraHairMaster.Editor.Deformation
             {
                 int count = Mathf.Min(MAX_BATCH_SIZE, worldPositions.Length - offset);
 
+                _propertyBlock.Clear();
                 _matrices.Clear();
                 _positions.Clear();
                 _colors.Clear();
