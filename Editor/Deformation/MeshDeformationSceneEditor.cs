@@ -77,18 +77,80 @@ namespace ChimeraHairMaster.Editor.Deformation
         public bool SymmetryX
         {
             get => _symmetryX;
-            set { if (_symmetryX != value) { _symmetryX = value; _symmetryMap = null; } }
+            set
+            {
+                if (_symmetryX != value)
+                {
+                    _symmetryX = value;
+                    _symmetryMap = null;
+                    if (value) InitSymmetryOffsetFromBounds(0);
+                }
+            }
         }
         public bool SymmetryY
         {
             get => _symmetryY;
-            set { if (_symmetryY != value) { _symmetryY = value; _symmetryMap = null; } }
+            set
+            {
+                if (_symmetryY != value)
+                {
+                    _symmetryY = value;
+                    _symmetryMap = null;
+                    if (value) InitSymmetryOffsetFromBounds(1);
+                }
+            }
         }
         public bool SymmetryZ
         {
             get => _symmetryZ;
-            set { if (_symmetryZ != value) { _symmetryZ = value; _symmetryMap = null; } }
+            set
+            {
+                if (_symmetryZ != value)
+                {
+                    _symmetryZ = value;
+                    _symmetryMap = null;
+                    if (value) InitSymmetryOffsetFromBounds(2);
+                }
+            }
         }
+
+        /// <summary>
+        /// 対称軸を有効にしたとき、バウンディングボックスの中心をデフォルトオフセットにする
+        /// </summary>
+        private void InitSymmetryOffsetFromBounds(int axis)
+        {
+            if (_workingMesh == null) return;
+            var center = _workingMesh.bounds.center;
+            switch (axis)
+            {
+                case 0: _symmetryOffsetX = center.x; break;
+                case 1: _symmetryOffsetY = center.y; break;
+                case 2: _symmetryOffsetZ = center.z; break;
+            }
+        }
+
+        /// <summary>
+        /// 対称面のオフセット（ローカル空間）
+        /// </summary>
+        private float _symmetryOffsetX, _symmetryOffsetY, _symmetryOffsetZ;
+        public float SymmetryOffsetX
+        {
+            get => _symmetryOffsetX;
+            set { if (!Mathf.Approximately(_symmetryOffsetX, value)) { _symmetryOffsetX = value; _symmetryMap = null; } }
+        }
+        public float SymmetryOffsetY
+        {
+            get => _symmetryOffsetY;
+            set { if (!Mathf.Approximately(_symmetryOffsetY, value)) { _symmetryOffsetY = value; _symmetryMap = null; } }
+        }
+        public float SymmetryOffsetZ
+        {
+            get => _symmetryOffsetZ;
+            set { if (!Mathf.Approximately(_symmetryOffsetZ, value)) { _symmetryOffsetZ = value; _symmetryMap = null; } }
+        }
+
+        /// <summary>対称オフセットをVector3で取得</summary>
+        public Vector3 SymmetryOffset => new Vector3(_symmetryOffsetX, _symmetryOffsetY, _symmetryOffsetZ);
 
         /// <summary>
         /// バックフェースカリング（裏向きの頂点を非表示・選択不可にする）
@@ -142,7 +204,7 @@ namespace ChimeraHairMaster.Editor.Deformation
         private Dictionary<int, float> _falloffWeights = new Dictionary<int, float>();
 
         // ドラッグ開始時の距離キャッシュ（半径変更時のウェイト再計算用）
-        // EreMorphと同様、距離はドラッグ開始時に固定し、半径変更時はウェイトだけ再計算する
+        // 距離はドラッグ開始時に固定し、半径変更時はウェイトだけ再計算する
         private Dictionary<int, float> _dragStartDistances = new Dictionary<int, float>();
 
         // ドラッグ開始時のデルタスナップショット（絶対差分計算用）
@@ -487,6 +549,7 @@ namespace ChimeraHairMaster.Editor.Deformation
             if (CurrentMode == EditMode.Lattice)
             {
                 DrawLatticeHandles();
+                DrawSymmetryPlanes();
                 DrawOperationGuide(sceneView);
                 if (e.type == EventType.Layout)
                     HandleUtility.AddDefaultControl(GUIUtility.GetControlID(FocusType.Passive));
@@ -505,6 +568,9 @@ namespace ChimeraHairMaster.Editor.Deformation
             DrawVertexVisualization();
             DrawBoxSelection();
             DrawOperationGuide(sceneView);
+
+            // 対称面の描画
+            DrawSymmetryPlanes();
 
             if (e.type == EventType.Layout)
             {
@@ -990,7 +1056,7 @@ namespace ChimeraHairMaster.Editor.Deformation
             }
         }
 
-        // Undoグループ管理（EreMorphと同じパターン）
+        // Undoグループ管理
         private int _undoGroupId = -1;
         private bool _undoOpen = false;
 
@@ -1010,7 +1076,10 @@ namespace ChimeraHairMaster.Editor.Deformation
             // フォールオフウェイトを事前計算
             ComputeFalloffWeights();
 
-            // Undo: EreMorphと同じパターン
+            // 対称側のフォールオフを事前計算
+            ComputeSymmetryFalloffWeights();
+
+            // Undo:
             // 1. 新しいUndoグループを開始
             // 2. ドラッグ開始前のコンポーネント状態を丸ごとスナップショット
             // 3. グループIDを記録し、EndDragでCollapseする
@@ -1196,24 +1265,74 @@ namespace ChimeraHairMaster.Editor.Deformation
         }
 
         /// <summary>
-        /// 対称移動: フォールオフ影響範囲の対称頂点にも適用
+        /// 対称移動: 選択中心をミラーし、ミラー側で独立にフォールオフを計算して適用する
+        /// </summary>
+        /// <summary>対称側のフォールオフウェイトのキャッシュ（ドラッグ開始時に計算）</summary>
+        private Dictionary<int, float> _symmetryFalloffWeights = new Dictionary<int, float>();
+
+        /// <summary>
+        /// 対称側のフォールオフウェイトをドラッグ開始時に事前計算する
+        /// </summary>
+        private void ComputeSymmetryFalloffWeights()
+        {
+            _symmetryFalloffWeights.Clear();
+            if (!SymmetryX && !SymmetryY && !SymmetryZ) return;
+            if (_selectedVertices.Count == 0) return;
+            if (_baseVertices == null) return;
+
+            // 選択中心を計算（ベース頂点から）
+            var center = Vector3.zero;
+            foreach (int vi in _selectedVertices)
+            {
+                if (vi < _baseVertices.Length)
+                    center += _baseVertices[vi];
+            }
+            center /= _selectedVertices.Count;
+
+            // 選択中心をミラー
+            var mirrorCenter = MirrorPosition(center);
+
+            // ミラー中心からブラシ半径内の全頂点のフォールオフを計算
+            for (int i = 0; i < _baseVertices.Length; i++)
+            {
+                // 元の影響範囲内の頂点はスキップ（二重適用防止）
+                if (_falloffWeights.ContainsKey(i)) continue;
+
+                float dist = Vector3.Distance(_baseVertices[i], mirrorCenter);
+                if (dist > BrushRadius) continue;
+
+                float t = Mathf.Clamp01(dist / BrushRadius);
+                _symmetryFalloffWeights[i] = EvaluateFalloff(t);
+            }
+        }
+
+        /// <summary>
+        /// 対称移動: 事前計算済みのミラーフォールオフを使って適用する
         /// </summary>
         private void ApplySymmetricMoveDelta(Vector3 localDelta)
         {
-            EnsureSymmetryMap();
-            if (_symmetryMap == null) return;
+            if (_symmetryFalloffWeights.Count == 0) return;
 
             var mirroredDelta = MirrorVector(localDelta);
 
-            foreach (int vi in GetAffectedVertices())
+            foreach (var kvp in _symmetryFalloffWeights)
             {
-                if (!_symmetryMap.TryGetValue(vi, out int mirrorVi)) continue;
-                if (_falloffWeights.ContainsKey(mirrorVi)) continue; // 既に影響範囲内ならスキップ
-
-                float weight = GetVertexWeight(vi);
-                var startDelta = _dragStartDeltas.TryGetValue(mirrorVi, out var sd) ? sd : Vector3.zero;
-                _activeDeltaMap[mirrorVi] = startDelta + mirroredDelta * weight;
+                int vi = kvp.Key;
+                float weight = kvp.Value;
+                var startDelta = _dragStartDeltas.TryGetValue(vi, out var sd) ? sd : Vector3.zero;
+                _activeDeltaMap[vi] = startDelta + mirroredDelta * weight;
             }
+        }
+
+        /// <summary>
+        /// 位置をミラーする（対称面のオフセット考慮）
+        /// </summary>
+        private Vector3 MirrorPosition(Vector3 pos)
+        {
+            return new Vector3(
+                SymmetryX ? 2f * _symmetryOffsetX - pos.x : pos.x,
+                SymmetryY ? 2f * _symmetryOffsetY - pos.y : pos.y,
+                SymmetryZ ? 2f * _symmetryOffsetZ - pos.z : pos.z);
         }
 
         private Vector3 MirrorVector(Vector3 v)
@@ -1296,7 +1415,7 @@ namespace ChimeraHairMaster.Editor.Deformation
 
         /// <summary>
         /// キャッシュ済み距離から、新しいブラシ半径でウェイトだけ再計算する。
-        /// EreMorphと同じパターン: 距離はドラッグ開始時に固定、半径だけ変更可能。
+        /// 距離はドラッグ開始時に固定、半径だけ変更可能。
         /// </summary>
         private void RecomputeWeightsFromCachedDistances()
         {
@@ -1788,6 +1907,102 @@ namespace ChimeraHairMaster.Editor.Deformation
 
         #endregion
 
+        #region 対称面の描画
+
+        /// <summary>
+        /// 有効な対称面を半透明矩形として描画し、オフセットのドラッグハンドルを表示する
+        /// </summary>
+        private void DrawSymmetryPlanes()
+        {
+            if (!SymmetryX && !SymmetryY && !SymmetryZ) return;
+
+            var renderer = GetActiveRenderer();
+            if (renderer == null) return;
+
+            var transform = renderer.transform;
+            if (_workingMesh == null) return;
+
+            var bounds = _workingMesh.bounds;
+            // バウンズを少し拡大して見やすくする
+            float padding = bounds.size.magnitude * 0.1f;
+            var expandedBounds = new Bounds(bounds.center, bounds.size + Vector3.one * padding);
+
+            if (SymmetryX)
+                SymmetryOffsetX = DrawSymmetryPlaneWithHandle(transform, expandedBounds, 0, _symmetryOffsetX, new Color(1f, 0.2f, 0.2f));
+            if (SymmetryY)
+                SymmetryOffsetY = DrawSymmetryPlaneWithHandle(transform, expandedBounds, 1, _symmetryOffsetY, new Color(0.2f, 1f, 0.2f));
+            if (SymmetryZ)
+                SymmetryOffsetZ = DrawSymmetryPlaneWithHandle(transform, expandedBounds, 2, _symmetryOffsetZ, new Color(0.2f, 0.4f, 1f));
+        }
+
+        /// <summary>
+        /// 対称面を半透明矩形で描画し、法線方向のスライドハンドルを表示する
+        /// </summary>
+        /// <returns>更新後のオフセット値</returns>
+        private float DrawSymmetryPlaneWithHandle(Transform transform, Bounds bounds, int axis, float offset, Color color)
+        {
+            Vector3 min = bounds.min;
+            Vector3 max = bounds.max;
+            Vector3[] corners = new Vector3[4];
+
+            switch (axis)
+            {
+                case 0: // X軸（YZ平面）
+                    corners[0] = new Vector3(offset, min.y, min.z);
+                    corners[1] = new Vector3(offset, max.y, min.z);
+                    corners[2] = new Vector3(offset, max.y, max.z);
+                    corners[3] = new Vector3(offset, min.y, max.z);
+                    break;
+                case 1: // Y軸（XZ平面）
+                    corners[0] = new Vector3(min.x, offset, min.z);
+                    corners[1] = new Vector3(max.x, offset, min.z);
+                    corners[2] = new Vector3(max.x, offset, max.z);
+                    corners[3] = new Vector3(min.x, offset, max.z);
+                    break;
+                case 2: // Z軸（XY平面）
+                    corners[0] = new Vector3(min.x, min.y, offset);
+                    corners[1] = new Vector3(max.x, min.y, offset);
+                    corners[2] = new Vector3(max.x, max.y, offset);
+                    corners[3] = new Vector3(min.x, max.y, offset);
+                    break;
+            }
+
+            // ワールド座標に変換
+            for (int i = 0; i < 4; i++)
+                corners[i] = transform.TransformPoint(corners[i]);
+
+            // 半透明面を描画
+            var faceColor = new Color(color.r, color.g, color.b, 0.15f);
+            var outlineColor = new Color(color.r, color.g, color.b, 0.6f);
+            Handles.DrawSolidRectangleWithOutline(corners, faceColor, outlineColor);
+
+            // ハンドル位置: 矩形の中心
+            Vector3 handleLocalPos = bounds.center;
+            handleLocalPos[axis] = offset;
+
+            var handleWorldPos = transform.TransformPoint(handleLocalPos);
+
+            // 法線方向
+            Vector3 localNormal = Vector3.zero;
+            localNormal[axis] = 1f;
+            var worldNormal = transform.TransformDirection(localNormal);
+
+            float handleSize = HandleUtility.GetHandleSize(handleWorldPos) * 0.1f;
+            Handles.color = new Color(color.r, color.g, color.b, 0.8f);
+
+            EditorGUI.BeginChangeCheck();
+            var newWorldPos = Handles.Slider(handleWorldPos, worldNormal, handleSize, Handles.ArrowHandleCap, 0f);
+            if (EditorGUI.EndChangeCheck())
+            {
+                var newLocalPos = transform.InverseTransformPoint(newWorldPos);
+                return newLocalPos[axis];
+            }
+
+            return offset;
+        }
+
+        #endregion
+
         #region 対称マッピング
 
         private void EnsureSymmetryMap()
@@ -1799,7 +2014,7 @@ namespace ChimeraHairMaster.Editor.Deformation
             if (vertices == null) return;
 
             _symmetryMap = VertexSymmetryMapper.BuildSymmetryMap(
-                vertices, SymmetryX, SymmetryY, SymmetryZ);
+                vertices, SymmetryX, SymmetryY, SymmetryZ, SymmetryOffset);
         }
 
         #endregion
@@ -2291,11 +2506,51 @@ namespace ChimeraHairMaster.Editor.Deformation
                 _lattice.ControlPoints[idx] += localDelta;
             }
 
+            // 対称CPを移動
+            if (SymmetryX || SymmetryY || SymmetryZ)
+            {
+                ApplySymmetricLatticeMove(localDelta);
+            }
+
             RecalculateLatticeDeformation();
             SaveDeltasToComponent();
 
             if (_latticeUndoState != null)
                 _latticeUndoState.controlPoints = (Vector3[])_lattice.ControlPoints.Clone();
+        }
+
+        /// <summary>
+        /// 選択中のラティスCPの対称CPにミラーデルタを適用する
+        /// </summary>
+        private void ApplySymmetricLatticeMove(Vector3 localDelta)
+        {
+            if (_lattice == null) return;
+
+            var mirroredDelta = MirrorVector(localDelta);
+            var alreadyMoved = new HashSet<int>(_selectedControlPoints);
+
+            foreach (int idx in _selectedControlPoints)
+            {
+                int mirrorIdx = _lattice.GetSymmetricControlPoint(idx, SymmetryX, SymmetryY, SymmetryZ);
+                if (mirrorIdx < 0 || alreadyMoved.Contains(mirrorIdx)) continue;
+
+                _lattice.ControlPoints[mirrorIdx] += mirroredDelta;
+                alreadyMoved.Add(mirrorIdx);
+            }
+
+            // 中央列のCPは対称軸方向の成分を打ち消す
+            foreach (int idx in _selectedControlPoints)
+            {
+                if (_lattice.IsCenterControlPoint(idx, SymmetryX, SymmetryY, SymmetryZ))
+                {
+                    var cp = _lattice.ControlPoints[idx];
+                    var orig = _lattice.OriginalControlPoints[idx];
+                    if (SymmetryX) cp.x = orig.x;
+                    if (SymmetryY) cp.y = orig.y;
+                    if (SymmetryZ) cp.z = orig.z;
+                    _lattice.ControlPoints[idx] = cp;
+                }
+            }
         }
 
         /// <summary>

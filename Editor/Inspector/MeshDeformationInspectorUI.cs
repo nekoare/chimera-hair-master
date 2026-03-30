@@ -67,8 +67,19 @@ namespace ChimeraHairMaster.Editor
                 {
                     // 頂点ツール（膨張/収縮・スムージング）
                     DrawVertexTools();
+                }
 
-                    // 詳細設定（折りたたみ）
+                // 対称編集（頂点・ラティスモード共通、UVIslandでは非表示）
+                if (SceneEditor.CurrentMode == MeshDeformationSceneEditor.EditMode.Vertex
+                    || SceneEditor.CurrentMode == MeshDeformationSceneEditor.EditMode.Lattice)
+                {
+                    EditorGUILayout.Space(3);
+                    DrawSymmetrySettings();
+                }
+
+                // 詳細設定（頂点モードとUVIslandモードのみ、ラティスでは非表示）
+                if (SceneEditor.CurrentMode != MeshDeformationSceneEditor.EditMode.Lattice)
+                {
                     EditorGUILayout.Space(3);
                     DrawAdvancedSettings();
                 }
@@ -272,6 +283,69 @@ namespace ChimeraHairMaster.Editor
                 SceneEditor.ApplySmooth(0.5f);
                 _inflateAmount = 0f;
             }
+        }
+
+        #endregion
+
+        #region 対称編集
+
+        private void DrawSymmetrySettings()
+        {
+            EditorGUILayout.LabelField("対称編集", EditorStyles.boldLabel);
+
+            EditorGUILayout.BeginHorizontal();
+
+            // ラティスモード時は分割数1の軸を無効化
+            bool isLattice = SceneEditor.CurrentMode == MeshDeformationSceneEditor.EditMode.Lattice;
+            var div = SceneEditor.LatticeDivisions;
+
+            bool canX = !isLattice || div.x >= 2;
+            bool canY = !isLattice || div.y >= 2;
+            bool canZ = !isLattice || div.z >= 2;
+
+            using (new EditorGUI.DisabledScope(!canX))
+            {
+                bool newX = GUILayout.Toggle(SceneEditor.SymmetryX && canX, "X (左右)", EditorStyles.miniButtonLeft);
+                if (canX && newX && !SceneEditor.SymmetryX)
+                {
+                    SceneEditor.SymmetryY = false;
+                    SceneEditor.SymmetryZ = false;
+                    SceneEditor.SymmetryX = true;
+                }
+                else if (canX) SceneEditor.SymmetryX = newX;
+            }
+            using (new EditorGUI.DisabledScope(!canY))
+            {
+                bool newY = GUILayout.Toggle(SceneEditor.SymmetryY && canY, "Y (前後)", EditorStyles.miniButtonMid);
+                if (canY && newY && !SceneEditor.SymmetryY)
+                {
+                    SceneEditor.SymmetryX = false;
+                    SceneEditor.SymmetryZ = false;
+                    SceneEditor.SymmetryY = true;
+                }
+                else if (canY) SceneEditor.SymmetryY = newY;
+            }
+            using (new EditorGUI.DisabledScope(!canZ))
+            {
+                bool newZ = GUILayout.Toggle(SceneEditor.SymmetryZ && canZ, "Z (上下)", EditorStyles.miniButtonRight);
+                if (canZ && newZ && !SceneEditor.SymmetryZ)
+                {
+                    SceneEditor.SymmetryX = false;
+                    SceneEditor.SymmetryY = false;
+                    SceneEditor.SymmetryZ = true;
+                }
+                else if (canZ) SceneEditor.SymmetryZ = newZ;
+            }
+
+            EditorGUILayout.EndHorizontal();
+
+            // 有効な軸のオフセット入力
+            if (SceneEditor.SymmetryX)
+                SceneEditor.SymmetryOffsetX = EditorGUILayout.FloatField("オフセット X", SceneEditor.SymmetryOffsetX);
+            if (SceneEditor.SymmetryY)
+                SceneEditor.SymmetryOffsetY = EditorGUILayout.FloatField("オフセット Y", SceneEditor.SymmetryOffsetY);
+            if (SceneEditor.SymmetryZ)
+                SceneEditor.SymmetryOffsetZ = EditorGUILayout.FloatField("オフセット Z", SceneEditor.SymmetryOffsetZ);
         }
 
         #endregion

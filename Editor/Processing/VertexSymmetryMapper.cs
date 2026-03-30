@@ -21,6 +21,7 @@ namespace ChimeraHairMaster.Editor.Processing
         public static Dictionary<int, int> BuildSymmetryMap(
             Vector3[] vertices,
             bool mirrorX, bool mirrorY, bool mirrorZ,
+            Vector3 offset = default,
             float threshold = -1f)
         {
             var map = new Dictionary<int, int>();
@@ -32,7 +33,7 @@ namespace ChimeraHairMaster.Editor.Processing
             {
                 var bounds = CalculateBounds(vertices);
                 float maxExtent = Mathf.Max(bounds.size.x, Mathf.Max(bounds.size.y, bounds.size.z));
-                threshold = maxExtent * 0.001f; // メッシュサイズの0.1%
+                threshold = maxExtent * 0.02f; // メッシュサイズの2%
             }
 
             // KD-Tree的な高速検索のため空間グリッドを使用
@@ -43,7 +44,7 @@ namespace ChimeraHairMaster.Editor.Processing
             {
                 if (map.ContainsKey(i)) continue;
 
-                var mirrored = MirrorPosition(vertices[i], mirrorX, mirrorY, mirrorZ);
+                var mirrored = MirrorPosition(vertices[i], mirrorX, mirrorY, mirrorZ, offset);
                 int nearest = FindNearestInGrid(grid, vertices, mirrored, cellSize, threshold);
 
                 if (nearest >= 0 && nearest != i)
@@ -56,12 +57,12 @@ namespace ChimeraHairMaster.Editor.Processing
             return map;
         }
 
-        private static Vector3 MirrorPosition(Vector3 pos, bool x, bool y, bool z)
+        private static Vector3 MirrorPosition(Vector3 pos, bool x, bool y, bool z, Vector3 offset)
         {
             return new Vector3(
-                x ? -pos.x : pos.x,
-                y ? -pos.y : pos.y,
-                z ? -pos.z : pos.z);
+                x ? 2f * offset.x - pos.x : pos.x,
+                y ? 2f * offset.y - pos.y : pos.y,
+                z ? 2f * offset.z - pos.z : pos.z);
         }
 
         private static Bounds CalculateBounds(Vector3[] vertices)

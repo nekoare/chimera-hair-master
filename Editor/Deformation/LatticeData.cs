@@ -96,5 +96,44 @@ namespace ChimeraHairMaster.Editor.Deformation
             ControlPoints = saved;
             return result;
         }
+
+        /// <summary>
+        /// 指定軸で対称となるCPインデックスを返す。
+        /// 対称が不可能（分割数1以下）な場合は -1 を返す。
+        /// </summary>
+        public int GetSymmetricControlPoint(int index, bool mirrorX, bool mirrorY, bool mirrorZ)
+        {
+            var (x, y, z) = IndexToGrid(index);
+
+            if (mirrorX)
+            {
+                if (DivisionsX < 2) return -1;
+                x = DivisionsX - x;
+            }
+            if (mirrorY)
+            {
+                if (DivisionsY < 2) return -1;
+                y = DivisionsY - y;
+            }
+            if (mirrorZ)
+            {
+                if (DivisionsZ < 2) return -1;
+                z = DivisionsZ - z;
+            }
+
+            return GridToIndex(x, y, z);
+        }
+
+        /// <summary>
+        /// 指定軸で中央列のCPかどうかを返す（偶数分割時の対称軸上のCP）
+        /// </summary>
+        public bool IsCenterControlPoint(int index, bool mirrorX, bool mirrorY, bool mirrorZ)
+        {
+            var (x, y, z) = IndexToGrid(index);
+            if (mirrorX && DivisionsX % 2 == 0 && x == DivisionsX / 2) return true;
+            if (mirrorY && DivisionsY % 2 == 0 && y == DivisionsY / 2) return true;
+            if (mirrorZ && DivisionsZ % 2 == 0 && z == DivisionsZ / 2) return true;
+            return false;
+        }
     }
 }
