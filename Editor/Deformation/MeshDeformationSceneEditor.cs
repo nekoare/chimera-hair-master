@@ -393,28 +393,10 @@ namespace ChimeraHairMaster.Editor.Deformation
                 TargetComponent.DeformOriginalMesh = null;
             }
 
-            // 保存済みデルタがあれば適用済みメッシュを残し、なければ元に戻す
+            // 元のメッシュに戻す（NDMFプレビューが非編集中のRendererにデルタを再適用する）
             if (renderer != null && _originalMesh != null)
             {
-                if (_activeDeltaMap.Count > 0)
-                {
-                    var deformedMesh = Object.Instantiate(_originalMesh);
-                    deformedMesh.name = _originalMesh.name + "_Deformed";
-                    var vertices = _originalMesh.vertices;
-                    foreach (var kvp in _activeDeltaMap)
-                    {
-                        if (kvp.Key < vertices.Length)
-                            vertices[kvp.Key] += kvp.Value;
-                    }
-                    deformedMesh.vertices = vertices;
-                    deformedMesh.RecalculateNormals();
-                    deformedMesh.RecalculateBounds();
-                    renderer.sharedMesh = deformedMesh;
-                }
-                else
-                {
-                    renderer.sharedMesh = _originalMesh;
-                }
+                renderer.sharedMesh = _originalMesh;
             }
 
             // クリーンアップ

@@ -427,26 +427,23 @@ namespace ChimeraHairMaster.Editor.NDMF
                     if (!enabledComponents.Any()) continue;
 
                     // 対象のRendererを収集
-                    // メッシュ変形編集中はこのコンポーネントの全Rendererをプロキシ対象から除外する
-                    // （編集中はプレビューパイプライン不要、パフォーマンス改善）
+                    // メッシュ変形編集中のRendererのみプロキシ対象から除外する
                     var editingIds = Deformation.MeshDeformationSceneEditor.ActiveEditingRendererIds;
                     var targetRenderers = new HashSet<Renderer>();
                     foreach (var component in enabledComponents)
                     {
                         // deformEditingRendererIndexを監視して編集開始/終了でリビルドをトリガー
-                        int editingIdx = context.Observe(component, c => c.deformEditingRendererIndex);
-                        bool isActuallyEditing = editingIdx >= 0 && editingIds.Count > 0;
-
-                        // 編集中はこのコンポーネントの全Rendererをスキップ
-                        if (isActuallyEditing) continue;
+                        context.Observe(component, c => c.deformEditingRendererIndex);
 
                         var renderers = context.Observe(component, c => c.targetRenderers);
                         if (renderers == null) continue;
 
                         foreach (var renderer in renderers)
                         {
-                            if (renderer != null)
-                                targetRenderers.Add(renderer);
+                            if (renderer == null) continue;
+                            // 編集中のRendererだけスキップ（他のRendererはプレビューを通す）
+                            if (editingIds.Contains(renderer.GetInstanceID())) continue;
+                            targetRenderers.Add(renderer);
                         }
                     }
 
