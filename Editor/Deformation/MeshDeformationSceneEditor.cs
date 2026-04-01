@@ -307,7 +307,9 @@ namespace ChimeraHairMaster.Editor.Deformation
             _dotRenderer.Initialize();
 
             // Undo/Redoイベントを監視して作業メッシュを更新
-            Undo.undoRedoPerformed += OnUndoRedo;
+            // undoRedoPerformedではなくundoRedoEventを使用
+            // （他のエディタ拡張の例外でコールバックチェーンが中断されるのを回避）
+            Undo.undoRedoEvent += OnUndoRedoEvent;
 
             // 編集セッションの自動終了イベントを登録
             RegisterAutoEndEditCallbacks();
@@ -363,7 +365,7 @@ namespace ChimeraHairMaster.Editor.Deformation
             if (CurrentMode == EditMode.Off) return;
 
             // Undo/Redo監視を解除
-            Undo.undoRedoPerformed -= OnUndoRedo;
+            Undo.undoRedoEvent -= OnUndoRedoEvent;
 
             // 自動終了イベントを解除
             UnregisterAutoEndEditCallbacks();
@@ -441,7 +443,7 @@ namespace ChimeraHairMaster.Editor.Deformation
         /// <summary>
         /// Undo/Redo実行時にコンポーネントからデルタを再読み込みし、作業メッシュを更新する
         /// </summary>
-        private void OnUndoRedo()
+        private void OnUndoRedoEvent(in UndoRedoInfo info)
         {
             if (CurrentMode == EditMode.Off || !IsTargetAlive) return;
 
