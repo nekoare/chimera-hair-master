@@ -1726,8 +1726,11 @@ namespace ChimeraHairMaster.Editor.Deformation
             if (_bakeTempMesh == null)
                 _bakeTempMesh = new Mesh();
 
-            // BakeMesh: Bone変形を反映したローカル空間の頂点を取得
-            // useScale=false → Rendererのスケールは含まない（TransformPointで適用）
+            // BakeMesh(useScale=false) は位置・回転を除去しスケールを残した空間で頂点を返す。
+            // （useScale=false は "スケール補正を使わない" = lossyScale が出力に残る）
+            // TransformPoint は lossyScale を含む完全な localToWorldMatrix を適用するため、
+            // スケールが二重適用されオーバーレイがズレる。
+            // 位置と回転だけを適用してワールド座標に変換する。
             renderer.BakeMesh(_bakeTempMesh, false);
             var bakedLocal = _bakeTempMesh.vertices;
 
@@ -1735,8 +1738,10 @@ namespace ChimeraHairMaster.Editor.Deformation
                 _bakedVerticesWorld = new Vector3[bakedLocal.Length];
 
             var t = renderer.transform;
+            var tPos = t.position;
+            var tRot = t.rotation;
             for (int i = 0; i < bakedLocal.Length; i++)
-                _bakedVerticesWorld[i] = t.TransformPoint(bakedLocal[i]);
+                _bakedVerticesWorld[i] = tPos + tRot * bakedLocal[i];
         }
 
         private static Material GetGLMaterial()
