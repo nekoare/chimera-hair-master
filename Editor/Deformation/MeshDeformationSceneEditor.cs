@@ -180,6 +180,11 @@ namespace ChimeraHairMaster.Editor.Deformation
         // ワールド空間の頂点位置キャッシュ（表示・選択のヒットテストに使用）
         private Vector3[] _bakedVerticesWorld;
 
+        // ラティス表示用: メッシュローカル空間 → ベイクワールド空間の剛体変換
+        private Vector3 _localCentroid;
+        private Vector3 _bakedCentroid;
+        private Quaternion _localToBakedRotation = Quaternion.identity;
+
         // GL描画用マテリアル（ワイヤーフレーム・オーバーレイの一括描画に使用）
         private static Material _glMaterial;
 
@@ -1727,9 +1732,6 @@ namespace ChimeraHairMaster.Editor.Deformation
                 _bakeTempMesh = new Mesh();
 
             // BakeMesh(useScale=false) は位置・回転を除去しスケールを残した空間で頂点を返す。
-            // （useScale=false は "スケール補正を使わない" = lossyScale が出力に残る）
-            // TransformPoint は lossyScale を含む完全な localToWorldMatrix を適用するため、
-            // スケールが二重適用されオーバーレイがズレる。
             // 位置と回転だけを適用してワールド座標に変換する。
             renderer.BakeMesh(_bakeTempMesh, false);
             var bakedLocal = _bakeTempMesh.vertices;
@@ -1742,6 +1744,97 @@ namespace ChimeraHairMaster.Editor.Deformation
             var tRot = t.rotation;
             for (int i = 0; i < bakedLocal.Length; i++)
                 _bakedVerticesWorld[i] = tPos + tRot * bakedLocal[i];
+
+            // ラティス表示用: メッシュローカル → ベイクワールドの剛体変換を計算
+            UpdateLocalToBakedTransform(bakedLocal);
+        }
+
+        /// <summary>
+        /// メッシュローカル空間からベイクワールド空間への剛体変換（回転+平行移動）を計算する。
+        /// 頂点の対応関係から最適な回転を求める。
+        /// </summary>
+        private void UpdateLocalToBakedTransform(Vector3[] bakedLocal)
+        {
+            if (_workingMesh == null || bakedLocal == null || bakedLocal.Length == 0) return;
+
+            var localVerts = _workingMesh.vertices;
+            int n = Mathf.Min(localVerts.Length, bakedLocal.Length);
+            if (n == 0) return;
+
+            // 重心を計算
+            _localCentroid = Vector3.zero;
+            _bakedCentroid = Vector3.zero;
+            for (int i = 0; i < n; i++)
+            {
+                _localCentroid += localVerts[i];
+                _bakedCentroid += _bakedVerticesWorld[i];
+            }
+            _localCentroid /= n;
+            _bakedCentroid /= n;
+
+            // 3つの代表頂点から座標フレームを構築して回転を計算
+            // 十分に離れた頂点を選ぶ
+            int idxA = 0, idxB = n / 3, idxC = 2 * n / 3;
+
+            var localEdge1 = localVerts[idxB] - localVerts[idxA];
+            var localEdge2 = localVerts[idxC] - localVerts[idxA];
+            var bakedEdge1 = _bakedVerticesWorld[idxB] - _bakedVerticesWorld[idxA];
+            var bakedEdge2 = _bakedVerticesWorld[idxC] - _bakedVerticesWorld[idxA];
+
+            // 退化チェック（エッジが短すぎる or 平行）
+            if (localEdge1.sqrMagnitude < 0.000001f || localEdge2.sqrMagnitude < 0.000001f ||
+                bakedEdge1.sqrMagnitude < 0.000001f || bakedEdge2.sqrMagnitude < 0.000001f)
+            {
+                _localToBakedRotation = Quaternion.identity;
+                return;
+            }
+
+            var localFwd = localEdge1.normalized;
+            var localNormal = Vector3.Cross(localFwd, localEdge2).normalized;
+            if (localNormal.sqrMagnitude < 0.5f)
+            {
+                _localToBakedRotation = Quaternion.identity;
+                return;
+            }
+            var localUp = Vector3.Cross(localNormal, localFwd).normalized;
+
+            var bakedFwd = bakedEdge1.normalized;
+            var bakedNormal = Vector3.Cross(bakedFwd, bakedEdge2).normalized;
+            if (bakedNormal.sqrMagnitude < 0.5f)
+            {
+                _localToBakedRotation = Quaternion.identity;
+                return;
+            }
+            var bakedUp = Vector3.Cross(bakedNormal, bakedFwd).normalized;
+
+            var localFrame = Quaternion.LookRotation(localFwd, localUp);
+            var bakedFrame = Quaternion.LookRotation(bakedFwd, bakedUp);
+            _localToBakedRotation = bakedFrame * Quaternion.Inverse(localFrame);
+        }
+
+        /// <summary>
+        /// メッシュローカル座標をベイクワールド座標に変換する（ラティス表示用）。
+        /// 頂点対応から計算した剛体変換（回転+平行移動）を使う。
+        /// </summary>
+        private Vector3 LocalToDisplayWorld(Vector3 localPos)
+        {
+            return _bakedCentroid + _localToBakedRotation * (localPos - _localCentroid);
+        }
+
+        /// <summary>
+        /// ベイクワールド空間のデルタをメッシュローカル空間のデルタに変換する。
+        /// </summary>
+        private Vector3 DisplayWorldDeltaToLocal(Vector3 worldDelta)
+        {
+            return Quaternion.Inverse(_localToBakedRotation) * worldDelta;
+        }
+
+        /// <summary>
+        /// ベイクワールド座標をメッシュローカル座標に変換する。
+        /// </summary>
+        private Vector3 DisplayWorldToLocal(Vector3 worldPos)
+        {
+            return _localCentroid + Quaternion.Inverse(_localToBakedRotation) * (worldPos - _bakedCentroid);
         }
 
         private static Material GetGLMaterial()
@@ -1974,9 +2067,9 @@ namespace ChimeraHairMaster.Editor.Deformation
                     break;
             }
 
-            // ワールド座標に変換
+            // ワールド座標に変換（ベイク空間マッピング）
             for (int i = 0; i < 4; i++)
-                corners[i] = transform.TransformPoint(corners[i]);
+                corners[i] = LocalToDisplayWorld(corners[i]);
 
             // 半透明面を描画
             var faceColor = new Color(color.r, color.g, color.b, 0.15f);
@@ -1987,12 +2080,13 @@ namespace ChimeraHairMaster.Editor.Deformation
             Vector3 handleLocalPos = bounds.center;
             handleLocalPos[axis] = offset;
 
-            var handleWorldPos = transform.TransformPoint(handleLocalPos);
+            var handleWorldPos = LocalToDisplayWorld(handleLocalPos);
 
-            // 法線方向
+            // 法線方向（ベイク空間でも軸方向を維持）
             Vector3 localNormal = Vector3.zero;
             localNormal[axis] = 1f;
-            var worldNormal = transform.TransformDirection(localNormal);
+            // バウンディングボックスマッピングでは軸方向が保持されるので法線もそのまま
+            var worldNormal = localNormal;
 
             float handleSize = HandleUtility.GetHandleSize(handleWorldPos) * 0.1f;
             Handles.color = new Color(color.r, color.g, color.b, 0.8f);
@@ -2001,7 +2095,7 @@ namespace ChimeraHairMaster.Editor.Deformation
             var newWorldPos = Handles.Slider(handleWorldPos, worldNormal, handleSize, Handles.ArrowHandleCap, 0f);
             if (EditorGUI.EndChangeCheck())
             {
-                var newLocalPos = transform.InverseTransformPoint(newWorldPos);
+                var newLocalPos = DisplayWorldToLocal(newWorldPos);
                 return newLocalPos[axis];
             }
 
@@ -2427,6 +2521,9 @@ namespace ChimeraHairMaster.Editor.Deformation
             var renderer = GetActiveRenderer();
             if (renderer == null) return;
 
+            // ベイク座標のバウンディングボックスを更新（ラティス表示のマッピングに必要）
+            UpdateBakedVertices(renderer);
+
             var transform = renderer.transform;
             var e = Event.current;
             bool isShift = e.shift;
@@ -2436,7 +2533,7 @@ namespace ChimeraHairMaster.Editor.Deformation
             for (int i = 0; i < _lattice.ControlPointCount; i++)
             {
                 var localPos = _lattice.ControlPoints[i];
-                var worldPos = transform.TransformPoint(localPos);
+                var worldPos = LocalToDisplayWorld(localPos);
                 float handleSize = HandleUtility.GetHandleSize(worldPos) * 0.05f;
 
                 bool isSelected = _selectedControlPoints.Contains(i);
@@ -2482,7 +2579,7 @@ namespace ChimeraHairMaster.Editor.Deformation
             {
                 var center = Vector3.zero;
                 foreach (int idx in _selectedControlPoints)
-                    center += transform.TransformPoint(_lattice.ControlPoints[idx]);
+                    center += LocalToDisplayWorld(_lattice.ControlPoints[idx]);
                 center /= _selectedControlPoints.Count;
 
                 EditorGUI.BeginChangeCheck();
@@ -2507,7 +2604,7 @@ namespace ChimeraHairMaster.Editor.Deformation
             if (_latticeUndoState != null)
                 Undo.RegisterCompleteObjectUndo(_latticeUndoState, "メッシュ変形: ラティス制御点移動");
 
-            var localDelta = transform.InverseTransformVector(worldDelta);
+            var localDelta = DisplayWorldDeltaToLocal(worldDelta);
             foreach (int idx in _selectedControlPoints)
             {
                 _lattice.ControlPoints[idx] += localDelta;
@@ -2578,8 +2675,8 @@ namespace ChimeraHairMaster.Editor.Deformation
             for (int iy = 0; iy < ny; iy++)
             for (int ix = 0; ix < nx - 1; ix++)
             {
-                var a = transform.TransformPoint(_lattice.ControlPoints[_lattice.GridToIndex(ix, iy, iz)]);
-                var b = transform.TransformPoint(_lattice.ControlPoints[_lattice.GridToIndex(ix + 1, iy, iz)]);
+                var a = LocalToDisplayWorld(_lattice.ControlPoints[_lattice.GridToIndex(ix, iy, iz)]);
+                var b = LocalToDisplayWorld(_lattice.ControlPoints[_lattice.GridToIndex(ix + 1, iy, iz)]);
                 Handles.DrawLine(a, b);
             }
 
@@ -2588,8 +2685,8 @@ namespace ChimeraHairMaster.Editor.Deformation
             for (int ix = 0; ix < nx; ix++)
             for (int iy = 0; iy < ny - 1; iy++)
             {
-                var a = transform.TransformPoint(_lattice.ControlPoints[_lattice.GridToIndex(ix, iy, iz)]);
-                var b = transform.TransformPoint(_lattice.ControlPoints[_lattice.GridToIndex(ix, iy + 1, iz)]);
+                var a = LocalToDisplayWorld(_lattice.ControlPoints[_lattice.GridToIndex(ix, iy, iz)]);
+                var b = LocalToDisplayWorld(_lattice.ControlPoints[_lattice.GridToIndex(ix, iy + 1, iz)]);
                 Handles.DrawLine(a, b);
             }
 
@@ -2598,8 +2695,8 @@ namespace ChimeraHairMaster.Editor.Deformation
             for (int ix = 0; ix < nx; ix++)
             for (int iz = 0; iz < nz - 1; iz++)
             {
-                var a = transform.TransformPoint(_lattice.ControlPoints[_lattice.GridToIndex(ix, iy, iz)]);
-                var b = transform.TransformPoint(_lattice.ControlPoints[_lattice.GridToIndex(ix, iy, iz + 1)]);
+                var a = LocalToDisplayWorld(_lattice.ControlPoints[_lattice.GridToIndex(ix, iy, iz)]);
+                var b = LocalToDisplayWorld(_lattice.ControlPoints[_lattice.GridToIndex(ix, iy, iz + 1)]);
                 Handles.DrawLine(a, b);
             }
         }
