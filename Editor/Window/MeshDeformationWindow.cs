@@ -1,4 +1,5 @@
 using System.Linq;
+using ChimeraHairMaster.Editor.Localization;
 using UnityEditor;
 using UnityEngine;
 
@@ -21,15 +22,15 @@ namespace ChimeraHairMaster.Editor
             var renderer = go.GetComponent<SkinnedMeshRenderer>();
             if (renderer == null)
             {
-                EditorUtility.DisplayDialog("メッシュ変形",
-                    "選択したGameObjectにSkinnedMeshRendererがありません。", "OK");
+                EditorUtility.DisplayDialog(CHMLocales.Tr("MeshDeformWindow:Title"),
+                    CHMLocales.Tr("MeshDeformWindow:Dialog:NoSMR"), "OK");
                 return;
             }
 
             var conflict = FindConflict(renderer);
             if (conflict != null)
             {
-                EditorUtility.DisplayDialog("メッシュ変形", conflict, "OK");
+                EditorUtility.DisplayDialog(CHMLocales.Tr("MeshDeformWindow:Title"), conflict, "OK");
                 return;
             }
 
@@ -47,7 +48,7 @@ namespace ChimeraHairMaster.Editor
         public static void ShowWindow()
         {
             var window = GetWindow<MeshDeformationWindow>();
-            window.titleContent = new GUIContent("メッシュ変形");
+            window.titleContent = new GUIContent(CHMLocales.Tr("MeshDeformWindow:Title"));
             window.minSize = new Vector2(350, 200);
             window.Show();
         }
@@ -65,17 +66,20 @@ namespace ChimeraHairMaster.Editor
 
         private void DrawHeader()
         {
-            EditorGUILayout.LabelField("メッシュ変形 セットアップ", EditorStyles.boldLabel);
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                EditorGUILayout.LabelField(CHMLocales.Tr("MeshDeformWindow:Header:Title"), EditorStyles.boldLabel);
+                CHMLocales.DrawLanguagePicker();
+            }
             EditorGUILayout.HelpBox(
-                "変形したいRendererを登録して「セットアップ」を押してください。\n" +
-                "セットアップ後はInspectorから編集できます。",
+                CHMLocales.Tr("MeshDeformWindow:Header:Description"),
                 MessageType.Info);
         }
 
         private void DrawRendererField()
         {
             _targetRenderer = (SkinnedMeshRenderer)EditorGUILayout.ObjectField(
-                "対象Renderer", _targetRenderer, typeof(SkinnedMeshRenderer), true);
+                CHMLocales.Tr("MeshDeformWindow:TargetRenderer"), _targetRenderer, typeof(SkinnedMeshRenderer), true);
 
             // ドラッグ&ドロップ対応
             HandleDragAndDrop();
@@ -124,7 +128,7 @@ namespace ChimeraHairMaster.Editor
         {
             if (_targetRenderer == null)
             {
-                EditorGUILayout.HelpBox("Rendererを登録してください。", MessageType.Warning);
+                EditorGUILayout.HelpBox(CHMLocales.Tr("MeshDeformWindow:RegisterRendererHint"), MessageType.Warning);
                 GUI.enabled = false;
             }
             else
@@ -138,7 +142,7 @@ namespace ChimeraHairMaster.Editor
                 }
             }
 
-            if (GUILayout.Button("セットアップ", GUILayout.Height(30)))
+            if (GUILayout.Button(CHMLocales.Tr("MeshDeformWindow:Action:Setup"), GUILayout.Height(30)))
             {
                 ExecuteSetup(_targetRenderer);
             }
@@ -157,7 +161,7 @@ namespace ChimeraHairMaster.Editor
             foreach (var chm in allCHM)
             {
                 if (chm.targetRenderers != null && chm.targetRenderers.Contains(renderer))
-                    return $"{renderer.name} にキメラヘアマスターがあるため変形はそこから行ってください。";
+                    return string.Format(CHMLocales.Tr("MeshDeformWindow:Conflict:CHM"), renderer.name);
             }
 
             // 既存のスタンドアロンコンポーネントとの重複
@@ -165,7 +169,7 @@ namespace ChimeraHairMaster.Editor
             foreach (var standalone in allStandalone)
             {
                 if (standalone.targetRenderer == renderer)
-                    return $"{renderer.name} には既にメッシュ変形コンポーネントがあります。";
+                    return string.Format(CHMLocales.Tr("MeshDeformWindow:Conflict:Existing"), renderer.name);
             }
 
             return null;
@@ -180,10 +184,9 @@ namespace ChimeraHairMaster.Editor
             if (existing != null)
             {
                 if (!EditorUtility.DisplayDialog(
-                    "確認",
-                    $"{targetObject.name} には既にメッシュ変形コンポーネントがあります。\n" +
-                    "対象Rendererを上書きしますか？",
-                    "上書き", "キャンセル"))
+                    CHMLocales.Tr("MeshDeformWindow:Dialog:ConfirmTitle"),
+                    string.Format(CHMLocales.Tr("MeshDeformWindow:Dialog:OverwriteMessage"), targetObject.name),
+                    CHMLocales.Tr("MeshDeformWindow:Dialog:Overwrite"), CHMLocales.Tr("MeshDeformWindow:Dialog:Cancel")))
                 {
                     return;
                 }

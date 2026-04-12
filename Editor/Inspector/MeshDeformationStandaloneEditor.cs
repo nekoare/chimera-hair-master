@@ -1,4 +1,5 @@
 using ChimeraHairMaster.Editor.Deformation;
+using ChimeraHairMaster.Editor.Localization;
 using UnityEditor;
 using UnityEngine;
 
@@ -30,7 +31,7 @@ namespace ChimeraHairMaster.Editor
 
             // タイトル
             var titleRect = new Rect(rect.x + 28, rect.y + 2, rect.width - 60, 18);
-            GUI.Label(titleRect, "CHM - メッシュ変形機能", EditorStyles.boldLabel);
+            GUI.Label(titleRect, CHMLocales.Tr("MeshDeformStandalone:Header"), EditorStyles.boldLabel);
 
             // コンテキストメニュー（⋮ボタン）
             var menuRect = new Rect(rect.xMax - 20, rect.y + 3, 16, 16);
@@ -84,12 +85,13 @@ namespace ChimeraHairMaster.Editor
 
             if (component.targetRenderer == null)
             {
-                EditorGUILayout.HelpBox("対象Rendererが設定されていません。\nメニュー「キメラヘアマスター > メッシュ変形」からセットアップしてください。", MessageType.Warning);
+                EditorGUILayout.HelpBox(CHMLocales.Tr("MeshDeformStandalone:NoRendererWarning"), MessageType.Warning);
                 serializedObject.ApplyModifiedProperties();
                 return;
             }
 
             EditorGUILayout.Space(5);
+            CHMLocales.DrawLanguagePicker();
 
             // メッシュ変形 UI（MeshDeformationInspectorUI を再利用）
             meshDeformationUI?.Draw(component);

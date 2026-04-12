@@ -5,6 +5,7 @@ using System.Text.RegularExpressions;
 using ChimeraHairMaster.Editor.Processing;
 using UnityEditor;
 using UnityEngine;
+using ChimeraHairMaster.Editor.Localization;
 
 namespace ChimeraHairMaster.Editor
 {
@@ -269,18 +270,22 @@ namespace ChimeraHairMaster.Editor
         private void DrawComponentHeader()
         {
             EditorGUILayout.BeginVertical(EditorStyles.helpBox);
-            EditorGUILayout.LabelField("キメラヘアマスター", EditorStyles.boldLabel);
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                EditorGUILayout.LabelField(CHMLocales.Tr("Inspector:Title"), EditorStyles.boldLabel);
+                CHMLocales.DrawLanguagePicker();
+            }
             EditorGUILayout.EndVertical();
 
             // 有効/無効トグル
-            EditorGUILayout.PropertyField(isEnabledProp, new GUIContent("有効"));
+            EditorGUILayout.PropertyField(isEnabledProp, new GUIContent(CHMLocales.Tr("Inspector:Enabled")));
 
             // ヘルプ表示トグル
-            showHelp = EditorGUILayout.Toggle("ヘルプ", showHelp);
+            showHelp = EditorGUILayout.Toggle(CHMLocales.Tr("Inspector:Help"), showHelp);
 
             if (!isEnabledProp.boolValue)
             {
-                EditorGUILayout.HelpBox("コンポーネントが無効になっています。ビルド時に処理されません。", MessageType.Info);
+                EditorGUILayout.HelpBox(CHMLocales.Tr("Inspector:DisabledHelp"), MessageType.Info);
             }
         }
 
@@ -289,21 +294,20 @@ namespace ChimeraHairMaster.Editor
             var component = target as ChimeraHairMaster;
 
             // 配列プロパティを含むため通常のFoldoutを使用
-            showBasicSettings = EditorGUILayout.Foldout(showBasicSettings, "基本設定", true, EditorStyles.foldoutHeader);
+            showBasicSettings = EditorGUILayout.Foldout(showBasicSettings, CHMLocales.Tr("Inspector:BasicSettings"), true, EditorStyles.foldoutHeader);
             if (showBasicSettings)
             {
                 EditorGUI.indentLevel++;
 
                 // 対象Renderer一覧（読み取り専用表示）
                 EditorGUI.BeginDisabledGroup(true);
-                EditorGUILayout.PropertyField(targetRenderersProp, new GUIContent("対象Renderer"), true);
+                EditorGUILayout.PropertyField(targetRenderersProp, new GUIContent(CHMLocales.Tr("Inspector:TargetRenderers")), true);
                 EditorGUI.EndDisabledGroup();
 
                 if (showHelp)
                 {
                     EditorGUILayout.HelpBox(
-                        "対象Rendererの変更はEditorWindowから行ってください。\n" +
-                        "メニュー: キメラヘアマスター > ウィンドウを開く",
+                        CHMLocales.Tr("Inspector:TargetRenderersHelp"),
                         MessageType.Info
                     );
                 }
@@ -321,7 +325,7 @@ namespace ChimeraHairMaster.Editor
                 EditorGUILayout.Space(10);
 
                 // テクスチャ設定
-                showTextureSettings = EditorGUILayout.Foldout(showTextureSettings, "テクスチャ設定", true);
+                showTextureSettings = EditorGUILayout.Foldout(showTextureSettings, CHMLocales.Tr("Inspector:TextureSettings"), true);
                 if (showTextureSettings)
                 {
                     EditorGUI.indentLevel++;
@@ -329,25 +333,25 @@ namespace ChimeraHairMaster.Editor
                     if (enableMeshMergeProp.boolValue)
                     {
                         // 解像度（メッシュ統合時のみ）
-                        EditorGUILayout.PropertyField(textureResolutionProp, new GUIContent("解像度"));
+                        EditorGUILayout.PropertyField(textureResolutionProp, new GUIContent(CHMLocales.Tr("Inspector:TextureResolution")));
                         EditorGUILayout.Space(5);
                     }
 
                     // 色変更対象テクスチャ
-                    EditorGUILayout.PropertyField(colorChangeTargetsProp, new GUIContent("色変更対象"), true);
+                    EditorGUILayout.PropertyField(colorChangeTargetsProp, new GUIContent(CHMLocales.Tr("Inspector:ColorChangeTargets")), true);
 
                     if (enableMeshMergeProp.boolValue)
                     {
                         // UV配置（読み取り専用、メッシュ統合時のみ）
                         EditorGUILayout.Space(5);
                         EditorGUI.BeginDisabledGroup(true);
-                        EditorGUILayout.PropertyField(uvPlacementsProp, new GUIContent("UV配置"), true);
+                        EditorGUILayout.PropertyField(uvPlacementsProp, new GUIContent(CHMLocales.Tr("Inspector:UVPlacements")), true);
                         EditorGUI.EndDisabledGroup();
 
                         if (showHelp)
                         {
                             EditorGUILayout.HelpBox(
-                                "UV配置の変更はEditorWindowから行ってください。",
+                                CHMLocales.Tr("Inspector:UVPlacementsHelp"),
                                 MessageType.Info
                             );
                         }
@@ -366,7 +370,7 @@ namespace ChimeraHairMaster.Editor
                 EditorGUILayout.Space(10);
 
                 // 基準マテリアル
-                EditorGUILayout.PropertyField(baseMaterialProp, new GUIContent("基準マテリアル"));
+                EditorGUILayout.PropertyField(baseMaterialProp, new GUIContent(CHMLocales.Tr("Inspector:BaseMaterial")));
 
                 var currentBaseMaterial = baseMaterialProp.objectReferenceValue as Material;
 
@@ -391,7 +395,7 @@ namespace ChimeraHairMaster.Editor
 
         private void DrawMeshCutSettings(ChimeraHairMaster component)
         {
-            showMeshCutSettings = EditorGUILayout.Foldout(showMeshCutSettings, "メッシュカット設定", true);
+            showMeshCutSettings = EditorGUILayout.Foldout(showMeshCutSettings, CHMLocales.Tr("Inspector:MeshCutSettings"), true);
             if (!showMeshCutSettings) return;
 
             EditorGUI.indentLevel++;
@@ -399,7 +403,7 @@ namespace ChimeraHairMaster.Editor
             if (showHelp)
             {
                 EditorGUILayout.HelpBox(
-                    "マスクを使って髪のメッシュを統合から削除することが出来ます。マスクは元の髪のUVを参照します。",
+                    CHMLocales.Tr("Inspector:MeshCutHelp"),
                     MessageType.Info
                 );
             }
@@ -422,7 +426,7 @@ namespace ChimeraHairMaster.Editor
 
                     string matName = s < materials.Length && materials[s] != null
                         ? materials[s].name
-                        : $"(Material {s})";
+                        : string.Format(CHMLocales.Tr("Inspector:MaterialFallback"), s);
 
                     // 現在のマスクを取得
                     var entry = component.materialSelections.Find(
@@ -433,7 +437,7 @@ namespace ChimeraHairMaster.Editor
 
                     EditorGUI.BeginChangeCheck();
                     var newMask = (Texture2D)EditorGUILayout.ObjectField(
-                        $"SubMesh {s}: {matName}", currentMask, typeof(Texture2D), false);
+                        string.Format(CHMLocales.Tr("Inspector:SubmeshLabelFormat"), s, matName), currentMask, typeof(Texture2D), false);
 
                     if (EditorGUI.EndChangeCheck())
                     {
@@ -451,7 +455,7 @@ namespace ChimeraHairMaster.Editor
                         EditorUtility.SetDirty(component);
                     }
 
-                    if (GUILayout.Button("マスクを作成", GUILayout.Width(80)))
+                    if (GUILayout.Button(CHMLocales.Tr("Inspector:CreateMask"), GUILayout.Width(80)))
                     {
                         OpenMaskToolForSubmesh(component, renderer, s);
                     }
@@ -468,19 +472,18 @@ namespace ChimeraHairMaster.Editor
 
         private void DrawColorSettings()
         {
-            showColorSettings = EditorGUILayout.Foldout(showColorSettings, "色合わせ設定", true, EditorStyles.foldoutHeader);
+            showColorSettings = EditorGUILayout.Foldout(showColorSettings, CHMLocales.Tr("Inspector:ColorSettings"), true, EditorStyles.foldoutHeader);
             if (showColorSettings)
             {
                 EditorGUI.indentLevel++;
 
                 // 色合わせの有効/無効トグル
-                EditorGUILayout.PropertyField(enableColorTransformProp, new GUIContent("色合わせの有効化"));
+                EditorGUILayout.PropertyField(enableColorTransformProp, new GUIContent(CHMLocales.Tr("Inspector:EnableColorTransform")));
 
                 if (showHelp)
                 {
                     EditorGUILayout.HelpBox(
-                        "色合わせを行わない場合、テクスチャはそのまま統合されます。\n" +
-                        "複数のテクスチャを統合したいが、色は変えたくない場合に使用します。",
+                        CHMLocales.Tr("Inspector:EnableColorTransformHelp"),
                         MessageType.Info
                     );
                 }
@@ -495,13 +498,23 @@ namespace ChimeraHairMaster.Editor
                 EditorGUILayout.Space(5);
 
                 // 色変換モード
-                EditorGUILayout.PropertyField(colorTransformModeProp, new GUIContent("色変換モード"));
+                {
+                    var modeNames = new[]
+                    {
+                        CHMLocales.Tr("ColorTransformMode:Gradient"),
+                        CHMLocales.Tr("ColorTransformMode:HueShift"),
+                    };
+                    colorTransformModeProp.enumValueIndex = EditorGUILayout.Popup(
+                        CHMLocales.Tr("Inspector:ColorTransformMode"),
+                        colorTransformModeProp.enumValueIndex,
+                        modeNames);
+                }
 
                 ColorTransformMode transformMode = (ColorTransformMode)colorTransformModeProp.enumValueIndex;
                 switch (transformMode)
                 {
                     case ColorTransformMode.Gradient:
-                        EditorGUILayout.PropertyField(gradientCurveProp, new GUIContent("グラデーション"));
+                        EditorGUILayout.PropertyField(gradientCurveProp, new GUIContent(CHMLocales.Tr("Inspector:GradientCurve")));
 
                         // テクスチャ色ピッカー（Gradient用）
                         DrawGradientTextureColorPicker();
@@ -509,10 +522,7 @@ namespace ChimeraHairMaster.Editor
                         if (showHelp)
                         {
                             EditorGUILayout.HelpBox(
-                                "グラデーションモード\n" +
-                                "元のテクスチャの明暗に対して設定したグラデーションに従って色を設定します。\n" +
-                                "グラデーションの左端の色が一番暗かった色に，右端の色が一番明るかった色になります。\n" +
-                                "明暗の差を出したいときに有効です。",
+                                CHMLocales.Tr("Inspector:GradientHelp"),
                                 MessageType.Info
                             );
                         }
@@ -520,17 +530,17 @@ namespace ChimeraHairMaster.Editor
 
                     case ColorTransformMode.HueShift:
                         EditorGUILayout.Space(5);
-                        EditorGUILayout.PropertyField(targetColorProp, new GUIContent("この色に変更"));
+                        EditorGUILayout.PropertyField(targetColorProp, new GUIContent(CHMLocales.Tr("Inspector:TargetColor")));
 
                         // テクスチャ色ピッカー
                         DrawTextureColorPicker();
 
                         EditorGUILayout.Space(5);
-                        EditorGUILayout.PropertyField(saturationPreserveProp, new GUIContent("元の彩度を保持"));
+                        EditorGUILayout.PropertyField(saturationPreserveProp, new GUIContent(CHMLocales.Tr("Inspector:SaturationPreserve")));
                         
                         EditorGUILayout.BeginHorizontal();
-                        EditorGUILayout.PropertyField(valuePreserveProp, new GUIContent("元の明るさを保持"));
-                        if (GUILayout.Button("自動調整", GUILayout.Width(70)))
+                        EditorGUILayout.PropertyField(valuePreserveProp, new GUIContent(CHMLocales.Tr("Inspector:ValuePreserve")));
+                        if (GUILayout.Button(CHMLocales.Tr("Inspector:AutoAdjust"), GUILayout.Width(70)))
                         {
                             var component = (ChimeraHairMaster)target;
                             Undo.RecordObject(component, "Auto Adjust Value Preserve");
@@ -539,14 +549,23 @@ namespace ChimeraHairMaster.Editor
                         }
                         EditorGUILayout.EndHorizontal();
                         
-                        EditorGUILayout.PropertyField(brightnessUnifyModeProp, new GUIContent("全体の明るさを合わせる(高負荷)"));
+                        {
+                            var unifyModeNames = new[]
+                            {
+                                CHMLocales.Tr("BrightnessUnifyMode:Off"),
+                                CHMLocales.Tr("BrightnessUnifyMode:ToBrightest"),
+                                CHMLocales.Tr("BrightnessUnifyMode:ToDarkest"),
+                            };
+                            brightnessUnifyModeProp.enumValueIndex = EditorGUILayout.Popup(
+                                CHMLocales.Tr("Inspector:BrightnessUnifyMode"),
+                                brightnessUnifyModeProp.enumValueIndex,
+                                unifyModeNames);
+                        }
                         
                         if (showHelp)
                         {
                             EditorGUILayout.HelpBox(
-                                "色指定モード（デフォルト）\n" +
-                                "全体を指定した色に変更します。\n" +
-                                "元の髪の明暗の差が小さいときに有効です。",
+                                CHMLocales.Tr("Inspector:HueShiftHelp"),
                                 MessageType.Info
                             );
                         }
@@ -574,7 +593,7 @@ namespace ChimeraHairMaster.Editor
             if (component.targetRenderers == null || component.targetRenderers.Count == 0)
                 return;
 
-            showBrightnessAdjustment = EditorGUILayout.Foldout(showBrightnessAdjustment, "個別の明るさの調整", true);
+            showBrightnessAdjustment = EditorGUILayout.Foldout(showBrightnessAdjustment, CHMLocales.Tr("Inspector:BrightnessAdjustment"), true);
 
             if (!showBrightnessAdjustment) return;
 
@@ -635,7 +654,7 @@ namespace ChimeraHairMaster.Editor
                 }
 
                 // リセットボタン
-                if (GUILayout.Button("リセット", GUILayout.Width(50)))
+                if (GUILayout.Button(CHMLocales.Tr("Inspector:Reset"), GUILayout.Width(50)))
                 {
                     Undo.RecordObject(component, "Reset Renderer Brightness");
                     if (adjustmentIndex >= 0)
@@ -651,9 +670,7 @@ namespace ChimeraHairMaster.Editor
             if (showHelp)
             {
                 EditorGUILayout.HelpBox(
-                    "各Rendererの明るさを個別に調整できます。\n" +
-                    "正の値で明るく、負の値で暗くなります。\n" +
-                    "「リセット」ボタンでリセット（0に戻す）",
+                    CHMLocales.Tr("Inspector:BrightnessAdjustmentHelp"),
                     MessageType.Info
                 );
             }
@@ -670,7 +687,7 @@ namespace ChimeraHairMaster.Editor
             if (component.targetRenderers == null || component.targetRenderers.Count == 0)
                 return;
 
-            showColorMaskSettings = EditorGUILayout.Foldout(showColorMaskSettings, "色合わせ無視(マスク)", true);
+            showColorMaskSettings = EditorGUILayout.Foldout(showColorMaskSettings, CHMLocales.Tr("Inspector:ColorMaskSettings"), true);
 
             if (!showColorMaskSettings) return;
 
@@ -679,9 +696,7 @@ namespace ChimeraHairMaster.Editor
             if (showHelp)
             {
                 EditorGUILayout.HelpBox(
-                    "マスクを使って色合わせを部分的に無視できます。\n" +
-                    "マスクは元の髪のUVを参照します。\n" +
-                    "黒い部分は色合わせが適用されず、元の色が維持されます。",
+                    CHMLocales.Tr("Inspector:ColorMaskHelp"),
                     MessageType.Info
                 );
             }
@@ -705,7 +720,7 @@ namespace ChimeraHairMaster.Editor
 
                     string matName = s < materials.Length && materials[s] != null
                         ? materials[s].name
-                        : $"(Material {s})";
+                        : string.Format(CHMLocales.Tr("Inspector:MaterialFallback"), s);
 
                     // 現在のマスクを取得
                     var currentMask = component.GetColorMask(r, s);
@@ -714,7 +729,7 @@ namespace ChimeraHairMaster.Editor
 
                     EditorGUI.BeginChangeCheck();
                     var newMask = (Texture2D)EditorGUILayout.ObjectField(
-                        $"SubMesh {s}: {matName}", currentMask, typeof(Texture2D), false);
+                        string.Format(CHMLocales.Tr("Inspector:SubmeshLabelFormat"), s, matName), currentMask, typeof(Texture2D), false);
 
                     if (EditorGUI.EndChangeCheck())
                     {
@@ -744,7 +759,7 @@ namespace ChimeraHairMaster.Editor
                         EditorUtility.SetDirty(component);
                     }
 
-                    if (GUILayout.Button("マスクを作成", GUILayout.Width(80)))
+                    if (GUILayout.Button(CHMLocales.Tr("Inspector:CreateMask"), GUILayout.Width(80)))
                     {
                         OpenMaskToolForSubmesh(component, renderer, s);
                     }
@@ -768,7 +783,7 @@ namespace ChimeraHairMaster.Editor
             if (component.targetRenderers == null || component.targetRenderers.Count == 0)
                 return;
 
-            showPhysBoneList = EditorGUILayout.Foldout(showPhysBoneList, "関連PhysBone", true);
+            showPhysBoneList = EditorGUILayout.Foldout(showPhysBoneList, CHMLocales.Tr("Inspector:PhysBoneList"), true);
             if (!showPhysBoneList) return;
 
             EditorGUI.indentLevel++;
@@ -776,8 +791,7 @@ namespace ChimeraHairMaster.Editor
             if (showHelp)
             {
                 EditorGUILayout.HelpBox(
-                    "各Rendererのメッシュに影響しているPhysBoneコンポーネントの一覧です。\n" +
-                    "クリックするとHierarchyでハイライトされます。",
+                    CHMLocales.Tr("Inspector:PhysBoneListHelp"),
                     MessageType.Info
                 );
             }
@@ -786,7 +800,7 @@ namespace ChimeraHairMaster.Editor
             var avatarRoot = component.GetComponentInParent<VRC.SDK3.Avatars.Components.VRCAvatarDescriptor>();
             if (avatarRoot == null)
             {
-                EditorGUILayout.HelpBox("VRCAvatarDescriptorが見つかりません。", MessageType.Warning);
+                EditorGUILayout.HelpBox(CHMLocales.Tr("Inspector:AvatarDescriptorNotFound"), MessageType.Warning);
                 EditorGUI.indentLevel--;
                 return;
             }
@@ -822,7 +836,7 @@ namespace ChimeraHairMaster.Editor
 
                 if (affectingPhysBones.Count == 0)
                 {
-                    EditorGUILayout.LabelField("(PhysBoneなし)");
+                    EditorGUILayout.LabelField(CHMLocales.Tr("Inspector:NoPhysBone"));
                     EditorGUI.indentLevel--;
                     continue;
                 }
@@ -1002,7 +1016,7 @@ namespace ChimeraHairMaster.Editor
                 return;
 
             EditorGUILayout.Space(5);
-            showTextureColorPicker = EditorGUILayout.Foldout(showTextureColorPicker, "テクスチャから色を選択", true);
+            showTextureColorPicker = EditorGUILayout.Foldout(showTextureColorPicker, CHMLocales.Tr("Inspector:TextureColorPicker"), true);
 
             if (!showTextureColorPicker) return;
 
@@ -1123,13 +1137,13 @@ namespace ChimeraHairMaster.Editor
                             }
                         }
 
-                        EditorGUILayout.HelpBox("クリックで色を取得", MessageType.None);
+                        EditorGUILayout.HelpBox(CHMLocales.Tr("Inspector:ClickToPickColor"), MessageType.None);
 
                         // 代表色パレット
                         if (extractedColors != null && extractedColors.Length > 0)
                         {
                             EditorGUILayout.Space(5);
-                            EditorGUILayout.LabelField("候補色:");
+                            EditorGUILayout.LabelField(CHMLocales.Tr("Inspector:CandidateColors"));
                             EditorGUILayout.BeginHorizontal();
 
                             foreach (var color in extractedColors)
@@ -1163,7 +1177,7 @@ namespace ChimeraHairMaster.Editor
                     }
                     else
                     {
-                        EditorGUILayout.HelpBox("テクスチャが見つかりません", MessageType.Warning);
+                        EditorGUILayout.HelpBox(CHMLocales.Tr("Inspector:TextureNotFound"), MessageType.Warning);
                     }
                 }
             }
@@ -1181,7 +1195,7 @@ namespace ChimeraHairMaster.Editor
                 return;
 
             EditorGUILayout.Space(5);
-            showGradientTextureColorPicker = EditorGUILayout.Foldout(showGradientTextureColorPicker, "テクスチャから色を追加", true);
+            showGradientTextureColorPicker = EditorGUILayout.Foldout(showGradientTextureColorPicker, CHMLocales.Tr("Inspector:GradientTextureColorPicker"), true);
 
             if (!showGradientTextureColorPicker) return;
 
@@ -1242,9 +1256,9 @@ namespace ChimeraHairMaster.Editor
 
                         // キー位置スライダー
                         EditorGUILayout.BeginHorizontal();
-                        EditorGUILayout.LabelField("暗い色", GUILayout.Width(80));
+                        EditorGUILayout.LabelField(CHMLocales.Tr("Inspector:DarkColor"), GUILayout.Width(80));
                         gradientColorKeyPosition = EditorGUILayout.Slider(gradientColorKeyPosition, 0f, 1f);
-                        EditorGUILayout.LabelField("明るい色", GUILayout.Width(80));
+                        EditorGUILayout.LabelField(CHMLocales.Tr("Inspector:LightColor"), GUILayout.Width(80));
                         EditorGUILayout.EndHorizontal();
 
                         EditorGUILayout.Space(5);
@@ -1314,13 +1328,13 @@ namespace ChimeraHairMaster.Editor
                             }
                         }
 
-                        EditorGUILayout.HelpBox("クリックで色をグラデーションに追加\n端の色は少し極端な色の方が調整が上手くいくことが多いです。", MessageType.None);
+                        EditorGUILayout.HelpBox(CHMLocales.Tr("Inspector:ClickToAddColorToGradient"), MessageType.None);
 
                         // 代表色パレット
                         if (extractedGradientColors != null && extractedGradientColors.Length > 0)
                         {
                             EditorGUILayout.Space(5);
-                            EditorGUILayout.LabelField("候補色:");
+                            EditorGUILayout.LabelField(CHMLocales.Tr("Inspector:CandidateColors"));
                             EditorGUILayout.BeginHorizontal();
 
                             foreach (var color in extractedGradientColors)
@@ -1357,7 +1371,7 @@ namespace ChimeraHairMaster.Editor
                     }
                     else
                     {
-                        EditorGUILayout.HelpBox("テクスチャが見つかりません", MessageType.Warning);
+                        EditorGUILayout.HelpBox(CHMLocales.Tr("Inspector:TextureNotFound"), MessageType.Warning);
                     }
                 }
             }
@@ -1429,12 +1443,12 @@ namespace ChimeraHairMaster.Editor
             if (previewMaterialProp.objectReferenceValue == null && baseMaterialProp.objectReferenceValue != null)
             {
                 EditorGUILayout.HelpBox(
-                    "プレビューを開始すると、マテリアル設定が表示されます。",
+                    CHMLocales.Tr("Inspector:PreviewGenerateHelp"),
                     MessageType.Info
                 );
                 
                 // 手動生成ボタン
-                if (GUILayout.Button("プレビュー用マテリアルを生成", GUILayout.Height(25)))
+                if (GUILayout.Button(CHMLocales.Tr("Inspector:GeneratePreviewMaterial"), GUILayout.Height(25)))
                 {
                     CreatePreviewMaterial();
                     serializedObject.Update();
@@ -1444,13 +1458,13 @@ namespace ChimeraHairMaster.Editor
             // previewMaterialがある場合はマテリアルインスペクターを埋め込み表示
             else if (previewMaterialProp.objectReferenceValue != null)
             {
-                EditorGUILayout.LabelField("マテリアル設定", EditorStyles.boldLabel);
+                EditorGUILayout.LabelField(CHMLocales.Tr("Inspector:MaterialSettings"), EditorStyles.boldLabel);
                 DrawEmbeddedMaterialEditor();
             }
             else if (baseMaterialProp.objectReferenceValue == null)
             {
                 EditorGUILayout.HelpBox(
-                    "基準マテリアルを設定すると、マテリアル設定が表示されます。",
+                    CHMLocales.Tr("Inspector:BaseMaterialRequiredHelp"),
                     MessageType.Info
                 );
             }
@@ -1459,7 +1473,7 @@ namespace ChimeraHairMaster.Editor
         private void DrawMeshSettings()
         {
             EditorGUILayout.BeginVertical(EditorStyles.helpBox);
-            showMeshSettings = EditorGUILayout.Foldout(showMeshSettings, "メッシュ設定", true);
+            showMeshSettings = EditorGUILayout.Foldout(showMeshSettings, CHMLocales.Tr("Inspector:MeshSettings"), true);
             if (showMeshSettings)
             {
                 EditorGUI.indentLevel++;
@@ -1467,8 +1481,7 @@ namespace ChimeraHairMaster.Editor
                 if (showHelp)
                 {
                     EditorGUILayout.HelpBox(
-                        "統合後のメッシュのProbe AnchorとBoundsを設定できます。\n" +
-                        "Boundsが適切でないと、カメラの角度によってメッシュが消える場合があります。",
+                        CHMLocales.Tr("Inspector:MeshSettingsHelp"),
                         MessageType.Info
                     );
                 }
@@ -1476,19 +1489,29 @@ namespace ChimeraHairMaster.Editor
                 EditorGUILayout.Space(5);
                 
                 // Probe Anchor設定
-                EditorGUILayout.LabelField("Probe Anchor（ライティング基準点）", EditorStyles.boldLabel);
-                EditorGUILayout.PropertyField(inheritProbeAnchorProp, new GUIContent("設定モード"));
+                EditorGUILayout.LabelField(CHMLocales.Tr("Inspector:ProbeAnchorHeader"), EditorStyles.boldLabel);
+                {
+                    var inheritNames = new[]
+                    {
+                        CHMLocales.Tr("MeshSettingsInheritMode:Inherit"),
+                        CHMLocales.Tr("MeshSettingsInheritMode:Set"),
+                        CHMLocales.Tr("MeshSettingsInheritMode:DontSet"),
+                        CHMLocales.Tr("MeshSettingsInheritMode:SetOrInherit"),
+                    };
+                    inheritProbeAnchorProp.enumValueIndex = EditorGUILayout.Popup(
+                        CHMLocales.Tr("Inspector:SettingMode"),
+                        inheritProbeAnchorProp.enumValueIndex, inheritNames);
+                }
                 
                 var inheritProbeAnchorMode = (MeshSettingsInheritMode)inheritProbeAnchorProp.enumValueIndex;
                 if (inheritProbeAnchorMode == MeshSettingsInheritMode.Set || 
                     inheritProbeAnchorMode == MeshSettingsInheritMode.SetOrInherit)
                 {
-                    EditorGUILayout.PropertyField(probeAnchorProp, new GUIContent("Probe Anchor"));
+                    EditorGUILayout.PropertyField(probeAnchorProp, new GUIContent(CHMLocales.Tr("Inspector:ProbeAnchor")));
                     if (showHelp)
                     {
                         EditorGUILayout.HelpBox(
-                            "統合メッシュがライティングを計算する際の基準点です。\n" +
-                            "通常はHeadボーンなどを指定します。",
+                            CHMLocales.Tr("Inspector:ProbeAnchorHelp"),
                             MessageType.None
                         );
                     }
@@ -1497,21 +1520,30 @@ namespace ChimeraHairMaster.Editor
                 EditorGUILayout.Space(10);
 
                 // Bounds設定
-                EditorGUILayout.LabelField("Bounds（バウンディングボックス）", EditorStyles.boldLabel);
-                EditorGUILayout.PropertyField(inheritBoundsProp, new GUIContent("設定モード"));
+                EditorGUILayout.LabelField(CHMLocales.Tr("Inspector:BoundsHeader"), EditorStyles.boldLabel);
+                {
+                    var inheritNames = new[]
+                    {
+                        CHMLocales.Tr("MeshSettingsInheritMode:Inherit"),
+                        CHMLocales.Tr("MeshSettingsInheritMode:Set"),
+                        CHMLocales.Tr("MeshSettingsInheritMode:DontSet"),
+                        CHMLocales.Tr("MeshSettingsInheritMode:SetOrInherit"),
+                    };
+                    inheritBoundsProp.enumValueIndex = EditorGUILayout.Popup(
+                        CHMLocales.Tr("Inspector:SettingMode"),
+                        inheritBoundsProp.enumValueIndex, inheritNames);
+                }
                 
                 var inheritBoundsMode = (MeshSettingsInheritMode)inheritBoundsProp.enumValueIndex;
                 if (inheritBoundsMode == MeshSettingsInheritMode.Set || 
                     inheritBoundsMode == MeshSettingsInheritMode.SetOrInherit)
                 {
-                    EditorGUILayout.PropertyField(rootBoneProp, new GUIContent("Root Bone"));
-                    EditorGUILayout.PropertyField(boundsProp, new GUIContent("Bounds"));
+                    EditorGUILayout.PropertyField(rootBoneProp, new GUIContent(CHMLocales.Tr("Inspector:RootBone")));
+                    EditorGUILayout.PropertyField(boundsProp, new GUIContent(CHMLocales.Tr("Inspector:Bounds")));
                     if (showHelp)
                     {
                         EditorGUILayout.HelpBox(
-                            "統合メッシュの描画範囲です。Root Boneからの相対座標で指定します。\n" +
-                            "デフォルト（Center: 0,0,0 Size: 2,2,2）で問題ない場合が多いですが、\n" +
-                            "メッシュが消える場合はSizeを大きくしてください。",
+                            CHMLocales.Tr("Inspector:BoundsHelp"),
                             MessageType.None
                         );
                     }
@@ -1521,7 +1553,7 @@ namespace ChimeraHairMaster.Editor
                     if (component != null && component.rootBone != null)
                     {
                         EditorGUILayout.Space(5);
-                        if (GUILayout.Button("Boundsをシーンビューで確認"))
+                        if (GUILayout.Button(CHMLocales.Tr("Inspector:FrameBoundsInScene")))
                         {
                             Selection.activeGameObject = component.gameObject;
                             UnityEditor.SceneView.lastActiveSceneView.FrameSelected();
@@ -1545,14 +1577,14 @@ namespace ChimeraHairMaster.Editor
             var component = target as ChimeraHairMaster;
             if (component == null) return;
 
-            showMeshDeformSection = EditorGUILayout.Foldout(showMeshDeformSection, "メッシュ変形", true, EditorStyles.foldoutHeader);
+            showMeshDeformSection = EditorGUILayout.Foldout(showMeshDeformSection, CHMLocales.Tr("Inspector:MeshDeformSection"), true, EditorStyles.foldoutHeader);
             if (!showMeshDeformSection) return;
 
             // 有効/無効トグル（CHM固有: スタンドアロンでは常に有効）
             var enableProp = serializedObject.FindProperty("enableMeshDeformation");
 
             EditorGUI.BeginChangeCheck();
-            EditorGUILayout.PropertyField(enableProp, new GUIContent("有効"));
+            EditorGUILayout.PropertyField(enableProp, new GUIContent(CHMLocales.Tr("Inspector:Enabled")));
             if (EditorGUI.EndChangeCheck() && enableProp.boolValue)
             {
                 // 有効化しようとした時にスタンドアロンとの重複をチェック
@@ -1562,9 +1594,8 @@ namespace ChimeraHairMaster.Editor
                     // 有効化を取り消し
                     enableProp.boolValue = false;
                     EditorUtility.DisplayDialog(
-                        "メッシュ変形の重複",
-                        $"{conflict} にメッシュ変形を使っているため変形が重複します。\n" +
-                        "コンポーネントを削除するか、変形後のメッシュをエクスポートしてから試してください。",
+                        CHMLocales.Tr("Inspector:MeshDeformConflictTitle"),
+                        string.Format(CHMLocales.Tr("Inspector:MeshDeformConflictMessage"), conflict),
                         "OK");
                 }
             }
@@ -1590,7 +1621,7 @@ namespace ChimeraHairMaster.Editor
                 if (standalone.targetRenderer != null
                     && component.targetRenderers.Contains(standalone.targetRenderer))
                 {
-                    return $"メッシュ変形 ({standalone.gameObject.name}) の {standalone.targetRenderer.name}";
+                    return string.Format(CHMLocales.Tr("Inspector:StandaloneConflictFormat"), standalone.gameObject.name, standalone.targetRenderer.name);
                 }
             }
 
@@ -1617,7 +1648,7 @@ namespace ChimeraHairMaster.Editor
             bool canPreview = CanGeneratePreview(component);
             GUI.enabled = canPreview;
 
-            string previewButtonText = component.previewEnabled ? "プレビュー停止" : "プレビュー開始";
+            string previewButtonText = component.previewEnabled ? CHMLocales.Tr("Inspector:PreviewStop") : CHMLocales.Tr("Inspector:PreviewStart");
             GUIStyle previewButtonStyle = component.previewEnabled ? 
                 new GUIStyle(GUI.skin.button) { normal = { textColor = Color.green } } : 
                 GUI.skin.button;
@@ -1639,7 +1670,7 @@ namespace ChimeraHairMaster.Editor
 
             if (component.enableMeshMerge)
             {
-                if (GUILayout.Button("マスクを編集する", GUILayout.Height(25)))
+                if (GUILayout.Button(CHMLocales.Tr("Inspector:EditMask"), GUILayout.Height(25)))
                 {
                     MaskToolLauncher.OpenMaskTool(component, "_Main2ndBlendMask");
                 }
@@ -1652,23 +1683,21 @@ namespace ChimeraHairMaster.Editor
             {
                 if (component.enableMeshMerge)
                 {
-                    EditorGUILayout.PropertyField(previewResolutionProp, new GUIContent("プレビュー解像度"));
+                    EditorGUILayout.PropertyField(previewResolutionProp, new GUIContent(CHMLocales.Tr("Inspector:PreviewResolution")));
                 }
                 if (!component.enableMeshMerge)
                 {
                     EditorGUILayout.HelpBox(
-                        "プレビューが有効です。Scene上で見えを確認できます。\n" +
-                        "メインカラー2nd,3rd，発光設定の変更は元のマテリアルから操作してください。\n" +
-                        "それぞれのマテリアルの設定はプレビューマテリアルの数値(テクスチャを除く)に統一されます。",
+                        CHMLocales.Tr("Inspector:PreviewHelpNoMerge"),
                         MessageType.Info
                     );
-                    EditorGUILayout.PropertyField(unifyMatCapProp, new GUIContent("マットキャップを統一",
-                        "有効にすると、プレビューマテリアルのMatCap設定（1st/2nd）で統一されます。\n無効の場合、各Rendererの元マテリアルのMatCap設定をそのまま保持します。"));
+                    EditorGUILayout.PropertyField(unifyMatCapProp, new GUIContent(CHMLocales.Tr("Inspector:UnifyMatCap"),
+                        CHMLocales.Tr("Inspector:UnifyMatCapTooltip")));
                 }
                 else
                 {
                     EditorGUILayout.HelpBox(
-                        "プレビューが有効です。Scene上で結果を確認できます。\n動作が重いときは停止してください。\nプレビューではノーマルマップ，AOマップが適用されていません。実際の見え方はGestureManager等で確認してください。",
+                        CHMLocales.Tr("Inspector:PreviewHelpMerge"),
                         MessageType.Info
                     );
                 }
@@ -1676,7 +1705,7 @@ namespace ChimeraHairMaster.Editor
             else if (!canPreview)
             {
                 EditorGUILayout.HelpBox(
-                    "プレビューを有効にするには、対象Rendererと基準マテリアルを設定してください。",
+                    CHMLocales.Tr("Inspector:PreviewRequiresSetup"),
                     MessageType.Info
                 );
             }
@@ -1689,7 +1718,7 @@ namespace ChimeraHairMaster.Editor
         {
             EditorGUILayout.BeginVertical(EditorStyles.helpBox);
 
-            EditorGUILayout.LabelField("テクスチャとして保存機能", EditorStyles.boldLabel);
+            EditorGUILayout.LabelField(CHMLocales.Tr("Inspector:SaveAsTextureSection"), EditorStyles.boldLabel);
 
             // チェックボックス
             bool applyTexture = EditorPrefs.GetBool(PREF_APPLY_TEXTURE, true);
@@ -1697,8 +1726,8 @@ namespace ChimeraHairMaster.Editor
             bool applyDeformation = EditorPrefs.GetBool(PREF_APPLY_DEFORMATION, false);
 
             EditorGUI.BeginChangeCheck();
-            applyTexture = EditorGUILayout.ToggleLeft("テクスチャをマテリアルに適用", applyTexture);
-            unifySettings = EditorGUILayout.ToggleLeft("マテリアル設定を統一", unifySettings);
+            applyTexture = EditorGUILayout.ToggleLeft(CHMLocales.Tr("Inspector:ApplyTexture"), applyTexture);
+            unifySettings = EditorGUILayout.ToggleLeft(CHMLocales.Tr("Inspector:UnifySettings"), unifySettings);
 
             // メッシュ変形データがある場合のみ表示
             bool hasDeformation = component.enableMeshDeformation
@@ -1707,8 +1736,8 @@ namespace ChimeraHairMaster.Editor
             if (hasDeformation)
             {
                 applyDeformation = EditorGUILayout.ToggleLeft(
-                    new GUIContent("変形も反映する",
-                        "メッシュ変形のデータを反映した変形済みメッシュを生成し、Rendererに設定します"),
+                    new GUIContent(CHMLocales.Tr("Inspector:ApplyDeformation"),
+                        CHMLocales.Tr("Inspector:ApplyDeformationTooltip")),
                     applyDeformation);
             }
 
@@ -1722,11 +1751,7 @@ namespace ChimeraHairMaster.Editor
             if (showHelp)
             {
                 EditorGUILayout.HelpBox(
-                    "色合わせしたテクスチャをPNGとして出力します。\n" +
-                    "「テクスチャをマテリアルに適用」: 生成テクスチャを元マテリアルの_MainTexにセットします。\n" +
-                    "「マテリアル設定を統一」: プレビューマテリアルの数値設定を元マテリアルに上書きします。\n" +
-                    "「変形も反映する」: メッシュ変形データを適用した変形済みメッシュを保存し、Rendererに設定します。\n" +
-                    "適用後、コンポーネントは自動的に無効化されます。",
+                    CHMLocales.Tr("Inspector:ApplyHelp"),
                     MessageType.Info
                 );
             }
@@ -1735,7 +1760,7 @@ namespace ChimeraHairMaster.Editor
             bool canApply = CanGeneratePreview(component);
             GUI.enabled = canApply;
 
-            if (GUILayout.Button("キメラヘアマスターを元の髪に反映する", GUILayout.Height(28)))
+            if (GUILayout.Button(CHMLocales.Tr("Inspector:ApplyButton"), GUILayout.Height(28)))
             {
                 Processing.ColorApplier.Apply(component, applyTexture, unifySettings);
 
@@ -1753,7 +1778,7 @@ namespace ChimeraHairMaster.Editor
             if (!canApply)
             {
                 EditorGUILayout.HelpBox(
-                    "適用するには、対象Rendererと基準マテリアルを設定してください。",
+                    CHMLocales.Tr("Inspector:ApplyRequiresSetup"),
                     MessageType.Warning
                 );
             }
@@ -1846,7 +1871,7 @@ namespace ChimeraHairMaster.Editor
                 {
                     if (renderer != null && other.targetRenderers.Contains(renderer))
                     {
-                        string name = $"{renderer.name} ({other.gameObject.name})";
+                        string name = string.Format(CHMLocales.Tr("Inspector:SharedRendererNameFormat"), renderer.name, other.gameObject.name);
                         if (!sharedNames.Contains(name))
                             sharedNames.Add(name);
                     }
@@ -1856,9 +1881,7 @@ namespace ChimeraHairMaster.Editor
             if (sharedNames.Count == 0)
                 return null;
 
-            return "以下のRendererが他のChimera Hair Masterと重複しています。\n" +
-                   "ビルド時に競合が発生し、結果が不定になります。\n" +
-                   string.Join("\n", sharedNames.Select(n => $"  - {n}"));
+            return string.Format(CHMLocales.Tr("Inspector:SharedRendererWarningFormat"), string.Join("\n", sharedNames.Select(n => string.Format(CHMLocales.Tr("Inspector:SharedRendererItemFormat"), n))));
         }
 
         /// <summary>

@@ -3,6 +3,7 @@ using UnityEditor;
 using UnityEngine;
 using VRC.SDKBase;
 using ChimeraHairMaster.Editor.Processing;
+using ChimeraHairMaster.Editor.Localization;
 
 namespace ChimeraHairMaster.Editor
 {
@@ -122,7 +123,7 @@ namespace ChimeraHairMaster.Editor
         public static void ShowWindow()
         {
             var window = GetWindow<ChimeraHairMasterWindow>();
-            window.titleContent = new GUIContent("キメラヘアマスター");
+            window.titleContent = new GUIContent(CHMLocales.Tr("Window:Title"));
             window.minSize = new Vector2(400, 600);
             window.Show();
         }
@@ -133,7 +134,7 @@ namespace ChimeraHairMaster.Editor
         public static void ShowWindowWithComponent(ChimeraHairMaster component)
         {
             var window = GetWindow<ChimeraHairMasterWindow>();
-            window.titleContent = new GUIContent("キメラヘアマスター");
+            window.titleContent = new GUIContent(CHMLocales.Tr("Window:Title"));
             window.minSize = new Vector2(400, 600);
             window.LoadFromComponent(component);
             window.Show();
@@ -246,13 +247,13 @@ namespace ChimeraHairMaster.Editor
             EditorGUILayout.BeginHorizontal();
             enableColorTransform = GUILayout.Toggle(
                 enableColorTransform,
-                enableColorTransform ? "色合わせ\n有効" : "色合わせ",
+                enableColorTransform ? CHMLocales.Tr("Window:ColorTransform:Enabled") : CHMLocales.Tr("Window:ColorTransform:Disabled"),
                 "Button",
                 GUILayout.Height(38)
             );
             enableMeshMerge = GUILayout.Toggle(
                 enableMeshMerge,
-                enableMeshMerge ? "メッシュ統合\n有効" : "メッシュ統合",
+                enableMeshMerge ? CHMLocales.Tr("Window:MeshMerge:Enabled") : CHMLocales.Tr("Window:MeshMerge:Disabled"),
                 "Button",
                 GUILayout.Height(38)
             );
@@ -287,22 +288,26 @@ namespace ChimeraHairMaster.Editor
 
         private void DrawHeader()
         {
-            EditorGUILayout.LabelField("キメラヘアマスター", EditorStyles.boldLabel);
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                EditorGUILayout.LabelField(CHMLocales.Tr("Window:Title"), EditorStyles.boldLabel);
+                CHMLocales.DrawLanguagePicker();
+            }
             EditorGUILayout.HelpBox(
-                "複数の髪テクスチャの色合わせ・UV統合・マテリアル統合を行います。",
+                CHMLocales.Tr("Window:Header:Description"),
                 MessageType.Info
             );
         }
 
         private void DrawTargetSelection()
         {
-            showTargetSelection = EditorGUILayout.BeginFoldoutHeaderGroup(showTargetSelection, "対象選択");
+            showTargetSelection = EditorGUILayout.BeginFoldoutHeaderGroup(showTargetSelection, CHMLocales.Tr("Window:TargetSelection:Header"));
             if (showTargetSelection)
             {
                 EditorGUI.indentLevel++;
 
                 EditorGUILayout.BeginHorizontal();
-                EditorGUILayout.LabelField("アバター", GUILayout.Width(80));
+                EditorGUILayout.LabelField(CHMLocales.Tr("Window:TargetSelection:Avatar"), GUILayout.Width(80));
                 var newAvatar = (GameObject)EditorGUILayout.ObjectField(
                     selectedAvatar,
                     typeof(GameObject),
@@ -321,14 +326,14 @@ namespace ChimeraHairMaster.Editor
                     if (descriptor == null)
                     {
                         EditorGUILayout.HelpBox(
-                            "選択されたGameObjectにVRC Avatar Descriptorがありません。",
+                            CHMLocales.Tr("Window:TargetSelection:NoAvatarDescriptor"),
                             MessageType.Warning
                         );
                     }
                 }
 
                 EditorGUILayout.Space(5);
-                EditorGUILayout.LabelField("髪パーツ一覧");
+                EditorGUILayout.LabelField(CHMLocales.Tr("Window:TargetSelection:HairPartsList"));
 
                 // 要素数+1の高さを計算（空の場合は最低1行分のスペース）
                 float rowHeight = EditorGUIUtility.singleLineHeight + EditorGUIUtility.standardVerticalSpacing;
@@ -338,7 +343,7 @@ namespace ChimeraHairMaster.Editor
                 if (targetRenderers.Count == 0)
                 {
                     EditorGUILayout.LabelField(
-                        "ウィンドウ内のどこかに髪パーツ(SkinnedMeshRenderer)をドラッグ&ドロップ\nまたは[+]ボタンで追加",
+                        CHMLocales.Tr("Window:TargetSelection:DragHint"),
                         EditorStyles.centeredGreyMiniLabel,
                         GUILayout.Height(rowHeight * 2)
                     );
@@ -399,15 +404,15 @@ namespace ChimeraHairMaster.Editor
 
         private void DrawMaterialSelection()
         {
-            showMaterialSelection = EditorGUILayout.BeginFoldoutHeaderGroup(showMaterialSelection, "対象マテリアル選択");
+            showMaterialSelection = EditorGUILayout.BeginFoldoutHeaderGroup(showMaterialSelection, CHMLocales.Tr("Window:MaterialSelection:Header"));
             if (showMaterialSelection)
             {
                 EditorGUI.indentLevel++;
 
                 EditorGUILayout.HelpBox(
                     enableMeshMerge
-                        ? "統合に含めたいマテリアルにチェックを入れてください。\nチェックを外したマテリアルは元のRendererで表示されます。"
-                        : "処理対象にしたいマテリアルにチェックを入れてください。\nチェックを外したマテリアルには変更が適用されません。",
+                        ? CHMLocales.Tr("Window:MaterialSelection:HintMerge")
+                        : CHMLocales.Tr("Window:MaterialSelection:HintNoMerge"),
                     MessageType.Info
                 );
 
@@ -415,7 +420,7 @@ namespace ChimeraHairMaster.Editor
 
                 if (targetRenderers.Count == 0)
                 {
-                    EditorGUILayout.LabelField("髪Rendererが選択されていません", EditorStyles.centeredGreyMiniLabel);
+                    EditorGUILayout.LabelField(CHMLocales.Tr("Window:MaterialSelection:NoRenderer"), EditorStyles.centeredGreyMiniLabel);
                 }
                 else
                 {
@@ -468,7 +473,7 @@ namespace ChimeraHairMaster.Editor
 
                                 var currentMask = GetMeshCutMask(r, s);
                                 var newMask = (Texture2D)EditorGUILayout.ObjectField(
-                                    "カットマスク", currentMask, typeof(Texture2D), false);
+                                    CHMLocales.Tr("Window:MaterialSelection:CutMask"), currentMask, typeof(Texture2D), false);
 
                                 if (newMask != currentMask)
                                 {
@@ -495,7 +500,7 @@ namespace ChimeraHairMaster.Editor
         {
             if (!enableColorTransform) return;
 
-            showColorSettings = EditorGUILayout.BeginFoldoutHeaderGroup(showColorSettings, "色合わせ設定(簡易設定)");
+            showColorSettings = EditorGUILayout.BeginFoldoutHeaderGroup(showColorSettings, CHMLocales.Tr("Window:ColorSettings:Header"));
             if (showColorSettings)
             {
                 EditorGUI.indentLevel++;
@@ -504,15 +509,22 @@ namespace ChimeraHairMaster.Editor
 
                 // 色変換モード
                 EditorGUILayout.BeginHorizontal();
-                EditorGUILayout.LabelField("色変換モード", GUILayout.Width(80));
-                colorTransformMode = (ColorTransformMode)EditorGUILayout.EnumPopup(colorTransformMode);
+                EditorGUILayout.LabelField(CHMLocales.Tr("Window:ColorSettings:Mode"), GUILayout.Width(80));
+                {
+                    var modeNames = new[]
+                    {
+                        CHMLocales.Tr("ColorTransformMode:Gradient"),
+                        CHMLocales.Tr("ColorTransformMode:HueShift"),
+                    };
+                    colorTransformMode = (ColorTransformMode)EditorGUILayout.Popup((int)colorTransformMode, modeNames);
+                }
                 EditorGUILayout.EndHorizontal();
 
                 switch (colorTransformMode)
                 {
                     case ColorTransformMode.Gradient:
                         EditorGUILayout.BeginHorizontal();
-                        EditorGUILayout.LabelField("グラデーション", GUILayout.Width(80));
+                        EditorGUILayout.LabelField(CHMLocales.Tr("Window:ColorSettings:Gradient"), GUILayout.Width(80));
                         gradientCurve = EditorGUILayout.GradientField(gradientCurve);
                         EditorGUILayout.EndHorizontal();
 
@@ -524,7 +536,7 @@ namespace ChimeraHairMaster.Editor
                         EditorGUILayout.Space(5);
 
                         EditorGUILayout.BeginHorizontal();
-                        EditorGUILayout.LabelField("この色に変更", GUILayout.Width(80));
+                        EditorGUILayout.LabelField(CHMLocales.Tr("Window:ColorSettings:ChangeToThisColor"), GUILayout.Width(80));
                         targetColor = EditorGUILayout.ColorField(targetColor);
                         EditorGUILayout.EndHorizontal();
 
@@ -533,7 +545,7 @@ namespace ChimeraHairMaster.Editor
 
 
                         EditorGUILayout.HelpBox(
-                            "指定した色にテクスチャの色相を変更します。\n詳細設定はInspectorから行えます。",
+                            CHMLocales.Tr("Window:ColorSettings:HueShiftHint"),
                             MessageType.Info
                         );
                         break;
@@ -553,7 +565,7 @@ namespace ChimeraHairMaster.Editor
                 return;
 
             EditorGUILayout.Space(5);
-            showTextureColorPicker = EditorGUILayout.Foldout(showTextureColorPicker, "テクスチャから色を選択", true);
+            showTextureColorPicker = EditorGUILayout.Foldout(showTextureColorPicker, CHMLocales.Tr("Window:ColorPicker:FoldoutFromTexture"), true);
 
             if (!showTextureColorPicker) return;
 
@@ -669,13 +681,13 @@ namespace ChimeraHairMaster.Editor
                             }
                         }
 
-                        EditorGUILayout.HelpBox("クリックで色を取得", MessageType.None);
+                        EditorGUILayout.HelpBox(CHMLocales.Tr("Window:ColorPicker:ClickToPick"), MessageType.None);
 
                         // 代表色パレット
                         if (extractedColors != null && extractedColors.Length > 0)
                         {
                             EditorGUILayout.Space(5);
-                            EditorGUILayout.LabelField("候補色:");
+                            EditorGUILayout.LabelField(CHMLocales.Tr("Window:ColorPicker:CandidateColors"));
                             EditorGUILayout.BeginHorizontal();
 
                             foreach (var color in extractedColors)
@@ -704,7 +716,7 @@ namespace ChimeraHairMaster.Editor
                     }
                     else
                     {
-                        EditorGUILayout.HelpBox("テクスチャが見つかりません", MessageType.Warning);
+                        EditorGUILayout.HelpBox(CHMLocales.Tr("Window:ColorPicker:TextureNotFound"), MessageType.Warning);
                     }
                 }
             }
@@ -721,7 +733,7 @@ namespace ChimeraHairMaster.Editor
                 return;
 
             EditorGUILayout.Space(5);
-            showGradientTextureColorPicker = EditorGUILayout.Foldout(showGradientTextureColorPicker, "テクスチャから色を追加", true);
+            showGradientTextureColorPicker = EditorGUILayout.Foldout(showGradientTextureColorPicker, CHMLocales.Tr("Window:GradientColorPicker:FoldoutAddFromTexture"), true);
 
             if (!showGradientTextureColorPicker) return;
 
@@ -782,9 +794,9 @@ namespace ChimeraHairMaster.Editor
 
                         // キー位置スライダー
                         EditorGUILayout.BeginHorizontal();
-                        EditorGUILayout.LabelField("暗い色", GUILayout.Width(80));
+                        EditorGUILayout.LabelField(CHMLocales.Tr("Window:GradientColorPicker:DarkColor"), GUILayout.Width(80));
                         gradientColorKeyPosition = EditorGUILayout.Slider(gradientColorKeyPosition, 0f, 1f);
-                        EditorGUILayout.LabelField("明るい色", GUILayout.Width(80));
+                        EditorGUILayout.LabelField(CHMLocales.Tr("Window:GradientColorPicker:LightColor"), GUILayout.Width(80));
                         EditorGUILayout.EndHorizontal();
 
                         EditorGUILayout.Space(5);
@@ -846,13 +858,13 @@ namespace ChimeraHairMaster.Editor
                             }
                         }
 
-                        EditorGUILayout.HelpBox("クリックで色をグラデーションに追加", MessageType.None);
+                        EditorGUILayout.HelpBox(CHMLocales.Tr("Window:GradientColorPicker:ClickToAdd"), MessageType.None);
 
                         // 代表色パレット
                         if (extractedGradientColors != null && extractedGradientColors.Length > 0)
                         {
                             EditorGUILayout.Space(5);
-                            EditorGUILayout.LabelField("候補色:");
+                            EditorGUILayout.LabelField(CHMLocales.Tr("Window:ColorPicker:CandidateColors"));
                             EditorGUILayout.BeginHorizontal();
 
                             foreach (var color in extractedGradientColors)
@@ -881,7 +893,7 @@ namespace ChimeraHairMaster.Editor
                     }
                     else
                     {
-                        EditorGUILayout.HelpBox("テクスチャが見つかりません", MessageType.Warning);
+                        EditorGUILayout.HelpBox(CHMLocales.Tr("Window:ColorPicker:TextureNotFound"), MessageType.Warning);
                     }
                 }
             }
@@ -942,20 +954,20 @@ namespace ChimeraHairMaster.Editor
 
         private void DrawUVSettings()
         {
-            showUVSettings = EditorGUILayout.BeginFoldoutHeaderGroup(showUVSettings, "UV配置");
+            showUVSettings = EditorGUILayout.BeginFoldoutHeaderGroup(showUVSettings, CHMLocales.Tr("Window:UVSettings:Header"));
             if (showUVSettings)
             {
                 EditorGUI.indentLevel++;
 
                 EditorGUILayout.BeginHorizontal();
-                EditorGUILayout.LabelField("解像度", GUILayout.Width(80));
+                EditorGUILayout.LabelField(CHMLocales.Tr("Window:UVSettings:Resolution"), GUILayout.Width(80));
                 textureResolution = (TextureResolution)EditorGUILayout.EnumPopup(textureResolution);
                 EditorGUILayout.EndHorizontal();
 
                 EditorGUILayout.Space(5);
 
-                EditorGUILayout.LabelField("UV配置プレビュー");
-                EditorGUILayout.LabelField("枠内に収まるように配置してください", EditorStyles.miniLabel);
+                EditorGUILayout.LabelField(CHMLocales.Tr("Window:UVSettings:Preview"));
+                EditorGUILayout.LabelField(CHMLocales.Tr("Window:UVSettings:FitHint"), EditorStyles.miniLabel);
 
                 // プレビュー領域を正方形で確保
                 float availableWidth = EditorGUIUtility.currentViewWidth - 60; // マージン考慮
@@ -994,7 +1006,7 @@ namespace ChimeraHairMaster.Editor
                 // 凡例（クリックで対応アイランドを選択）
                 if (targetRenderers.Count > 0)
                 {
-                    EditorGUILayout.LabelField("凡例: (クリックで選択)", EditorStyles.miniLabel);
+                    EditorGUILayout.LabelField(CHMLocales.Tr("Window:UVSettings:Legend"), EditorStyles.miniLabel);
                     for (int i = 0; i < targetRenderers.Count && i < uvColors.Length; i++)
                     {
                         if (targetRenderers[i] == null) continue;
@@ -1055,25 +1067,25 @@ namespace ChimeraHairMaster.Editor
                 if (hasUVOutOfBounds)
                 {
                     EditorGUILayout.Space(5);
-                    EditorGUILayout.HelpBox("UVが枠からはみ出しています。UV配置を調整してください。", MessageType.Warning);
+                    EditorGUILayout.HelpBox(CHMLocales.Tr("Window:UVSettings:OutOfBounds"), MessageType.Warning);
                 }
 
                 EditorGUILayout.Space(5);
 
                 EditorGUILayout.BeginHorizontal();
                 GUILayout.FlexibleSpace();
-                if (GUILayout.Button("自動配置", GUILayout.Width(100)))
+                if (GUILayout.Button(CHMLocales.Tr("Window:UVSettings:AutoArrange"), GUILayout.Width(100)))
                 {
                     AutoArrangeUVs();
                 }
-                if (GUILayout.Button("リセット", GUILayout.Width(80)))
+                if (GUILayout.Button(CHMLocales.Tr("Window:UVSettings:Reset"), GUILayout.Width(80)))
                 {
                     ResetUVPlacements();
                 }
                 EditorGUILayout.EndHorizontal();
 
                 EditorGUILayout.HelpBox(
-                    "UVアイランドをドラッグして配置を調整できます。",
+                    CHMLocales.Tr("Window:UVSettings:DragHint"),
                     MessageType.Info
                 );
 
@@ -1404,12 +1416,12 @@ namespace ChimeraHairMaster.Editor
             hasUVOverlap = overlappingPairs.Count > 0;
             if (hasUVOverlap)
             {
-                string warningMessage = "⚠ UVが重なっています:\n";
+                string warningMessage = CHMLocales.Tr("Window:UVSettings:OverlapWarningHeader") + "\n";
                 foreach (var pair in overlappingPairs)
                 {
                     string name1 = targetRenderers[pair.Item1]?.name ?? $"Renderer {pair.Item1}";
                     string name2 = targetRenderers[pair.Item2]?.name ?? $"Renderer {pair.Item2}";
-                    warningMessage += $"  • {name1} と {name2}\n";
+                    warningMessage += string.Format(CHMLocales.Tr("Window:UVSettings:OverlapWarningLine"), name1, name2) + "\n";
                 }
                 cachedOverlapMessage = warningMessage.TrimEnd('\n');
             }
@@ -1510,13 +1522,13 @@ namespace ChimeraHairMaster.Editor
 
         private void DrawOutputSettings()
         {
-            showOutputSettings = EditorGUILayout.BeginFoldoutHeaderGroup(showOutputSettings, "出力設定");
+            showOutputSettings = EditorGUILayout.BeginFoldoutHeaderGroup(showOutputSettings, CHMLocales.Tr("Window:OutputSettings:Header"));
             if (showOutputSettings)
             {
                 EditorGUI.indentLevel++;
 
                 EditorGUILayout.BeginHorizontal();
-                EditorGUILayout.LabelField("マテリアル設定の基準とするマテリアル", GUILayout.Width(200));
+                EditorGUILayout.LabelField(CHMLocales.Tr("Window:OutputSettings:BaseMaterial"), GUILayout.Width(200));
 
                 // ObjectField用のRectを確保
                 Rect baseMaterialRect = EditorGUILayout.GetControlRect();
@@ -1550,7 +1562,7 @@ namespace ChimeraHairMaster.Editor
                 EditorGUILayout.EndHorizontal();
 
                 EditorGUILayout.HelpBox(
-                    "統合後のマテリアル設定の基準となるマテリアルを指定します。\nマテリアルまたはGameObjectをドロップできます。",
+                    CHMLocales.Tr("Window:OutputSettings:BaseMaterialHint"),
                     MessageType.Info
                 );
 
@@ -1565,7 +1577,7 @@ namespace ChimeraHairMaster.Editor
             GUILayout.FlexibleSpace();
 
             GUI.enabled = CanExecuteSetup();
-            if (GUILayout.Button("セットアップ", GUILayout.Width(120), GUILayout.Height(30)))
+            if (GUILayout.Button(CHMLocales.Tr("Window:Action:Setup"), GUILayout.Width(120), GUILayout.Height(30)))
             {
                 ExecuteSetup();
             }
@@ -2561,25 +2573,25 @@ namespace ChimeraHairMaster.Editor
         private string GetValidationMessage()
         {
             if (selectedAvatar == null)
-                return "アバターを選択してください。";
+                return CHMLocales.Tr("Window:Validation:SelectAvatar");
             int minRenderers = enableMeshMerge ? 2 : 1;
             if (targetRenderers.Count < minRenderers)
                 return enableMeshMerge
-                    ? "2つ以上の髪Rendererを追加してください。"
-                    : "1つ以上の髪Rendererを追加してください。";
+                    ? CHMLocales.Tr("Window:Validation:AtLeastTwoRenderers")
+                    : CHMLocales.Tr("Window:Validation:AtLeastOneRenderer");
             if (baseMaterial == null)
-                return "基準マテリアルを選択してください。";
+                return CHMLocales.Tr("Window:Validation:SelectBaseMaterial");
 
             foreach (var renderer in targetRenderers)
             {
                 if (renderer == null)
-                    return "未設定のRendererがあります。";
+                    return CHMLocales.Tr("Window:Validation:UnsetRenderer");
             }
 
             if (enableMeshMerge && hasUVOverlap)
-                return "UVが重なっています。UV配置を調整してください。";
+                return CHMLocales.Tr("Window:Validation:UVOverlap");
             if (enableMeshMerge && hasUVOutOfBounds)
-                return "UVが枠からはみ出しています。UV配置を調整してください。";
+                return CHMLocales.Tr("Window:UVSettings:OutOfBounds");
 
             return string.Empty;
         }
@@ -2589,7 +2601,7 @@ namespace ChimeraHairMaster.Editor
             if (!CanExecuteSetup())
             {
                 EditorUtility.DisplayDialog(
-                    "キメラヘアマスター",
+                    CHMLocales.Tr("Window:Title"),
                     GetValidationMessage(),
                     "OK"
                 );
@@ -2601,8 +2613,8 @@ namespace ChimeraHairMaster.Editor
             if (chimeraComponent != null)
             {
                 EditorUtility.DisplayDialog(
-                    "キメラヘアマスター",
-                    "セットアップが完了しました。\n生成されたGameObjectで詳細を調整できます。\n\nScene上でプレビューを確認するには「プレビュー有効」をオンにしてください。",
+                    CHMLocales.Tr("Window:Title"),
+                    CHMLocales.Tr("Window:Setup:CompleteMessage"),
                     "OK"
                 );
                 Close();

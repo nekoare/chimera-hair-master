@@ -3,6 +3,7 @@ using System.Linq;
 using ChimeraHairMaster.Editor.Processing;
 using UnityEditor;
 using UnityEngine;
+using ChimeraHairMaster.Editor.Localization;
 
 namespace ChimeraHairMaster.Editor.Deformation
 {
@@ -593,37 +594,22 @@ namespace ChimeraHairMaster.Editor.Deformation
             Handles.BeginGUI();
 
             string modeName;
-            if (CurrentMode == EditMode.UVIsland) modeName = "UVアイランド編集";
-            else if (CurrentMode == EditMode.Lattice) modeName = "ラティス編集";
-            else modeName = "頂点編集";
+            if (CurrentMode == EditMode.UVIsland) modeName = CHMLocales.Tr("Scene:Mode:UVIsland");
+            else if (CurrentMode == EditMode.Lattice) modeName = CHMLocales.Tr("Scene:Mode:Lattice");
+            else modeName = CHMLocales.Tr("Scene:Mode:Vertex");
 
             string guide;
             if (CurrentMode == EditMode.Lattice)
             {
-                guide = $"--- {modeName} ---\n" +
-                        "クリック: 制御点選択\n" +
-                        "ドラッグ: 制御点を自由移動\n" +
-                        "Ctrl+クリック: 追加/解除\n" +
-                        "Shift+クリック: 追加\n" +
-                        "選択後: XYZ軸ハンドルで移動";
+                guide = string.Format(CHMLocales.Tr("Scene:Guide:Lattice"), modeName);
             }
             else if (CurrentMode == EditMode.UVIsland)
             {
-                guide = $"--- {modeName} ---\n" +
-                        "クリック: アイランド選択\n" +
-                        "Ctrl+クリック: 追加/解除\n" +
-                        "Shift+クリック: 追加\n" +
-                        "W/E/R: 移動/回転/スケール";
+                guide = string.Format(CHMLocales.Tr("Scene:Guide:UVIsland"), modeName);
             }
             else
             {
-                guide = $"--- {modeName} ---\n" +
-                        "クリック: 頂点選択\n" +
-                        "ドラッグ: 矩形選択\n" +
-                        "Ctrl+クリック: 追加/解除\n" +
-                        "Shift+クリック: 追加\n" +
-                        "W/E/R: 移動/回転/スケール\n" +
-                        "ドラッグ中ホイール: 影響範囲変更";
+                guide = string.Format(CHMLocales.Tr("Scene:Guide:Vertex"), modeName);
             }
 
             var style = new GUIStyle(EditorStyles.helpBox)

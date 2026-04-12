@@ -1,0 +1,706 @@
+msgid ""
+msgstr ""
+"Language: ja-JP\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+
+msgid "Window:Title"
+msgstr "キメラヘアマスター"
+
+msgid "Window:Header:Description"
+msgstr "複数の髪テクスチャの色合わせ・UV統合・マテリアル統合を行います。"
+
+msgid "Window:TargetSelection:Header"
+msgstr "対象選択"
+
+msgid "Window:TargetSelection:Avatar"
+msgstr "アバター"
+
+msgid "Window:TargetSelection:NoAvatarDescriptor"
+msgstr "選択されたGameObjectにVRC Avatar Descriptorがありません。"
+
+msgid "Window:TargetSelection:HairPartsList"
+msgstr "髪パーツ一覧"
+
+msgid "Window:TargetSelection:DragHint"
+msgstr "ウィンドウ内のどこかに髪パーツ(SkinnedMeshRenderer)をドラッグ&ドロップ\nまたは[+]ボタンで追加"
+
+msgid "Window:MaterialSelection:Header"
+msgstr "対象マテリアル選択"
+
+msgid "Window:MaterialSelection:HintMerge"
+msgstr "統合に含めたいマテリアルにチェックを入れてください。\nチェックを外したマテリアルは元のRendererで表示されます。"
+
+msgid "Window:MaterialSelection:HintNoMerge"
+msgstr "処理対象にしたいマテリアルにチェックを入れてください。\nチェックを外したマテリアルには変更が適用されません。"
+
+msgid "Window:MaterialSelection:NoRenderer"
+msgstr "髪Rendererが選択されていません"
+
+msgid "Window:MaterialSelection:CutMask"
+msgstr "カットマスク"
+
+msgid "Window:ColorSettings:Header"
+msgstr "色合わせ設定(簡易設定)"
+
+msgid "Window:ColorSettings:Mode"
+msgstr "色変換モード"
+
+msgid "Window:ColorSettings:Gradient"
+msgstr "グラデーション"
+
+msgid "Window:ColorSettings:ChangeToThisColor"
+msgstr "この色に変更"
+
+msgid "Window:ColorSettings:HueShiftHint"
+msgstr "指定した色にテクスチャの色相を変更します。\n詳細設定はInspectorから行えます。"
+
+msgid "Window:ColorPicker:FoldoutFromTexture"
+msgstr "テクスチャから色を選択"
+
+msgid "Window:ColorPicker:ClickToPick"
+msgstr "クリックで色を取得"
+
+msgid "Window:ColorPicker:CandidateColors"
+msgstr "候補色:"
+
+msgid "Window:ColorPicker:TextureNotFound"
+msgstr "テクスチャが見つかりません"
+
+msgid "Window:GradientColorPicker:FoldoutAddFromTexture"
+msgstr "テクスチャから色を追加"
+
+msgid "Window:GradientColorPicker:DarkColor"
+msgstr "暗い色"
+
+msgid "Window:GradientColorPicker:LightColor"
+msgstr "明るい色"
+
+msgid "Window:GradientColorPicker:ClickToAdd"
+msgstr "クリックで色をグラデーションに追加"
+
+msgid "Window:UVSettings:Header"
+msgstr "UV配置"
+
+msgid "Window:UVSettings:Resolution"
+msgstr "解像度"
+
+msgid "Window:UVSettings:Preview"
+msgstr "UV配置プレビュー"
+
+msgid "Window:UVSettings:FitHint"
+msgstr "枠内に収まるように配置してください"
+
+msgid "Window:UVSettings:Legend"
+msgstr "凡例: (クリックで選択)"
+
+msgid "Window:UVSettings:OutOfBounds"
+msgstr "UVが枠からはみ出しています。UV配置を調整してください。"
+
+msgid "Window:UVSettings:AutoArrange"
+msgstr "自動配置"
+
+msgid "Window:UVSettings:Reset"
+msgstr "リセット"
+
+msgid "Window:UVSettings:DragHint"
+msgstr "UVアイランドをドラッグして配置を調整できます。"
+
+msgid "Window:UVSettings:OverlapWarningHeader"
+msgstr "⚠ UVが重なっています:"
+
+msgid "Window:UVSettings:OverlapWarningLine"
+msgstr "  • {0} と {1}"
+
+msgid "Window:OutputSettings:Header"
+msgstr "出力設定"
+
+msgid "Window:OutputSettings:BaseMaterial"
+msgstr "マテリアル設定の基準とするマテリアル"
+
+msgid "Window:OutputSettings:BaseMaterialHint"
+msgstr "統合後のマテリアル設定の基準となるマテリアルを指定します。\nマテリアルまたはGameObjectをドロップできます。"
+
+msgid "Window:Action:Setup"
+msgstr "セットアップ"
+
+msgid "Window:Validation:SelectAvatar"
+msgstr "アバターを選択してください。"
+
+msgid "Window:Validation:AtLeastTwoRenderers"
+msgstr "2つ以上の髪Rendererを追加してください。"
+
+msgid "Window:Validation:AtLeastOneRenderer"
+msgstr "1つ以上の髪Rendererを追加してください。"
+
+msgid "Window:Validation:SelectBaseMaterial"
+msgstr "基準マテリアルを選択してください。"
+
+msgid "Window:Validation:UnsetRenderer"
+msgstr "未設定のRendererがあります。"
+
+msgid "Window:Validation:UVOverlap"
+msgstr "UVが重なっています。UV配置を調整してください。"
+
+msgid "Window:Setup:CompleteMessage"
+msgstr "セットアップが完了しました。\n生成されたGameObjectで詳細を調整できます。\n\nScene上でプレビューを確認するには「プレビュー有効」をオンにしてください。"
+
+msgid "Window:ColorTransform:Enabled"
+msgstr "色合わせ\n有効"
+
+msgid "Window:ColorTransform:Disabled"
+msgstr "色合わせ"
+
+msgid "Window:MeshMerge:Enabled"
+msgstr "メッシュ統合\n有効"
+
+msgid "Window:MeshMerge:Disabled"
+msgstr "メッシュ統合"
+
+msgid "MeshDeformWindow:Title"
+msgstr "メッシュ変形"
+
+msgid "MeshDeformWindow:Header:Title"
+msgstr "メッシュ変形 セットアップ"
+
+msgid "MeshDeformWindow:Header:Description"
+msgstr "変形したいRendererを登録して「セットアップ」を押してください。\nセットアップ後はInspectorから編集できます。"
+
+msgid "MeshDeformWindow:TargetRenderer"
+msgstr "対象Renderer"
+
+msgid "MeshDeformWindow:RegisterRendererHint"
+msgstr "Rendererを登録してください。"
+
+msgid "MeshDeformWindow:Action:Setup"
+msgstr "セットアップ"
+
+msgid "MeshDeformWindow:Dialog:NoSMR"
+msgstr "選択したGameObjectにSkinnedMeshRendererがありません。"
+
+msgid "MeshDeformWindow:Dialog:ConfirmTitle"
+msgstr "確認"
+
+msgid "MeshDeformWindow:Dialog:OverwriteMessage"
+msgstr "{0} には既にメッシュ変形コンポーネントがあります。\n対象Rendererを上書きしますか？"
+
+msgid "MeshDeformWindow:Dialog:Overwrite"
+msgstr "上書き"
+
+msgid "MeshDeformWindow:Dialog:Cancel"
+msgstr "キャンセル"
+
+msgid "MeshDeformWindow:Conflict:CHM"
+msgstr "{0} にキメラヘアマスターがあるため変形はそこから行ってください。"
+
+msgid "MeshDeformWindow:Conflict:Existing"
+msgstr "{0} には既にメッシュ変形コンポーネントがあります。"
+
+msgid "MeshDeformStandalone:Header"
+msgstr "CHM - メッシュ変形機能"
+
+msgid "MeshDeformStandalone:NoRendererWarning"
+msgstr "対象Rendererが設定されていません。\nメニュー「キメラヘアマスター > メッシュ変形」からセットアップしてください。"
+
+msgid "Inspector:Title"
+msgstr "キメラヘアマスター"
+
+msgid "Inspector:Enabled"
+msgstr "有効"
+
+msgid "Inspector:Help"
+msgstr "ヘルプ"
+
+msgid "Inspector:DisabledHelp"
+msgstr "コンポーネントが無効になっています。ビルド時に処理されません。"
+
+msgid "Inspector:BasicSettings"
+msgstr "基本設定"
+
+msgid "Inspector:TargetRenderers"
+msgstr "対象Renderer"
+
+msgid "Inspector:TargetRenderersHelp"
+msgstr "対象Rendererの変更はEditorWindowから行ってください。\nメニュー: キメラヘアマスター > ウィンドウを開く"
+
+msgid "Inspector:TextureSettings"
+msgstr "テクスチャ設定"
+
+msgid "Inspector:TextureResolution"
+msgstr "解像度"
+
+msgid "Inspector:ColorChangeTargets"
+msgstr "色変更対象"
+
+msgid "Inspector:UVPlacements"
+msgstr "UV配置"
+
+msgid "Inspector:UVPlacementsHelp"
+msgstr "UV配置の変更はEditorWindowから行ってください。"
+
+msgid "Inspector:BaseMaterial"
+msgstr "基準マテリアル"
+
+msgid "Inspector:MeshCutSettings"
+msgstr "メッシュカット設定"
+
+msgid "Inspector:MeshCutHelp"
+msgstr "マスクを使って髪のメッシュを統合から削除することが出来ます。マスクは元の髪のUVを参照します。"
+
+msgid "Inspector:SubmeshLabelFormat"
+msgstr "SubMesh {0}: {1}"
+
+msgid "Inspector:MaterialFallback"
+msgstr "(Material {0})"
+
+msgid "Inspector:CreateMask"
+msgstr "マスクを作成"
+
+msgid "Inspector:ColorSettings"
+msgstr "色合わせ設定"
+
+msgid "Inspector:EnableColorTransform"
+msgstr "色合わせの有効化"
+
+msgid "Inspector:EnableColorTransformHelp"
+msgstr "色合わせを行わない場合、テクスチャはそのまま統合されます。\n複数のテクスチャを統合したいが、色は変えたくない場合に使用します。"
+
+msgid "Inspector:ColorTransformMode"
+msgstr "色変換モード"
+
+msgid "Inspector:GradientCurve"
+msgstr "グラデーション"
+
+msgid "Inspector:GradientHelp"
+msgstr "グラデーションモード\n元のテクスチャの明暗に対して設定したグラデーションに従って色を設定します。\nグラデーションの左端の色が一番暗かった色に，右端の色が一番明るかった色になります。\n明暗の差を出したいときに有効です。"
+
+msgid "Inspector:TargetColor"
+msgstr "この色に変更"
+
+msgid "Inspector:SaturationPreserve"
+msgstr "元の彩度を保持"
+
+msgid "Inspector:ValuePreserve"
+msgstr "元の明るさを保持"
+
+msgid "Inspector:AutoAdjust"
+msgstr "自動調整"
+
+msgid "Inspector:BrightnessUnifyMode"
+msgstr "全体の明るさを合わせる(高負荷)"
+
+msgid "Inspector:HueShiftHelp"
+msgstr "色指定モード（デフォルト）\n全体を指定した色に変更します。\n元の髪の明暗の差が小さいときに有効です。"
+
+msgid "Inspector:BrightnessAdjustment"
+msgstr "個別の明るさの調整"
+
+msgid "Inspector:Reset"
+msgstr "リセット"
+
+msgid "Inspector:BrightnessAdjustmentHelp"
+msgstr "各Rendererの明るさを個別に調整できます。\n正の値で明るく、負の値で暗くなります。\n「リセット」ボタンでリセット（0に戻す）"
+
+msgid "Inspector:ColorMaskSettings"
+msgstr "色合わせ無視(マスク)"
+
+msgid "Inspector:ColorMaskHelp"
+msgstr "マスクを使って色合わせを部分的に無視できます。\nマスクは元の髪のUVを参照します。\n黒い部分は色合わせが適用されず、元の色が維持されます。"
+
+msgid "Inspector:PhysBoneList"
+msgstr "関連PhysBone"
+
+msgid "Inspector:PhysBoneListHelp"
+msgstr "各Rendererのメッシュに影響しているPhysBoneコンポーネントの一覧です。\nクリックするとHierarchyでハイライトされます。"
+
+msgid "Inspector:AvatarDescriptorNotFound"
+msgstr "VRCAvatarDescriptorが見つかりません。"
+
+msgid "Inspector:NoPhysBone"
+msgstr "(PhysBoneなし)"
+
+msgid "Inspector:TextureColorPicker"
+msgstr "テクスチャから色を選択"
+
+msgid "Inspector:ClickToPickColor"
+msgstr "クリックで色を取得"
+
+msgid "Inspector:CandidateColors"
+msgstr "候補色:"
+
+msgid "Inspector:TextureNotFound"
+msgstr "テクスチャが見つかりません"
+
+msgid "Inspector:GradientTextureColorPicker"
+msgstr "テクスチャから色を追加"
+
+msgid "Inspector:DarkColor"
+msgstr "暗い色"
+
+msgid "Inspector:LightColor"
+msgstr "明るい色"
+
+msgid "Inspector:ClickToAddColorToGradient"
+msgstr "クリックで色をグラデーションに追加\n端の色は少し極端な色の方が調整が上手くいくことが多いです。"
+
+msgid "Inspector:PreviewGenerateHelp"
+msgstr "プレビューを開始すると、マテリアル設定が表示されます。"
+
+msgid "Inspector:GeneratePreviewMaterial"
+msgstr "プレビュー用マテリアルを生成"
+
+msgid "Inspector:MaterialSettings"
+msgstr "マテリアル設定"
+
+msgid "Inspector:BaseMaterialRequiredHelp"
+msgstr "基準マテリアルを設定すると、マテリアル設定が表示されます。"
+
+msgid "Inspector:MeshSettings"
+msgstr "メッシュ設定"
+
+msgid "Inspector:MeshSettingsHelp"
+msgstr "統合後のメッシュのProbe AnchorとBoundsを設定できます。\nBoundsが適切でないと、カメラの角度によってメッシュが消える場合があります。"
+
+msgid "Inspector:ProbeAnchorHeader"
+msgstr "Probe Anchor(ライティング基準点)"
+
+msgid "Inspector:SettingMode"
+msgstr "設定モード"
+
+msgid "Inspector:ProbeAnchor"
+msgstr "Probe Anchor"
+
+msgid "Inspector:ProbeAnchorHelp"
+msgstr "統合メッシュがライティングを計算する際の基準点です。\n通常はHeadボーンなどを指定します。"
+
+msgid "Inspector:BoundsHeader"
+msgstr "Bounds(バウンディングボックス)"
+
+msgid "Inspector:RootBone"
+msgstr "Root Bone"
+
+msgid "Inspector:Bounds"
+msgstr "Bounds"
+
+msgid "Inspector:BoundsHelp"
+msgstr "統合メッシュの描画範囲です。Root Boneからの相対座標で指定します。\nデフォルト(Center: 0,0,0 Size: 2,2,2)で問題ない場合が多いですが、\nメッシュが消える場合はSizeを大きくしてください。"
+
+msgid "Inspector:FrameBoundsInScene"
+msgstr "Boundsをシーンビューで確認"
+
+msgid "Inspector:MeshDeformSection"
+msgstr "メッシュ変形"
+
+msgid "Inspector:MeshDeformConflictTitle"
+msgstr "メッシュ変形の重複"
+
+msgid "Inspector:MeshDeformConflictMessage"
+msgstr "{0} にメッシュ変形を使っているため変形が重複します。\nコンポーネントを削除するか、変形後のメッシュをエクスポートしてから試してください。"
+
+msgid "Inspector:StandaloneConflictFormat"
+msgstr "メッシュ変形 ({0}) の {1}"
+
+msgid "Inspector:PreviewStop"
+msgstr "プレビュー停止"
+
+msgid "Inspector:PreviewStart"
+msgstr "プレビュー開始"
+
+msgid "Inspector:EditMask"
+msgstr "マスクを編集する"
+
+msgid "Inspector:PreviewResolution"
+msgstr "プレビュー解像度"
+
+msgid "Inspector:PreviewHelpNoMerge"
+msgstr "プレビューが有効です。Scene上で見えを確認できます。\nメインカラー2nd,3rd，発光設定の変更は元のマテリアルから操作してください。\nそれぞれのマテリアルの設定はプレビューマテリアルの数値(テクスチャを除く)に統一されます。"
+
+msgid "Inspector:UnifyMatCap"
+msgstr "マットキャップを統一"
+
+msgid "Inspector:UnifyMatCapTooltip"
+msgstr "有効にすると、プレビューマテリアルのMatCap設定(1st/2nd)で統一されます。\n無効の場合、各Rendererの元マテリアルのMatCap設定をそのまま保持します。"
+
+msgid "Inspector:PreviewHelpMerge"
+msgstr "プレビューが有効です。Scene上で結果を確認できます。\n動作が重いときは停止してください。\nプレビューではノーマルマップ，AOマップが適用されていません。実際の見え方はGestureManager等で確認してください。"
+
+msgid "Inspector:PreviewRequiresSetup"
+msgstr "プレビューを有効にするには、対象Rendererと基準マテリアルを設定してください。"
+
+msgid "Inspector:SaveAsTextureSection"
+msgstr "テクスチャとして保存機能"
+
+msgid "Inspector:ApplyTexture"
+msgstr "テクスチャをマテリアルに適用"
+
+msgid "Inspector:UnifySettings"
+msgstr "マテリアル設定を統一"
+
+msgid "Inspector:ApplyDeformation"
+msgstr "変形も反映する"
+
+msgid "Inspector:ApplyDeformationTooltip"
+msgstr "メッシュ変形のデータを反映した変形済みメッシュを生成し、Rendererに設定します"
+
+msgid "Inspector:ApplyHelp"
+msgstr "色合わせしたテクスチャをPNGとして出力します。\n「テクスチャをマテリアルに適用」: 生成テクスチャを元マテリアルの_MainTexにセットします。\n「マテリアル設定を統一」: プレビューマテリアルの数値設定を元マテリアルに上書きします。\n「変形も反映する」: メッシュ変形データを適用した変形済みメッシュを保存し、Rendererに設定します。\n適用後、コンポーネントは自動的に無効化されます。"
+
+msgid "Inspector:ApplyButton"
+msgstr "キメラヘアマスターを元の髪に反映する"
+
+msgid "Inspector:ApplyRequiresSetup"
+msgstr "適用するには、対象Rendererと基準マテリアルを設定してください。"
+
+msgid "Inspector:SharedRendererWarningFormat"
+msgstr "以下のRendererが他のChimera Hair Masterと重複しています。\nビルド時に競合が発生し、結果が不定になります。\n{0}"
+
+msgid "Inspector:SharedRendererItemFormat"
+msgstr "  - {0}"
+
+msgid "Inspector:SharedRendererNameFormat"
+msgstr "{0} ({1})"
+
+msgid "MeshDeformInspector:RendererNotSet"
+msgstr "対象Rendererが設定されていません"
+
+msgid "MeshDeformInspector:TargetRenderer"
+msgstr "対象Renderer"
+
+msgid "MeshDeformInspector:Mode:UVIsland"
+msgstr "パーツ変形"
+
+msgid "MeshDeformInspector:Mode:UVIslandActive"
+msgstr "■ パーツ変形中"
+
+msgid "MeshDeformInspector:Mode:Vertex"
+msgstr "頂点変形"
+
+msgid "MeshDeformInspector:Mode:VertexActive"
+msgstr "■ 頂点変形中"
+
+msgid "MeshDeformInspector:Mode:Lattice"
+msgstr "全体の形を調整 (ラティス変形)"
+
+msgid "MeshDeformInspector:Mode:LatticeActive"
+msgstr "■ ラティス編集中"
+
+msgid "MeshDeformInspector:Lattice:Revert"
+msgstr "ラティス変形前に戻す"
+
+msgid "MeshDeformInspector:Lattice:RevertTooltip"
+msgstr "ラティスで行ったすべての変形を取り消し、作成前の状態に戻します"
+
+msgid "MeshDeformInspector:Lattice:SettingsHeader"
+msgstr "ラティス設定"
+
+msgid "MeshDeformInspector:Lattice:HelpBox"
+msgstr "制御点をドラッグで移動、クリックで選択するとXYZ軸ハンドルが表示されます。\n変形はリアルタイムに反映されます。"
+
+msgid "MeshDeformInspector:Lattice:DivX"
+msgstr "X分割"
+
+msgid "MeshDeformInspector:Lattice:DivY"
+msgstr "Y分割"
+
+msgid "MeshDeformInspector:Lattice:DivZ"
+msgstr "Z分割"
+
+msgid "MeshDeformInspector:Vertex:ToolsHeader"
+msgstr "選択中の頂点ツール"
+
+msgid "MeshDeformInspector:Vertex:Shrink"
+msgstr "収縮 ←"
+
+msgid "MeshDeformInspector:Vertex:Inflate"
+msgstr "→ 膨張"
+
+msgid "MeshDeformInspector:Vertex:ResetSlider"
+msgstr "スライダーを0にリセット"
+
+msgid "MeshDeformInspector:Vertex:Smooth"
+msgstr "スムージング"
+
+msgid "MeshDeformInspector:Vertex:SmoothTooltip"
+msgstr "選択頂点の位置を周囲の頂点に近づけて滑らかにする。複数回押すとより滑らかに"
+
+msgid "MeshDeformInspector:Symmetry:Header"
+msgstr "対称編集"
+
+msgid "MeshDeformInspector:Symmetry:X"
+msgstr "X (左右)"
+
+msgid "MeshDeformInspector:Symmetry:Y"
+msgstr "Y (前後)"
+
+msgid "MeshDeformInspector:Symmetry:Z"
+msgstr "Z (上下)"
+
+msgid "MeshDeformInspector:Symmetry:OffsetX"
+msgstr "オフセット X"
+
+msgid "MeshDeformInspector:Symmetry:OffsetY"
+msgstr "オフセット Y"
+
+msgid "MeshDeformInspector:Symmetry:OffsetZ"
+msgstr "オフセット Z"
+
+msgid "MeshDeformInspector:Advanced:Header"
+msgstr "詳細設定"
+
+msgid "MeshDeformInspector:Advanced:BrushRadius"
+msgstr "影響範囲 (m)"
+
+msgid "MeshDeformInspector:Advanced:BrushRadiusTooltip"
+msgstr "選択した頂点の周囲にどこまで変形の影響を広げるか。ドラッグ中にマウスホイールで変更可能"
+
+msgid "MeshDeformInspector:Advanced:Falloff"
+msgstr "距離減衰"
+
+msgid "MeshDeformInspector:Advanced:FalloffTooltip"
+msgstr "影響範囲の端に向かって変形量をどう弱めるか"
+
+msgid "MeshDeformInspector:Advanced:Metric"
+msgstr "距離の扱い"
+
+msgid "MeshDeformInspector:Advanced:MetricTooltip"
+msgstr "頂点間の距離をどう計算するか"
+
+msgid "MeshDeformInspector:Advanced:BackfaceCulling"
+msgstr "背面カリング"
+
+msgid "MeshDeformInspector:Advanced:BackfaceCullingTooltip"
+msgstr "こちらを向いていない頂点を非表示にして選択対象から除外する"
+
+msgid "MeshDeformInspector:Advanced:ZTest"
+msgstr "Z-test(遮蔽非表示)"
+
+msgid "MeshDeformInspector:Advanced:ZTestTooltip"
+msgstr "他のメッシュの裏に隠れている頂点を非表示にする"
+
+msgid "MeshDeformInspector:Export:SaveMesh"
+msgstr "メッシュを保存"
+
+msgid "MeshDeformInspector:Export:SaveAndReplace"
+msgstr "メッシュを保存して入れ替え"
+
+msgid "MeshDeformInspector:Export:SaveDialogTitle"
+msgstr "変形済みメッシュを保存"
+
+msgid "MeshDeformInspector:Export:SaveDialogMessage"
+msgstr "変形済みメッシュの保存先を選択してください"
+
+msgid "MeshDeformInspector:Export:ReplaceConfirmTitle"
+msgstr "メッシュの入れ替え確認"
+
+msgid "MeshDeformInspector:Export:ReplaceConfirmMessage"
+msgstr "{0} のメッシュを変形済みメッシュに入れ替えますか？\n変形データはメッシュに焼き込まれ、デルタはクリアされます。\nこの操作はUndo可能です。"
+
+msgid "MeshDeformInspector:Export:ReplaceConfirmOk"
+msgstr "入れ替える"
+
+msgid "MeshDeformInspector:Export:Cancel"
+msgstr "キャンセル"
+
+msgid "MeshDeformInspector:Reset:Button"
+msgstr "変形をリセット"
+
+msgid "MeshDeformInspector:Reset:ConfirmTitle"
+msgstr "変形リセット確認"
+
+msgid "MeshDeformInspector:Reset:ConfirmMessage"
+msgstr "このRendererの変形データをすべてリセットしますか？"
+
+msgid "MeshDeformInspector:Reset:ConfirmOk"
+msgstr "リセット"
+
+msgid "Scene:Mode:UVIsland"
+msgstr "UVアイランド編集"
+
+msgid "Scene:Mode:Lattice"
+msgstr "ラティス編集"
+
+msgid "Scene:Mode:Vertex"
+msgstr "頂点編集"
+
+msgid "Scene:Guide:Lattice"
+msgstr "--- {0} ---\nクリック: 制御点選択\nドラッグ: 制御点を自由移動\nCtrl+クリック: 追加/解除\nShift+クリック: 追加\n選択後: XYZ軸ハンドルで移動"
+
+msgid "Scene:Guide:UVIsland"
+msgstr "--- {0} ---\nクリック: アイランド選択\nCtrl+クリック: 追加/解除\nShift+クリック: 追加\nW/E/R: 移動/回転/スケール"
+
+msgid "Scene:Guide:Vertex"
+msgstr "--- {0} ---\nクリック: 頂点選択\nドラッグ: 矩形選択\nCtrl+クリック: 追加/解除\nShift+クリック: 追加\nW/E/R: 移動/回転/スケール\nドラッグ中ホイール: 影響範囲変更"
+
+msgid "MaskTool:Dialog:UpdateRequiredTitle"
+msgstr "マスクツールの更新が必要"
+
+msgid "MaskTool:Dialog:NotInstalledTitle"
+msgstr "マスクツール未インストール"
+
+msgid "MaskTool:Dialog:UpdateAssetsV1Body"
+msgstr "インストール済みの「塗って！選んで！マスク作れるやつ」はCHM連携に対応していません。v1.0以上に更新してください。"
+
+msgid "MaskTool:Dialog:OpenProductPage"
+msgstr "商品ページを開く"
+
+msgid "MaskTool:Dialog:Close"
+msgstr "閉じる"
+
+msgid "MaskTool:Dialog:NotInstalledBody"
+msgstr "マスク作成支援ツールがインストールされていません。マスクツール同梱版，もしくは塗って！選んで！マスク作れるやつ v1.0以上を導入してください。"
+
+msgid "MaskTool:Dialog:UpdateVpmV11Body"
+msgstr "この機能にはマスク作成支援ツール v1.1以上が必要です。同梱版パッケージを更新してください。"
+
+msgid "MaskTool:Dialog:UpdateAssetsV11Body"
+msgstr "この機能には「塗って！選んで！マスク作れるやつ」v1.1以上が必要です。更新してください。"
+
+msgid "MaskTool:Dialog:UpdateAssetsV11IncompatBody"
+msgstr "インストール済みの「塗って！選んで！マスク作れるやつ」はこの機能に対応していません。v1.1以上に更新してください。"
+
+msgid "MaskTool:Dialog:NotInstalledSubmeshBody"
+msgstr "この機能にはマスク作成支援ツールが必要です。マスクツール同梱版，もしくは「塗って！選んで！マスク作れるやつ」v1.1以上を導入してください。"
+
+msgid "ColorTransformMode:Gradient"
+msgstr "グラデーション"
+
+msgid "ColorTransformMode:HueShift"
+msgstr "色指定（デフォルト）"
+
+msgid "BrightnessUnifyMode:Off"
+msgstr "オフ"
+
+msgid "BrightnessUnifyMode:ToBrightest"
+msgstr "明るい方に合わせる（高負荷）"
+
+msgid "BrightnessUnifyMode:ToDarkest"
+msgstr "暗い方に合わせる（高負荷）"
+
+msgid "FalloffType:Constant"
+msgstr "均一"
+
+msgid "FalloffType:Linear"
+msgstr "直線"
+
+msgid "FalloffType:Smooth"
+msgstr "スムーズ"
+
+msgid "FalloffType:Sphere"
+msgstr "中心優先"
+
+msgid "DistanceMetric:Euclidean"
+msgstr "空間上の距離"
+
+msgid "DistanceMetric:Geodesic"
+msgstr "つかんでいる表面の距離"
+
+msgid "MeshSettingsInheritMode:Inherit"
+msgstr "継承"
+
+msgid "MeshSettingsInheritMode:Set"
+msgstr "設定"
+
+msgid "MeshSettingsInheritMode:DontSet"
+msgstr "設定しない"
+
+msgid "MeshSettingsInheritMode:SetOrInherit"
+msgstr "親で指定されている時は継承、それ以外では指定"

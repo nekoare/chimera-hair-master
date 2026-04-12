@@ -75,10 +75,10 @@ namespace ChimeraHairMaster.Editor
                 if (hasOldAssetsMaskTool)
                 {
                     if (EditorUtility.DisplayDialog(
-                        "マスクツールの更新が必要",
-                        "インストール済みの「塗って！選んで！マスク作れるやつ」はCHM連携に対応していません。v1.0以上に更新してください。",
-                        "商品ページを開く",
-                        "閉じる"))
+                        CHMLocales.Tr("MaskTool:Dialog:UpdateRequiredTitle"),
+                        CHMLocales.Tr("MaskTool:Dialog:UpdateAssetsV1Body"),
+                        CHMLocales.Tr("MaskTool:Dialog:OpenProductPage"),
+                        CHMLocales.Tr("MaskTool:Dialog:Close")))
                     {
                         Application.OpenURL("https://neko-to-same.booth.pm/items/7951475");
                     }
@@ -86,10 +86,10 @@ namespace ChimeraHairMaster.Editor
                 else
                 {
                     if (EditorUtility.DisplayDialog(
-                        "マスクツール未インストール",
-                        "マスク作成支援ツールがインストールされていません。マスクツール同梱版，もしくは塗って！選んで！マスク作れるやつ v1.0以上を導入してください。",
-                        "商品ページを開く",
-                        "閉じる"))
+                        CHMLocales.Tr("MaskTool:Dialog:NotInstalledTitle"),
+                        CHMLocales.Tr("MaskTool:Dialog:NotInstalledBody"),
+                        CHMLocales.Tr("MaskTool:Dialog:OpenProductPage"),
+                        CHMLocales.Tr("MaskTool:Dialog:Close")))
                     {
                         Application.OpenURL("https://neko-to-same.booth.pm/items/7951475");
                     }
@@ -113,8 +113,8 @@ namespace ChimeraHairMaster.Editor
             #elif CHM_MASK_CREATION_TOOL
             // VPM版はあるがv1.1未満 → 更新ダイアログ
             EditorUtility.DisplayDialog(
-                "マスクツールの更新が必要",
-                "この機能にはマスク作成支援ツール v1.1以上が必要です。同梱版パッケージを更新してください。",
+                CHMLocales.Tr("MaskTool:Dialog:UpdateRequiredTitle"),
+                CHMLocales.Tr("MaskTool:Dialog:UpdateVpmV11Body"),
                 "OK");
             #else
             if (MaskToolRegistry.HasSubmeshHandler)
@@ -126,10 +126,10 @@ namespace ChimeraHairMaster.Editor
             {
                 // Assets版はあるがv1.1未満 → 更新ダイアログ
                 if (EditorUtility.DisplayDialog(
-                    "マスクツールの更新が必要",
-                    "この機能には「塗って！選んで！マスク作れるやつ」v1.1以上が必要です。更新してください。",
-                    "商品ページを開く",
-                    "閉じる"))
+                    CHMLocales.Tr("MaskTool:Dialog:UpdateRequiredTitle"),
+                    CHMLocales.Tr("MaskTool:Dialog:UpdateAssetsV11Body"),
+                    CHMLocales.Tr("MaskTool:Dialog:OpenProductPage"),
+                    CHMLocales.Tr("MaskTool:Dialog:Close")))
                 {
                     Application.OpenURL("https://neko-to-same.booth.pm/items/7951475");
                 }
@@ -150,10 +150,10 @@ namespace ChimeraHairMaster.Editor
                 if (hasOldAssetsMaskTool)
                 {
                     if (EditorUtility.DisplayDialog(
-                        "マスクツールの更新が必要",
-                        "インストール済みの「塗って！選んで！マスク作れるやつ」はこの機能に対応していません。v1.1以上に更新してください。",
-                        "商品ページを開く",
-                        "閉じる"))
+                        CHMLocales.Tr("MaskTool:Dialog:UpdateRequiredTitle"),
+                        CHMLocales.Tr("MaskTool:Dialog:UpdateAssetsV11IncompatBody"),
+                        CHMLocales.Tr("MaskTool:Dialog:OpenProductPage"),
+                        CHMLocales.Tr("MaskTool:Dialog:Close")))
                     {
                         Application.OpenURL("https://neko-to-same.booth.pm/items/7951475");
                     }
@@ -161,10 +161,10 @@ namespace ChimeraHairMaster.Editor
                 else
                 {
                     if (EditorUtility.DisplayDialog(
-                        "マスクツール未インストール",
-                        "この機能にはマスク作成支援ツールが必要です。マスクツール同梱版，もしくは「塗って！選んで！マスク作れるやつ」v1.1以上を導入してください。",
-                        "商品ページを開く",
-                        "閉じる"))
+                        CHMLocales.Tr("MaskTool:Dialog:NotInstalledTitle"),
+                        CHMLocales.Tr("MaskTool:Dialog:NotInstalledSubmeshBody"),
+                        CHMLocales.Tr("MaskTool:Dialog:OpenProductPage"),
+                        CHMLocales.Tr("MaskTool:Dialog:Close")))
                     {
                         Application.OpenURL("https://neko-to-same.booth.pm/items/7951475");
                     }

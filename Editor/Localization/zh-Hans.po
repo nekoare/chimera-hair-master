@@ -1,0 +1,706 @@
+msgid ""
+msgstr ""
+"Language: zh-Hans\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+
+msgid "Window:Title"
+msgstr "奇美拉毛发大师"
+
+msgid "Window:Header:Description"
+msgstr "对多个头发贴图进行色调统一、UV整合与Material合并。"
+
+msgid "Window:TargetSelection:Header"
+msgstr "目标选择"
+
+msgid "Window:TargetSelection:Avatar"
+msgstr "模型"
+
+msgid "Window:TargetSelection:NoAvatarDescriptor"
+msgstr "所选GameObject上没有VRC Avatar Descriptor。"
+
+msgid "Window:TargetSelection:HairPartsList"
+msgstr "头发部件列表"
+
+msgid "Window:TargetSelection:DragHint"
+msgstr "将头发部件(SkinnedMeshRenderer)拖放到窗口任意位置\n或点击[+]按钮添加"
+
+msgid "Window:MaterialSelection:Header"
+msgstr "目标Material选择"
+
+msgid "Window:MaterialSelection:HintMerge"
+msgstr "勾选要加入合并的Material。\n未勾选的Material会保留在原Renderer上显示。"
+
+msgid "Window:MaterialSelection:HintNoMerge"
+msgstr "勾选要处理的Material。\n未勾选的Material不会被修改。"
+
+msgid "Window:MaterialSelection:NoRenderer"
+msgstr "尚未选择头发Renderer"
+
+msgid "Window:MaterialSelection:CutMask"
+msgstr "裁剪遮罩"
+
+msgid "Window:ColorSettings:Header"
+msgstr "色调统一设置(简易)"
+
+msgid "Window:ColorSettings:Mode"
+msgstr "颜色转换模式"
+
+msgid "Window:ColorSettings:Gradient"
+msgstr "Mode 1"
+
+msgid "Window:ColorSettings:ChangeToThisColor"
+msgstr "改为此颜色"
+
+msgid "Window:ColorSettings:HueShiftHint"
+msgstr "将贴图色相调整为指定颜色。\n详细参数可在Inspector中设置。"
+
+msgid "Window:ColorPicker:FoldoutFromTexture"
+msgstr "从贴图拾取颜色"
+
+msgid "Window:ColorPicker:ClickToPick"
+msgstr "点击取色"
+
+msgid "Window:ColorPicker:CandidateColors"
+msgstr "候选色:"
+
+msgid "Window:ColorPicker:TextureNotFound"
+msgstr "未找到贴图"
+
+msgid "Window:GradientColorPicker:FoldoutAddFromTexture"
+msgstr "从贴图添加颜色"
+
+msgid "Window:GradientColorPicker:DarkColor"
+msgstr "暗色"
+
+msgid "Window:GradientColorPicker:LightColor"
+msgstr "亮色"
+
+msgid "Window:GradientColorPicker:ClickToAdd"
+msgstr "点击将颜色添加到渐变"
+
+msgid "Window:UVSettings:Header"
+msgstr "UV布局"
+
+msgid "Window:UVSettings:Resolution"
+msgstr "分辨率"
+
+msgid "Window:UVSettings:Preview"
+msgstr "UV布局预览"
+
+msgid "Window:UVSettings:FitHint"
+msgstr "请将UV排列在框内"
+
+msgid "Window:UVSettings:Legend"
+msgstr "图例: (点击可选中)"
+
+msgid "Window:UVSettings:OutOfBounds"
+msgstr "UV超出了边框，请调整UV布局。"
+
+msgid "Window:UVSettings:AutoArrange"
+msgstr "自动排列"
+
+msgid "Window:UVSettings:Reset"
+msgstr "重置"
+
+msgid "Window:UVSettings:DragHint"
+msgstr "可拖动UV岛调整布局。"
+
+msgid "Window:UVSettings:OverlapWarningHeader"
+msgstr "⚠ UV存在重叠:"
+
+msgid "Window:UVSettings:OverlapWarningLine"
+msgstr "  • {0} 与 {1}"
+
+msgid "Window:OutputSettings:Header"
+msgstr "输出设置"
+
+msgid "Window:OutputSettings:BaseMaterial"
+msgstr "作为Material设置基准的Material"
+
+msgid "Window:OutputSettings:BaseMaterialHint"
+msgstr "指定合并后Material参数的基准Material。\n可拖入Material或GameObject。"
+
+msgid "Window:Action:Setup"
+msgstr "一键配置"
+
+msgid "Window:Validation:SelectAvatar"
+msgstr "请选择模型。"
+
+msgid "Window:Validation:AtLeastTwoRenderers"
+msgstr "请添加2个以上的头发Renderer。"
+
+msgid "Window:Validation:AtLeastOneRenderer"
+msgstr "请至少添加1个头发Renderer。"
+
+msgid "Window:Validation:SelectBaseMaterial"
+msgstr "请选择基准Material。"
+
+msgid "Window:Validation:UnsetRenderer"
+msgstr "存在未设置的Renderer。"
+
+msgid "Window:Validation:UVOverlap"
+msgstr "UV存在重叠，请调整UV布局。"
+
+msgid "Window:Setup:CompleteMessage"
+msgstr "配置已完成。\n可在生成的GameObject上进一步调整。\n\n若要在Scene中查看效果，请打开\"启用预览\"。"
+
+msgid "Window:ColorTransform:Enabled"
+msgstr "色调统一\n已启用"
+
+msgid "Window:ColorTransform:Disabled"
+msgstr "色调统一"
+
+msgid "Window:MeshMerge:Enabled"
+msgstr "Mesh合并\n已启用"
+
+msgid "Window:MeshMerge:Disabled"
+msgstr "Mesh合并"
+
+msgid "MeshDeformWindow:Title"
+msgstr "Mesh变形"
+
+msgid "MeshDeformWindow:Header:Title"
+msgstr "Mesh变形 配置"
+
+msgid "MeshDeformWindow:Header:Description"
+msgstr "登记要变形的Renderer并点击\"一键配置\"。\n配置完成后可在Inspector中编辑。"
+
+msgid "MeshDeformWindow:TargetRenderer"
+msgstr "目标Renderer"
+
+msgid "MeshDeformWindow:RegisterRendererHint"
+msgstr "请登记Renderer。"
+
+msgid "MeshDeformWindow:Action:Setup"
+msgstr "一键配置"
+
+msgid "MeshDeformWindow:Dialog:NoSMR"
+msgstr "所选GameObject上没有SkinnedMeshRenderer。"
+
+msgid "MeshDeformWindow:Dialog:ConfirmTitle"
+msgstr "确认"
+
+msgid "MeshDeformWindow:Dialog:OverwriteMessage"
+msgstr "{0} 上已存在Mesh变形组件。\n是否覆盖目标Renderer？"
+
+msgid "MeshDeformWindow:Dialog:Overwrite"
+msgstr "覆盖"
+
+msgid "MeshDeformWindow:Dialog:Cancel"
+msgstr "取消"
+
+msgid "MeshDeformWindow:Conflict:CHM"
+msgstr "{0} 上已存在Chimera Hair Master，请在其中进行变形。"
+
+msgid "MeshDeformWindow:Conflict:Existing"
+msgstr "{0} 上已存在Mesh变形组件。"
+
+msgid "MeshDeformStandalone:Header"
+msgstr "CHM - Mesh变形功能"
+
+msgid "MeshDeformStandalone:NoRendererWarning"
+msgstr "尚未设置目标Renderer。\n请从菜单\"Chimera Hair Master > Mesh变形\"进行配置。"
+
+msgid "Inspector:Title"
+msgstr "Chimera Hair Master"
+
+msgid "Inspector:Enabled"
+msgstr "启用"
+
+msgid "Inspector:Help"
+msgstr "帮助"
+
+msgid "Inspector:DisabledHelp"
+msgstr "组件已禁用，构建时不会执行处理。"
+
+msgid "Inspector:BasicSettings"
+msgstr "基本设置"
+
+msgid "Inspector:TargetRenderers"
+msgstr "目标Renderer"
+
+msgid "Inspector:TargetRenderersHelp"
+msgstr "请从EditorWindow修改目标Renderer。\n菜单: Chimera Hair Master > 打开窗口"
+
+msgid "Inspector:TextureSettings"
+msgstr "贴图设置"
+
+msgid "Inspector:TextureResolution"
+msgstr "分辨率"
+
+msgid "Inspector:ColorChangeTargets"
+msgstr "变色对象"
+
+msgid "Inspector:UVPlacements"
+msgstr "UV布局"
+
+msgid "Inspector:UVPlacementsHelp"
+msgstr "请从EditorWindow修改UV布局。"
+
+msgid "Inspector:BaseMaterial"
+msgstr "基准Material"
+
+msgid "Inspector:MeshCutSettings"
+msgstr "Mesh裁剪设置"
+
+msgid "Inspector:MeshCutHelp"
+msgstr "可用遮罩将头发Mesh的部分区域从合并中剔除。遮罩参照原头发的UV。"
+
+msgid "Inspector:SubmeshLabelFormat"
+msgstr "SubMesh {0}: {1}"
+
+msgid "Inspector:MaterialFallback"
+msgstr "(Material {0})"
+
+msgid "Inspector:CreateMask"
+msgstr "创建遮罩"
+
+msgid "Inspector:ColorSettings"
+msgstr "色调统一设置"
+
+msgid "Inspector:EnableColorTransform"
+msgstr "启用色调统一"
+
+msgid "Inspector:EnableColorTransformHelp"
+msgstr "不进行色调统一时，贴图将原样合并。\n适用于想合并多张贴图但不改变颜色的场合。"
+
+msgid "Inspector:ColorTransformMode"
+msgstr "颜色转换模式"
+
+msgid "Inspector:GradientCurve"
+msgstr "Mode 1"
+
+msgid "Inspector:GradientHelp"
+msgstr "渐变模式\n根据原贴图的明暗，按设定的渐变来上色。\n渐变最左端对应最暗处的颜色，最右端对应最亮处的颜色。\n适合想要拉开明暗对比的情况。"
+
+msgid "Inspector:TargetColor"
+msgstr "改为此颜色"
+
+msgid "Inspector:SaturationPreserve"
+msgstr "保留原饱和度"
+
+msgid "Inspector:ValuePreserve"
+msgstr "保留原明度"
+
+msgid "Inspector:AutoAdjust"
+msgstr "自动调整"
+
+msgid "Inspector:BrightnessUnifyMode"
+msgstr "统一整体亮度(高负荷)"
+
+msgid "Inspector:HueShiftHelp"
+msgstr "指定色模式(默认)\n将整体变更为指定颜色。\n适合原头发明暗对比较小的情况。"
+
+msgid "Inspector:BrightnessAdjustment"
+msgstr "分别调整亮度"
+
+msgid "Inspector:Reset"
+msgstr "重置"
+
+msgid "Inspector:BrightnessAdjustmentHelp"
+msgstr "可单独调整各Renderer的亮度。\n正值变亮，负值变暗。\n点击\"重置\"按钮回到0。"
+
+msgid "Inspector:ColorMaskSettings"
+msgstr "忽略色调统一(遮罩)"
+
+msgid "Inspector:ColorMaskHelp"
+msgstr "可用遮罩局部忽略色调统一。\n遮罩参照原头发的UV。\n黑色区域不会进行色调统一，保留原色。"
+
+msgid "Inspector:PhysBoneList"
+msgstr "相关PhysBone"
+
+msgid "Inspector:PhysBoneListHelp"
+msgstr "列出影响各Renderer Mesh的PhysBone组件。\n点击可在Hierarchy中高亮。"
+
+msgid "Inspector:AvatarDescriptorNotFound"
+msgstr "未找到VRC Avatar Descriptor。"
+
+msgid "Inspector:NoPhysBone"
+msgstr "(无PhysBone)"
+
+msgid "Inspector:TextureColorPicker"
+msgstr "从贴图拾取颜色"
+
+msgid "Inspector:ClickToPickColor"
+msgstr "点击取色"
+
+msgid "Inspector:CandidateColors"
+msgstr "候选色:"
+
+msgid "Inspector:TextureNotFound"
+msgstr "未找到贴图"
+
+msgid "Inspector:GradientTextureColorPicker"
+msgstr "从贴图添加颜色"
+
+msgid "Inspector:DarkColor"
+msgstr "暗色"
+
+msgid "Inspector:LightColor"
+msgstr "亮色"
+
+msgid "Inspector:ClickToAddColorToGradient"
+msgstr "点击将颜色添加到渐变\n两端颜色稍微极端一些通常更容易调出理想效果。"
+
+msgid "Inspector:PreviewGenerateHelp"
+msgstr "开启预览后将显示Material设置。"
+
+msgid "Inspector:GeneratePreviewMaterial"
+msgstr "生成预览用Material"
+
+msgid "Inspector:MaterialSettings"
+msgstr "Material设置"
+
+msgid "Inspector:BaseMaterialRequiredHelp"
+msgstr "设置基准Material后将显示Material设置。"
+
+msgid "Inspector:MeshSettings"
+msgstr "Mesh设置"
+
+msgid "Inspector:MeshSettingsHelp"
+msgstr "可设置合并后Mesh的Probe Anchor和Bounds。\nBounds不合适时，Mesh可能在某些相机角度下消失。"
+
+msgid "Inspector:ProbeAnchorHeader"
+msgstr "Probe Anchor(光照基准点)"
+
+msgid "Inspector:SettingMode"
+msgstr "设置模式"
+
+msgid "Inspector:ProbeAnchor"
+msgstr "Probe Anchor"
+
+msgid "Inspector:ProbeAnchorHelp"
+msgstr "合并Mesh计算光照时的基准点。\n通常指定为Head骨骼等。"
+
+msgid "Inspector:BoundsHeader"
+msgstr "Bounds(包围盒)"
+
+msgid "Inspector:RootBone"
+msgstr "Root Bone"
+
+msgid "Inspector:Bounds"
+msgstr "Bounds"
+
+msgid "Inspector:BoundsHelp"
+msgstr "合并Mesh的绘制范围，使用相对Root Bone的坐标。\n多数情况下默认值(Center: 0,0,0 Size: 2,2,2)即可，\n若Mesh会消失请调大Size。"
+
+msgid "Inspector:FrameBoundsInScene"
+msgstr "在Scene视图中查看Bounds"
+
+msgid "Inspector:MeshDeformSection"
+msgstr "Mesh变形"
+
+msgid "Inspector:MeshDeformConflictTitle"
+msgstr "Mesh变形冲突"
+
+msgid "Inspector:MeshDeformConflictMessage"
+msgstr "{0} 已使用Mesh变形，变形功能发生冲突。\n请删除该组件，或先导出变形后的Mesh再试。"
+
+msgid "Inspector:StandaloneConflictFormat"
+msgstr "Mesh变形 ({0}) 的 {1}"
+
+msgid "Inspector:PreviewStop"
+msgstr "停止预览"
+
+msgid "Inspector:PreviewStart"
+msgstr "开始预览"
+
+msgid "Inspector:EditMask"
+msgstr "编辑遮罩"
+
+msgid "Inspector:PreviewResolution"
+msgstr "预览分辨率"
+
+msgid "Inspector:PreviewHelpNoMerge"
+msgstr "预览已启用，可在Scene中查看效果。\n主色2nd、3rd以及发光设置请在原Material上修改。\n各Material的设置会统一为预览Material的数值(贴图除外)。"
+
+msgid "Inspector:UnifyMatCap"
+msgstr "统一MatCap"
+
+msgid "Inspector:UnifyMatCapTooltip"
+msgstr "启用后，各Renderer将统一使用预览Material的MatCap设置(1st/2nd)。\n关闭时则保留各Renderer原Material的MatCap设置。"
+
+msgid "Inspector:PreviewHelpMerge"
+msgstr "预览已启用，可在Scene中查看最终效果。\n卡顿时请停止预览。\n预览中未应用法线贴图、AO贴图，实际表现请用GestureManager等工具查看。"
+
+msgid "Inspector:PreviewRequiresSetup"
+msgstr "要启用预览，请先设置目标Renderer和基准Material。"
+
+msgid "Inspector:SaveAsTextureSection"
+msgstr "另存为贴图功能"
+
+msgid "Inspector:ApplyTexture"
+msgstr "将贴图应用到Material"
+
+msgid "Inspector:UnifySettings"
+msgstr "统一Material设置"
+
+msgid "Inspector:ApplyDeformation"
+msgstr "同时应用变形"
+
+msgid "Inspector:ApplyDeformationTooltip"
+msgstr "生成已应用Mesh变形数据的Mesh，并设置到Renderer上"
+
+msgid "Inspector:ApplyHelp"
+msgstr "将完成色调统一的贴图导出为PNG。\n\"将贴图应用到Material\": 把生成的贴图设置到原Material的_MainTex。\n\"统一Material设置\": 用预览Material的数值覆盖原Material。\n\"同时应用变形\": 保存已应用Mesh变形数据的Mesh并设置到Renderer。\n应用后组件会自动禁用。"
+
+msgid "Inspector:ApplyButton"
+msgstr "将Chimera Hair Master应用到原头发"
+
+msgid "Inspector:ApplyRequiresSetup"
+msgstr "要应用，请先设置目标Renderer和基准Material。"
+
+msgid "Inspector:SharedRendererWarningFormat"
+msgstr "以下Renderer与其他Chimera Hair Master重复使用。\n构建时会产生冲突，结果将不确定。\n{0}"
+
+msgid "Inspector:SharedRendererItemFormat"
+msgstr "  - {0}"
+
+msgid "Inspector:SharedRendererNameFormat"
+msgstr "{0} ({1})"
+
+msgid "MeshDeformInspector:RendererNotSet"
+msgstr "尚未设置目标Renderer"
+
+msgid "MeshDeformInspector:TargetRenderer"
+msgstr "目标Renderer"
+
+msgid "MeshDeformInspector:Mode:UVIsland"
+msgstr "部件变形"
+
+msgid "MeshDeformInspector:Mode:UVIslandActive"
+msgstr "■ 部件变形中"
+
+msgid "MeshDeformInspector:Mode:Vertex"
+msgstr "顶点变形"
+
+msgid "MeshDeformInspector:Mode:VertexActive"
+msgstr "■ 顶点变形中"
+
+msgid "MeshDeformInspector:Mode:Lattice"
+msgstr "整体形状调整 (Lattice变形)"
+
+msgid "MeshDeformInspector:Mode:LatticeActive"
+msgstr "■ Lattice编辑中"
+
+msgid "MeshDeformInspector:Lattice:Revert"
+msgstr "撤销Lattice变形"
+
+msgid "MeshDeformInspector:Lattice:RevertTooltip"
+msgstr "撤销使用Lattice进行的所有变形，恢复到创建前的状态"
+
+msgid "MeshDeformInspector:Lattice:SettingsHeader"
+msgstr "Lattice设置"
+
+msgid "MeshDeformInspector:Lattice:HelpBox"
+msgstr "拖动控制点可移动，点击选中后会显示XYZ轴手柄。\n变形会实时反映。"
+
+msgid "MeshDeformInspector:Lattice:DivX"
+msgstr "X分割"
+
+msgid "MeshDeformInspector:Lattice:DivY"
+msgstr "Y分割"
+
+msgid "MeshDeformInspector:Lattice:DivZ"
+msgstr "Z分割"
+
+msgid "MeshDeformInspector:Vertex:ToolsHeader"
+msgstr "所选顶点工具"
+
+msgid "MeshDeformInspector:Vertex:Shrink"
+msgstr "收缩 ←"
+
+msgid "MeshDeformInspector:Vertex:Inflate"
+msgstr "→ 膨胀"
+
+msgid "MeshDeformInspector:Vertex:ResetSlider"
+msgstr "将滑块重置为0"
+
+msgid "MeshDeformInspector:Vertex:Smooth"
+msgstr "平滑"
+
+msgid "MeshDeformInspector:Vertex:SmoothTooltip"
+msgstr "让所选顶点向周围顶点靠拢以变得平滑，多次点击会更平滑"
+
+msgid "MeshDeformInspector:Symmetry:Header"
+msgstr "对称编辑"
+
+msgid "MeshDeformInspector:Symmetry:X"
+msgstr "X (左右)"
+
+msgid "MeshDeformInspector:Symmetry:Y"
+msgstr "Y (前后)"
+
+msgid "MeshDeformInspector:Symmetry:Z"
+msgstr "Z (上下)"
+
+msgid "MeshDeformInspector:Symmetry:OffsetX"
+msgstr "偏移 X"
+
+msgid "MeshDeformInspector:Symmetry:OffsetY"
+msgstr "偏移 Y"
+
+msgid "MeshDeformInspector:Symmetry:OffsetZ"
+msgstr "偏移 Z"
+
+msgid "MeshDeformInspector:Advanced:Header"
+msgstr "高级设置"
+
+msgid "MeshDeformInspector:Advanced:BrushRadius"
+msgstr "影响范围 (m)"
+
+msgid "MeshDeformInspector:Advanced:BrushRadiusTooltip"
+msgstr "设定所选顶点周围变形影响的扩散半径。拖动时可用鼠标滚轮调整"
+
+msgid "MeshDeformInspector:Advanced:Falloff"
+msgstr "距离衰减"
+
+msgid "MeshDeformInspector:Advanced:FalloffTooltip"
+msgstr "设定在影响范围边缘处变形量如何递减"
+
+msgid "MeshDeformInspector:Advanced:Metric"
+msgstr "距离计算方式"
+
+msgid "MeshDeformInspector:Advanced:MetricTooltip"
+msgstr "设定顶点间距离的计算方式"
+
+msgid "MeshDeformInspector:Advanced:BackfaceCulling"
+msgstr "背面剔除"
+
+msgid "MeshDeformInspector:Advanced:BackfaceCullingTooltip"
+msgstr "隐藏背向镜头的顶点，使其不被选中"
+
+msgid "MeshDeformInspector:Advanced:ZTest"
+msgstr "Z-test(遮挡隐藏)"
+
+msgid "MeshDeformInspector:Advanced:ZTestTooltip"
+msgstr "隐藏被其他Mesh遮挡的顶点"
+
+msgid "MeshDeformInspector:Export:SaveMesh"
+msgstr "保存Mesh"
+
+msgid "MeshDeformInspector:Export:SaveAndReplace"
+msgstr "保存Mesh并替换"
+
+msgid "MeshDeformInspector:Export:SaveDialogTitle"
+msgstr "保存变形后的Mesh"
+
+msgid "MeshDeformInspector:Export:SaveDialogMessage"
+msgstr "请选择变形后Mesh的保存位置"
+
+msgid "MeshDeformInspector:Export:ReplaceConfirmTitle"
+msgstr "确认替换Mesh"
+
+msgid "MeshDeformInspector:Export:ReplaceConfirmMessage"
+msgstr "是否将 {0} 的Mesh替换为变形后的Mesh？\n变形数据会烘焙进Mesh中，Delta将被清空。\n此操作可以Undo。"
+
+msgid "MeshDeformInspector:Export:ReplaceConfirmOk"
+msgstr "替换"
+
+msgid "MeshDeformInspector:Export:Cancel"
+msgstr "取消"
+
+msgid "MeshDeformInspector:Reset:Button"
+msgstr "重置变形"
+
+msgid "MeshDeformInspector:Reset:ConfirmTitle"
+msgstr "确认重置变形"
+
+msgid "MeshDeformInspector:Reset:ConfirmMessage"
+msgstr "是否重置该Renderer的所有变形数据？"
+
+msgid "MeshDeformInspector:Reset:ConfirmOk"
+msgstr "重置"
+
+msgid "Scene:Mode:UVIsland"
+msgstr "UV岛编辑"
+
+msgid "Scene:Mode:Lattice"
+msgstr "Lattice编辑"
+
+msgid "Scene:Mode:Vertex"
+msgstr "顶点编辑"
+
+msgid "Scene:Guide:Lattice"
+msgstr "--- {0} ---\n点击: 选中控制点\n拖动: 自由移动控制点\nCtrl+点击: 加选/取消\nShift+点击: 加选\n选中后: 通过XYZ轴手柄移动"
+
+msgid "Scene:Guide:UVIsland"
+msgstr "--- {0} ---\n点击: 选中UV岛\nCtrl+点击: 加选/取消\nShift+点击: 加选\nW/E/R: 移动/旋转/缩放"
+
+msgid "Scene:Guide:Vertex"
+msgstr "--- {0} ---\n点击: 选中顶点\n拖动: 框选\nCtrl+点击: 加选/取消\nShift+点击: 加选\nW/E/R: 移动/旋转/缩放\n拖动时滚轮: 调整影响范围"
+
+msgid "MaskTool:Dialog:UpdateRequiredTitle"
+msgstr "遮罩工具需要更新"
+
+msgid "MaskTool:Dialog:NotInstalledTitle"
+msgstr "未安装遮罩工具"
+
+msgid "MaskTool:Dialog:UpdateAssetsV1Body"
+msgstr "已安装的\"涂涂选选遮罩生成器\"不支持与CHM联动，请升级到v1.0以上。"
+
+msgid "MaskTool:Dialog:OpenProductPage"
+msgstr "打开商品页"
+
+msgid "MaskTool:Dialog:Close"
+msgstr "关闭"
+
+msgid "MaskTool:Dialog:NotInstalledBody"
+msgstr "未安装遮罩制作辅助工具。请安装遮罩工具同捆版，或\"涂涂选选遮罩生成器\" v1.0以上。"
+
+msgid "MaskTool:Dialog:UpdateVpmV11Body"
+msgstr "此功能需要遮罩制作辅助工具 v1.1以上，请更新同捆版包。"
+
+msgid "MaskTool:Dialog:UpdateAssetsV11Body"
+msgstr "此功能需要\"涂涂选选遮罩生成器\" v1.1以上，请进行更新。"
+
+msgid "MaskTool:Dialog:UpdateAssetsV11IncompatBody"
+msgstr "已安装的\"涂涂选选遮罩生成器\"不支持此功能，请升级到v1.1以上。"
+
+msgid "MaskTool:Dialog:NotInstalledSubmeshBody"
+msgstr "此功能需要遮罩制作辅助工具。请安装遮罩工具同捆版，或\"涂涂选选遮罩生成器\" v1.1以上。"
+
+msgid "ColorTransformMode:Gradient"
+msgstr "Mode 2"
+
+msgid "ColorTransformMode:HueShift"
+msgstr "Mode 1"
+
+msgid "BrightnessUnifyMode:Off"
+msgstr "关闭"
+
+msgid "BrightnessUnifyMode:ToBrightest"
+msgstr "统一到最亮(高负荷)"
+
+msgid "BrightnessUnifyMode:ToDarkest"
+msgstr "统一到最暗(高负荷)"
+
+msgid "FalloffType:Constant"
+msgstr "均匀"
+
+msgid "FalloffType:Linear"
+msgstr "直线"
+
+msgid "FalloffType:Smooth"
+msgstr "平滑"
+
+msgid "FalloffType:Sphere"
+msgstr "中心优先"
+
+msgid "DistanceMetric:Euclidean"
+msgstr "空间直线距离"
+
+msgid "DistanceMetric:Geodesic"
+msgstr "沿表面距离"
+
+msgid "MeshSettingsInheritMode:Inherit"
+msgstr "继承"
+
+msgid "MeshSettingsInheritMode:Set"
+msgstr "设置"
+
+msgid "MeshSettingsInheritMode:DontSet"
+msgstr "不设置"
+
+msgid "MeshSettingsInheritMode:SetOrInherit"
+msgstr "父对象已设置时继承，否则使用此设置"

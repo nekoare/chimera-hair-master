@@ -1,0 +1,706 @@
+msgid ""
+msgstr ""
+"Language: en-US\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+
+msgid "Window:Title"
+msgstr "Chimera Hair Master"
+
+msgid "Window:Header:Description"
+msgstr "Merge multiple hair textures, UVs, and materials while matching their colors."
+
+msgid "Window:TargetSelection:Header"
+msgstr "Target Selection"
+
+msgid "Window:TargetSelection:Avatar"
+msgstr "Avatar"
+
+msgid "Window:TargetSelection:NoAvatarDescriptor"
+msgstr "The selected GameObject has no VRC Avatar Descriptor."
+
+msgid "Window:TargetSelection:HairPartsList"
+msgstr "Hair Parts"
+
+msgid "Window:TargetSelection:DragHint"
+msgstr "Drag & drop hair parts (SkinnedMeshRenderer) anywhere in this window,\nor use the [+] button to add them."
+
+msgid "Window:MaterialSelection:Header"
+msgstr "Target Materials"
+
+msgid "Window:MaterialSelection:HintMerge"
+msgstr "Check the materials you want to include in the merge.\nUnchecked materials will remain on the original Renderer."
+
+msgid "Window:MaterialSelection:HintNoMerge"
+msgstr "Check the materials you want to process.\nUnchecked materials will be left untouched."
+
+msgid "Window:MaterialSelection:NoRenderer"
+msgstr "No hair Renderer selected."
+
+msgid "Window:MaterialSelection:CutMask"
+msgstr "Cut Mask"
+
+msgid "Window:ColorSettings:Header"
+msgstr "Color Matching (Quick Settings)"
+
+msgid "Window:ColorSettings:Mode"
+msgstr "Color Transform Mode"
+
+msgid "Window:ColorSettings:Gradient"
+msgstr "Mode 1"
+
+msgid "Window:ColorSettings:ChangeToThisColor"
+msgstr "Change to this color"
+
+msgid "Window:ColorSettings:HueShiftHint"
+msgstr "Shifts the texture's hue toward the specified color.\nAdvanced options are available in the Inspector."
+
+msgid "Window:ColorPicker:FoldoutFromTexture"
+msgstr "Pick color from texture"
+
+msgid "Window:ColorPicker:ClickToPick"
+msgstr "Click to pick a color"
+
+msgid "Window:ColorPicker:CandidateColors"
+msgstr "Suggested colors:"
+
+msgid "Window:ColorPicker:TextureNotFound"
+msgstr "Texture not found."
+
+msgid "Window:GradientColorPicker:FoldoutAddFromTexture"
+msgstr "Add color from texture"
+
+msgid "Window:GradientColorPicker:DarkColor"
+msgstr "Dark color"
+
+msgid "Window:GradientColorPicker:LightColor"
+msgstr "Light color"
+
+msgid "Window:GradientColorPicker:ClickToAdd"
+msgstr "Click to add a color to the gradient"
+
+msgid "Window:UVSettings:Header"
+msgstr "UV Layout"
+
+msgid "Window:UVSettings:Resolution"
+msgstr "Resolution"
+
+msgid "Window:UVSettings:Preview"
+msgstr "UV Layout Preview"
+
+msgid "Window:UVSettings:FitHint"
+msgstr "Arrange islands so they fit inside the frame."
+
+msgid "Window:UVSettings:Legend"
+msgstr "Legend: (click to select)"
+
+msgid "Window:UVSettings:OutOfBounds"
+msgstr "UVs are outside the frame. Please adjust the layout."
+
+msgid "Window:UVSettings:AutoArrange"
+msgstr "Auto Arrange"
+
+msgid "Window:UVSettings:Reset"
+msgstr "Reset"
+
+msgid "Window:UVSettings:DragHint"
+msgstr "Drag UV islands to adjust their placement."
+
+msgid "Window:UVSettings:OverlapWarningHeader"
+msgstr "⚠ UV islands overlap:"
+
+msgid "Window:UVSettings:OverlapWarningLine"
+msgstr "  • {0} and {1}"
+
+msgid "Window:OutputSettings:Header"
+msgstr "Output Settings"
+
+msgid "Window:OutputSettings:BaseMaterial"
+msgstr "Base Material for Merged Settings"
+
+msgid "Window:OutputSettings:BaseMaterialHint"
+msgstr "Material whose settings will be used as the base after merging.\nYou can drop a Material or a GameObject here."
+
+msgid "Window:Action:Setup"
+msgstr "Set Up"
+
+msgid "Window:Validation:SelectAvatar"
+msgstr "Please select an avatar."
+
+msgid "Window:Validation:AtLeastTwoRenderers"
+msgstr "Please add at least two hair Renderers."
+
+msgid "Window:Validation:AtLeastOneRenderer"
+msgstr "Please add at least one hair Renderer."
+
+msgid "Window:Validation:SelectBaseMaterial"
+msgstr "Please select a base material."
+
+msgid "Window:Validation:UnsetRenderer"
+msgstr "Some Renderer slots are empty."
+
+msgid "Window:Validation:UVOverlap"
+msgstr "UV islands overlap. Please adjust the UV layout."
+
+msgid "Window:Setup:CompleteMessage"
+msgstr "Setup complete.\nYou can fine-tune the result on the generated GameObject.\n\nTurn on \"Preview\" to see the result in the Scene view."
+
+msgid "Window:ColorTransform:Enabled"
+msgstr "Color Matching\nEnabled"
+
+msgid "Window:ColorTransform:Disabled"
+msgstr "Color Matching"
+
+msgid "Window:MeshMerge:Enabled"
+msgstr "Mesh Merge\nEnabled"
+
+msgid "Window:MeshMerge:Disabled"
+msgstr "Mesh Merge"
+
+msgid "MeshDeformWindow:Title"
+msgstr "Mesh Deformation"
+
+msgid "MeshDeformWindow:Header:Title"
+msgstr "Mesh Deformation Setup"
+
+msgid "MeshDeformWindow:Header:Description"
+msgstr "Register the Renderer you want to deform and press \"Set Up\".\nAfter setup, editing is done from the Inspector."
+
+msgid "MeshDeformWindow:TargetRenderer"
+msgstr "Target Renderer"
+
+msgid "MeshDeformWindow:RegisterRendererHint"
+msgstr "Please register a Renderer."
+
+msgid "MeshDeformWindow:Action:Setup"
+msgstr "Set Up"
+
+msgid "MeshDeformWindow:Dialog:NoSMR"
+msgstr "The selected GameObject has no SkinnedMeshRenderer."
+
+msgid "MeshDeformWindow:Dialog:ConfirmTitle"
+msgstr "Confirm"
+
+msgid "MeshDeformWindow:Dialog:OverwriteMessage"
+msgstr "{0} already has a Mesh Deformation component.\nOverwrite its target Renderer?"
+
+msgid "MeshDeformWindow:Dialog:Overwrite"
+msgstr "Overwrite"
+
+msgid "MeshDeformWindow:Dialog:Cancel"
+msgstr "Cancel"
+
+msgid "MeshDeformWindow:Conflict:CHM"
+msgstr "{0} has a Chimera Hair Master component, so please edit deformation from there."
+
+msgid "MeshDeformWindow:Conflict:Existing"
+msgstr "{0} already has a Mesh Deformation component."
+
+msgid "MeshDeformStandalone:Header"
+msgstr "CHM - Mesh Deformation"
+
+msgid "MeshDeformStandalone:NoRendererWarning"
+msgstr "No target Renderer is set.\nUse the menu \"Chimera Hair Master > Mesh Deformation\" to set one up."
+
+msgid "Inspector:Title"
+msgstr "Chimera Hair Master"
+
+msgid "Inspector:Enabled"
+msgstr "Enabled"
+
+msgid "Inspector:Help"
+msgstr "Help"
+
+msgid "Inspector:DisabledHelp"
+msgstr "This component is disabled and will be skipped at build time."
+
+msgid "Inspector:BasicSettings"
+msgstr "Basic Settings"
+
+msgid "Inspector:TargetRenderers"
+msgstr "Target Renderers"
+
+msgid "Inspector:TargetRenderersHelp"
+msgstr "To change the target Renderers, please use the Editor Window.\nMenu: Chimera Hair Master > Open Window"
+
+msgid "Inspector:TextureSettings"
+msgstr "Texture Settings"
+
+msgid "Inspector:TextureResolution"
+msgstr "Resolution"
+
+msgid "Inspector:ColorChangeTargets"
+msgstr "Color Change Targets"
+
+msgid "Inspector:UVPlacements"
+msgstr "UV Layout"
+
+msgid "Inspector:UVPlacementsHelp"
+msgstr "To change the UV layout, please use the Editor Window."
+
+msgid "Inspector:BaseMaterial"
+msgstr "Base Material"
+
+msgid "Inspector:MeshCutSettings"
+msgstr "Mesh Cut Settings"
+
+msgid "Inspector:MeshCutHelp"
+msgstr "Use a mask to exclude parts of the hair mesh from the merge. The mask uses the original hair's UVs."
+
+msgid "Inspector:SubmeshLabelFormat"
+msgstr "SubMesh {0}: {1}"
+
+msgid "Inspector:MaterialFallback"
+msgstr "(Material {0})"
+
+msgid "Inspector:CreateMask"
+msgstr "Create Mask"
+
+msgid "Inspector:ColorSettings"
+msgstr "Color Matching Settings"
+
+msgid "Inspector:EnableColorTransform"
+msgstr "Enable Color Matching"
+
+msgid "Inspector:EnableColorTransformHelp"
+msgstr "If color matching is off, textures are merged as-is.\nUse this when you want to merge multiple textures without changing their colors."
+
+msgid "Inspector:ColorTransformMode"
+msgstr "Color Transform Mode"
+
+msgid "Inspector:GradientCurve"
+msgstr "Mode 1"
+
+msgid "Inspector:GradientHelp"
+msgstr "Gradient mode\nMaps the original texture's brightness onto the configured gradient.\nThe leftmost color becomes the darkest pixel, the rightmost becomes the brightest.\nUseful when you want more contrast between shadows and highlights."
+
+msgid "Inspector:TargetColor"
+msgstr "Change to this color"
+
+msgid "Inspector:SaturationPreserve"
+msgstr "Preserve Original Saturation"
+
+msgid "Inspector:ValuePreserve"
+msgstr "Preserve Original Brightness"
+
+msgid "Inspector:AutoAdjust"
+msgstr "Auto Adjust"
+
+msgid "Inspector:BrightnessUnifyMode"
+msgstr "Unify Overall Brightness (heavy)"
+
+msgid "Inspector:HueShiftHelp"
+msgstr "Color mode (default)\nShifts the whole texture toward the chosen color.\nBest when the original hair has little contrast."
+
+msgid "Inspector:BrightnessAdjustment"
+msgstr "Per-Renderer Brightness"
+
+msgid "Inspector:Reset"
+msgstr "Reset"
+
+msgid "Inspector:BrightnessAdjustmentHelp"
+msgstr "Fine-tune each Renderer's brightness individually.\nPositive values brighten, negative values darken.\nPress \"Reset\" to return to 0."
+
+msgid "Inspector:ColorMaskSettings"
+msgstr "Color Matching Ignore (Mask)"
+
+msgid "Inspector:ColorMaskHelp"
+msgstr "Use a mask to skip color matching in specific areas.\nThe mask uses the original hair's UVs.\nBlack areas keep their original color and are not recolored."
+
+msgid "Inspector:PhysBoneList"
+msgstr "Related PhysBones"
+
+msgid "Inspector:PhysBoneListHelp"
+msgstr "PhysBone components that affect each Renderer's mesh.\nClick an entry to highlight it in the Hierarchy."
+
+msgid "Inspector:AvatarDescriptorNotFound"
+msgstr "VRC Avatar Descriptor not found."
+
+msgid "Inspector:NoPhysBone"
+msgstr "(No PhysBone)"
+
+msgid "Inspector:TextureColorPicker"
+msgstr "Pick color from texture"
+
+msgid "Inspector:ClickToPickColor"
+msgstr "Click to pick a color"
+
+msgid "Inspector:CandidateColors"
+msgstr "Suggested colors:"
+
+msgid "Inspector:TextureNotFound"
+msgstr "Texture not found."
+
+msgid "Inspector:GradientTextureColorPicker"
+msgstr "Add color from texture"
+
+msgid "Inspector:DarkColor"
+msgstr "Dark color"
+
+msgid "Inspector:LightColor"
+msgstr "Light color"
+
+msgid "Inspector:ClickToAddColorToGradient"
+msgstr "Click to add a color to the gradient.\nSlightly exaggerated colors at the ends often give better results."
+
+msgid "Inspector:PreviewGenerateHelp"
+msgstr "Start the preview to view material settings."
+
+msgid "Inspector:GeneratePreviewMaterial"
+msgstr "Generate Preview Material"
+
+msgid "Inspector:MaterialSettings"
+msgstr "Material Settings"
+
+msgid "Inspector:BaseMaterialRequiredHelp"
+msgstr "Set a base material to view material settings."
+
+msgid "Inspector:MeshSettings"
+msgstr "Mesh Settings"
+
+msgid "Inspector:MeshSettingsHelp"
+msgstr "Configure the Probe Anchor and Bounds for the merged mesh.\nIf Bounds are incorrect, the mesh may disappear at certain camera angles."
+
+msgid "Inspector:ProbeAnchorHeader"
+msgstr "Probe Anchor (Lighting Reference)"
+
+msgid "Inspector:SettingMode"
+msgstr "Mode"
+
+msgid "Inspector:ProbeAnchor"
+msgstr "Probe Anchor"
+
+msgid "Inspector:ProbeAnchorHelp"
+msgstr "The reference point used when the merged mesh samples lighting.\nUsually set to the Head bone or similar."
+
+msgid "Inspector:BoundsHeader"
+msgstr "Bounds (Bounding Box)"
+
+msgid "Inspector:RootBone"
+msgstr "Root Bone"
+
+msgid "Inspector:Bounds"
+msgstr "Bounds"
+
+msgid "Inspector:BoundsHelp"
+msgstr "The rendering bounds of the merged mesh, in Root Bone local space.\nThe default (Center 0,0,0, Size 2,2,2) works in most cases,\nbut increase Size if the mesh disappears from view."
+
+msgid "Inspector:FrameBoundsInScene"
+msgstr "Frame Bounds in Scene View"
+
+msgid "Inspector:MeshDeformSection"
+msgstr "Mesh Deformation"
+
+msgid "Inspector:MeshDeformConflictTitle"
+msgstr "Mesh Deformation Conflict"
+
+msgid "Inspector:MeshDeformConflictMessage"
+msgstr "{0} is already using Mesh Deformation, causing a conflict.\nEither remove that component or export the deformed mesh before trying again."
+
+msgid "Inspector:StandaloneConflictFormat"
+msgstr "Mesh Deformation ({0}) on {1}"
+
+msgid "Inspector:PreviewStop"
+msgstr "Stop Preview"
+
+msgid "Inspector:PreviewStart"
+msgstr "Start Preview"
+
+msgid "Inspector:EditMask"
+msgstr "Edit Mask"
+
+msgid "Inspector:PreviewResolution"
+msgstr "Preview Resolution"
+
+msgid "Inspector:PreviewHelpNoMerge"
+msgstr "Preview is active. You can check the result in the Scene view.\nEdit Main Color 2nd/3rd and emission settings on each original material.\nAll material settings will be unified to the preview material's values (textures excluded)."
+
+msgid "Inspector:UnifyMatCap"
+msgstr "Unify MatCap"
+
+msgid "Inspector:UnifyMatCapTooltip"
+msgstr "When enabled, MatCap (1st/2nd) is unified to the preview material.\nWhen disabled, each Renderer keeps its original material's MatCap settings."
+
+msgid "Inspector:PreviewHelpMerge"
+msgstr "Preview is active. You can check the result in the Scene view.\nStop the preview if it runs slowly.\nNormal maps and AO maps are not applied in preview. Use GestureManager or similar to check the final look."
+
+msgid "Inspector:PreviewRequiresSetup"
+msgstr "To enable preview, please set the target Renderers and the base material."
+
+msgid "Inspector:SaveAsTextureSection"
+msgstr "Save as Texture"
+
+msgid "Inspector:ApplyTexture"
+msgstr "Apply texture to material"
+
+msgid "Inspector:UnifySettings"
+msgstr "Unify material settings"
+
+msgid "Inspector:ApplyDeformation"
+msgstr "Bake mesh deformation"
+
+msgid "Inspector:ApplyDeformationTooltip"
+msgstr "Bakes mesh deformation data into a new mesh and assigns it to the Renderer."
+
+msgid "Inspector:ApplyHelp"
+msgstr "Exports the color-matched texture as a PNG.\n\"Apply texture to material\": assigns the generated texture to the original material's _MainTex.\n\"Unify material settings\": copies the preview material's numeric settings back to the originals.\n\"Bake mesh deformation\": saves a deformed mesh with deformation baked in and assigns it to the Renderer.\nThe component is disabled automatically after applying."
+
+msgid "Inspector:ApplyButton"
+msgstr "Apply Chimera Hair Master to Original Hair"
+
+msgid "Inspector:ApplyRequiresSetup"
+msgstr "To apply, please set the target Renderers and the base material."
+
+msgid "Inspector:SharedRendererWarningFormat"
+msgstr "The following Renderers are shared with another Chimera Hair Master.\nThis will cause conflicts at build time with undefined results.\n{0}"
+
+msgid "Inspector:SharedRendererItemFormat"
+msgstr "  - {0}"
+
+msgid "Inspector:SharedRendererNameFormat"
+msgstr "{0} ({1})"
+
+msgid "MeshDeformInspector:RendererNotSet"
+msgstr "No target Renderer is set."
+
+msgid "MeshDeformInspector:TargetRenderer"
+msgstr "Target Renderer"
+
+msgid "MeshDeformInspector:Mode:UVIsland"
+msgstr "Part Deform"
+
+msgid "MeshDeformInspector:Mode:UVIslandActive"
+msgstr "■ Part Deform Active"
+
+msgid "MeshDeformInspector:Mode:Vertex"
+msgstr "Vertex Deform"
+
+msgid "MeshDeformInspector:Mode:VertexActive"
+msgstr "■ Vertex Deform Active"
+
+msgid "MeshDeformInspector:Mode:Lattice"
+msgstr "Shape Adjust (Lattice Deform)"
+
+msgid "MeshDeformInspector:Mode:LatticeActive"
+msgstr "■ Lattice Edit Active"
+
+msgid "MeshDeformInspector:Lattice:Revert"
+msgstr "Revert Lattice Deformation"
+
+msgid "MeshDeformInspector:Lattice:RevertTooltip"
+msgstr "Undo all lattice deformations and return to the pre-lattice state."
+
+msgid "MeshDeformInspector:Lattice:SettingsHeader"
+msgstr "Lattice Settings"
+
+msgid "MeshDeformInspector:Lattice:HelpBox"
+msgstr "Drag control points to move them, click to select and show XYZ handles.\nChanges are reflected in real time."
+
+msgid "MeshDeformInspector:Lattice:DivX"
+msgstr "X Divisions"
+
+msgid "MeshDeformInspector:Lattice:DivY"
+msgstr "Y Divisions"
+
+msgid "MeshDeformInspector:Lattice:DivZ"
+msgstr "Z Divisions"
+
+msgid "MeshDeformInspector:Vertex:ToolsHeader"
+msgstr "Selected Vertex Tools"
+
+msgid "MeshDeformInspector:Vertex:Shrink"
+msgstr "Shrink ←"
+
+msgid "MeshDeformInspector:Vertex:Inflate"
+msgstr "→ Inflate"
+
+msgid "MeshDeformInspector:Vertex:ResetSlider"
+msgstr "Reset slider to 0"
+
+msgid "MeshDeformInspector:Vertex:Smooth"
+msgstr "Smooth"
+
+msgid "MeshDeformInspector:Vertex:SmoothTooltip"
+msgstr "Pull selected vertices toward their neighbors to smooth the surface. Press multiple times for more smoothing."
+
+msgid "MeshDeformInspector:Symmetry:Header"
+msgstr "Symmetric Editing"
+
+msgid "MeshDeformInspector:Symmetry:X"
+msgstr "X (Left/Right)"
+
+msgid "MeshDeformInspector:Symmetry:Y"
+msgstr "Y (Front/Back)"
+
+msgid "MeshDeformInspector:Symmetry:Z"
+msgstr "Z (Up/Down)"
+
+msgid "MeshDeformInspector:Symmetry:OffsetX"
+msgstr "Offset X"
+
+msgid "MeshDeformInspector:Symmetry:OffsetY"
+msgstr "Offset Y"
+
+msgid "MeshDeformInspector:Symmetry:OffsetZ"
+msgstr "Offset Z"
+
+msgid "MeshDeformInspector:Advanced:Header"
+msgstr "Advanced"
+
+msgid "MeshDeformInspector:Advanced:BrushRadius"
+msgstr "Brush Radius (m)"
+
+msgid "MeshDeformInspector:Advanced:BrushRadiusTooltip"
+msgstr "How far deformation spreads around the selected vertex. Use the mouse wheel while dragging to adjust."
+
+msgid "MeshDeformInspector:Advanced:Falloff"
+msgstr "Falloff"
+
+msgid "MeshDeformInspector:Advanced:FalloffTooltip"
+msgstr "How the deformation strength weakens toward the edge of the brush."
+
+msgid "MeshDeformInspector:Advanced:Metric"
+msgstr "Distance Metric"
+
+msgid "MeshDeformInspector:Advanced:MetricTooltip"
+msgstr "How distance between vertices is measured."
+
+msgid "MeshDeformInspector:Advanced:BackfaceCulling"
+msgstr "Backface Culling"
+
+msgid "MeshDeformInspector:Advanced:BackfaceCullingTooltip"
+msgstr "Hide and exclude vertices that face away from the camera."
+
+msgid "MeshDeformInspector:Advanced:ZTest"
+msgstr "Z-Test (Hide Occluded)"
+
+msgid "MeshDeformInspector:Advanced:ZTestTooltip"
+msgstr "Hide vertices that are occluded behind other meshes."
+
+msgid "MeshDeformInspector:Export:SaveMesh"
+msgstr "Save Mesh"
+
+msgid "MeshDeformInspector:Export:SaveAndReplace"
+msgstr "Save Mesh and Replace"
+
+msgid "MeshDeformInspector:Export:SaveDialogTitle"
+msgstr "Save Deformed Mesh"
+
+msgid "MeshDeformInspector:Export:SaveDialogMessage"
+msgstr "Choose where to save the deformed mesh."
+
+msgid "MeshDeformInspector:Export:ReplaceConfirmTitle"
+msgstr "Confirm Mesh Replacement"
+
+msgid "MeshDeformInspector:Export:ReplaceConfirmMessage"
+msgstr "Replace {0}'s mesh with the deformed mesh?\nDeformation will be baked into the mesh and deltas will be cleared.\nThis action can be undone."
+
+msgid "MeshDeformInspector:Export:ReplaceConfirmOk"
+msgstr "Replace"
+
+msgid "MeshDeformInspector:Export:Cancel"
+msgstr "Cancel"
+
+msgid "MeshDeformInspector:Reset:Button"
+msgstr "Reset Deformation"
+
+msgid "MeshDeformInspector:Reset:ConfirmTitle"
+msgstr "Confirm Reset"
+
+msgid "MeshDeformInspector:Reset:ConfirmMessage"
+msgstr "Reset all deformation data on this Renderer?"
+
+msgid "MeshDeformInspector:Reset:ConfirmOk"
+msgstr "Reset"
+
+msgid "Scene:Mode:UVIsland"
+msgstr "UV Island Editing"
+
+msgid "Scene:Mode:Lattice"
+msgstr "Lattice Editing"
+
+msgid "Scene:Mode:Vertex"
+msgstr "Vertex Editing"
+
+msgid "Scene:Guide:Lattice"
+msgstr "--- {0} ---\nClick: select control point\nDrag: move freely\nCtrl+Click: toggle selection\nShift+Click: add to selection\nAfter select: move with XYZ handles"
+
+msgid "Scene:Guide:UVIsland"
+msgstr "--- {0} ---\nClick: select island\nCtrl+Click: toggle selection\nShift+Click: add to selection\nW/E/R: move / rotate / scale"
+
+msgid "Scene:Guide:Vertex"
+msgstr "--- {0} ---\nClick: select vertex\nDrag: box select\nCtrl+Click: toggle selection\nShift+Click: add to selection\nW/E/R: move / rotate / scale\nWheel while dragging: change brush radius"
+
+msgid "MaskTool:Dialog:UpdateRequiredTitle"
+msgstr "Mask Tool Update Required"
+
+msgid "MaskTool:Dialog:NotInstalledTitle"
+msgstr "Mask Tool Not Installed"
+
+msgid "MaskTool:Dialog:UpdateAssetsV1Body"
+msgstr "The installed \"Paint & Pick Mask Maker\" does not support CHM integration. Please update to v1.0 or later."
+
+msgid "MaskTool:Dialog:OpenProductPage"
+msgstr "Open Product Page"
+
+msgid "MaskTool:Dialog:Close"
+msgstr "Close"
+
+msgid "MaskTool:Dialog:NotInstalledBody"
+msgstr "The mask creation helper tool is not installed. Please install the bundled mask tool package, or \"Paint & Pick Mask Maker\" v1.0 or later."
+
+msgid "MaskTool:Dialog:UpdateVpmV11Body"
+msgstr "This feature requires the mask creation helper tool v1.1 or later. Please update the bundled package."
+
+msgid "MaskTool:Dialog:UpdateAssetsV11Body"
+msgstr "This feature requires \"Paint & Pick Mask Maker\" v1.1 or later. Please update it."
+
+msgid "MaskTool:Dialog:UpdateAssetsV11IncompatBody"
+msgstr "The installed \"Paint & Pick Mask Maker\" does not support this feature. Please update to v1.1 or later."
+
+msgid "MaskTool:Dialog:NotInstalledSubmeshBody"
+msgstr "This feature requires the mask creation helper tool. Please install the bundled mask tool package, or \"Paint & Pick Mask Maker\" v1.1 or later."
+
+msgid "ColorTransformMode:Gradient"
+msgstr "Mode 2"
+
+msgid "ColorTransformMode:HueShift"
+msgstr "Mode 1"
+
+msgid "BrightnessUnifyMode:Off"
+msgstr "Off"
+
+msgid "BrightnessUnifyMode:ToBrightest"
+msgstr "Match brightest (heavy)"
+
+msgid "BrightnessUnifyMode:ToDarkest"
+msgstr "Match darkest (heavy)"
+
+msgid "FalloffType:Constant"
+msgstr "Constant"
+
+msgid "FalloffType:Linear"
+msgstr "Linear"
+
+msgid "FalloffType:Smooth"
+msgstr "Smooth"
+
+msgid "FalloffType:Sphere"
+msgstr "Center-biased"
+
+msgid "DistanceMetric:Euclidean"
+msgstr "Euclidean (straight-line)"
+
+msgid "DistanceMetric:Geodesic"
+msgstr "Along surface"
+
+msgid "MeshSettingsInheritMode:Inherit"
+msgstr "Inherit"
+
+msgid "MeshSettingsInheritMode:Set"
+msgstr "Set"
+
+msgid "MeshSettingsInheritMode:DontSet"
+msgstr "Don't set"
+
+msgid "MeshSettingsInheritMode:SetOrInherit"
+msgstr "Inherit if parent is set, otherwise use this"

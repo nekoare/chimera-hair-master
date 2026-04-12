@@ -2,6 +2,7 @@ using ChimeraHairMaster.Editor.Processing;
 using ChimeraHairMaster.Editor.Deformation;
 using UnityEditor;
 using UnityEngine;
+using ChimeraHairMaster.Editor.Localization;
 
 namespace ChimeraHairMaster.Editor
 {
@@ -99,7 +100,7 @@ namespace ChimeraHairMaster.Editor
         {
             if (component.DeformTargetRenderers == null || component.DeformTargetRenderers.Count == 0)
             {
-                EditorGUILayout.HelpBox("対象Rendererが設定されていません", MessageType.Info);
+                EditorGUILayout.HelpBox(CHMLocales.Tr("MeshDeformInspector:RendererNotSet"), MessageType.Info);
                 return;
             }
 
@@ -119,7 +120,7 @@ namespace ChimeraHairMaster.Editor
             _selectedRendererIndex = Mathf.Clamp(_selectedRendererIndex, 0, names.Length - 1);
 
             EditorGUI.BeginChangeCheck();
-            _selectedRendererIndex = EditorGUILayout.Popup("対象Renderer", _selectedRendererIndex, names);
+            _selectedRendererIndex = EditorGUILayout.Popup(CHMLocales.Tr("MeshDeformInspector:TargetRenderer"), _selectedRendererIndex, names);
             if (EditorGUI.EndChangeCheck())
             {
                 var currentMode = SceneEditor.CurrentMode;
@@ -136,17 +137,17 @@ namespace ChimeraHairMaster.Editor
             var currentMode = SceneEditor.CurrentMode;
 
             // パーツ変形（UVアイランド）
-            DrawModeButton(component, "パーツ変形", "■ パーツ変形中",
+            DrawModeButton(component, CHMLocales.Tr("MeshDeformInspector:Mode:UVIsland"), CHMLocales.Tr("MeshDeformInspector:Mode:UVIslandActive"),
                 MeshDeformationSceneEditor.EditMode.UVIsland, currentMode,
                 new Color(0.4f, 0.8f, 1f));
 
             // 頂点変形
-            DrawModeButton(component, "頂点変形", "■ 頂点変形中",
+            DrawModeButton(component, CHMLocales.Tr("MeshDeformInspector:Mode:Vertex"), CHMLocales.Tr("MeshDeformInspector:Mode:VertexActive"),
                 MeshDeformationSceneEditor.EditMode.Vertex, currentMode,
                 new Color(1f, 0.7f, 0.3f));
 
             // 全体の形を調整（ラティス変形）
-            DrawModeButton(component, "全体の形を調整 (ラティス変形)", "■ ラティス編集中",
+            DrawModeButton(component, CHMLocales.Tr("MeshDeformInspector:Mode:Lattice"), CHMLocales.Tr("MeshDeformInspector:Mode:LatticeActive"),
                 MeshDeformationSceneEditor.EditMode.Lattice, currentMode,
                 new Color(0.5f, 1f, 0.5f));
 
@@ -155,8 +156,8 @@ namespace ChimeraHairMaster.Editor
             {
                 EditorGUILayout.Space(5);
                 GUI.backgroundColor = new Color(1f, 0.5f, 0.5f);
-                if (GUILayout.Button(new GUIContent("ラティス変形前に戻す",
-                    "ラティスで行ったすべての変形を取り消し、作成前の状態に戻します")))
+                if (GUILayout.Button(new GUIContent(CHMLocales.Tr("MeshDeformInspector:Lattice:Revert"),
+                    CHMLocales.Tr("MeshDeformInspector:Lattice:RevertTooltip"))))
                 {
                     SceneEditor.CancelLattice();
                 }
@@ -185,18 +186,17 @@ namespace ChimeraHairMaster.Editor
 
         private void DrawLatticeSettings()
         {
-            EditorGUILayout.LabelField("ラティス設定", EditorStyles.boldLabel);
+            EditorGUILayout.LabelField(CHMLocales.Tr("MeshDeformInspector:Lattice:SettingsHeader"), EditorStyles.boldLabel);
 
             EditorGUILayout.HelpBox(
-                "制御点をドラッグで移動、クリックで選択するとXYZ軸ハンドルが表示されます。\n" +
-                "変形はリアルタイムに反映されます。",
+                CHMLocales.Tr("MeshDeformInspector:Lattice:HelpBox"),
                 MessageType.Info);
 
             var div = SceneEditor.LatticeDivisions;
             EditorGUI.BeginChangeCheck();
-            int newDivX = EditorGUILayout.IntSlider("X分割", div.x, 1, 5);
-            int newDivY = EditorGUILayout.IntSlider("Y分割", div.y, 1, 5);
-            int newDivZ = EditorGUILayout.IntSlider("Z分割", div.z, 1, 5);
+            int newDivX = EditorGUILayout.IntSlider(CHMLocales.Tr("MeshDeformInspector:Lattice:DivX"), div.x, 1, 5);
+            int newDivY = EditorGUILayout.IntSlider(CHMLocales.Tr("MeshDeformInspector:Lattice:DivY"), div.y, 1, 5);
+            int newDivZ = EditorGUILayout.IntSlider(CHMLocales.Tr("MeshDeformInspector:Lattice:DivZ"), div.z, 1, 5);
             if (EditorGUI.EndChangeCheck())
             {
                 SceneEditor.RecreateLattice(newDivX, newDivY, newDivZ);
@@ -222,7 +222,7 @@ namespace ChimeraHairMaster.Editor
 
             if (SceneEditor.SelectedVertexCount == 0) return;
 
-            EditorGUILayout.LabelField("選択中の頂点ツール", EditorStyles.boldLabel);
+            EditorGUILayout.LabelField(CHMLocales.Tr("MeshDeformInspector:Vertex:ToolsHeader"), EditorStyles.boldLabel);
 
             // 膨張/収縮スライダー
             int hotBefore = GUIUtility.hotControl;
@@ -232,9 +232,9 @@ namespace ChimeraHairMaster.Editor
 
             // スライダーの左右にラベルを表示
             EditorGUILayout.BeginHorizontal();
-            GUILayout.Label("収縮 ←", EditorStyles.label);
+            GUILayout.Label(CHMLocales.Tr("MeshDeformInspector:Vertex:Shrink"), EditorStyles.label);
             GUILayout.FlexibleSpace();
-            GUILayout.Label("→ 膨張", EditorStyles.label);
+            GUILayout.Label(CHMLocales.Tr("MeshDeformInspector:Vertex:Inflate"), EditorStyles.label);
             EditorGUILayout.EndHorizontal();
             if (EditorGUI.EndChangeCheck())
             {
@@ -265,7 +265,7 @@ namespace ChimeraHairMaster.Editor
 
             if (Mathf.Abs(_inflateAmount) > 0.0001f)
             {
-                if (GUILayout.Button("スライダーを0にリセット"))
+                if (GUILayout.Button(CHMLocales.Tr("MeshDeformInspector:Vertex:ResetSlider")))
                 {
                     Undo.IncrementCurrentGroup();
                     Undo.RegisterCompleteObjectUndo(SceneEditor.TargetComponent.UndoTarget, "メッシュ変形: 膨張/収縮リセット");
@@ -277,8 +277,8 @@ namespace ChimeraHairMaster.Editor
             EditorGUILayout.Space(3);
 
             // スムージング
-            if (GUILayout.Button(new GUIContent("スムージング",
-                "選択頂点の位置を周囲の頂点に近づけて滑らかにする。複数回押すとより滑らかに")))
+            if (GUILayout.Button(new GUIContent(CHMLocales.Tr("MeshDeformInspector:Vertex:Smooth"),
+                CHMLocales.Tr("MeshDeformInspector:Vertex:SmoothTooltip"))))
             {
                 SceneEditor.ApplySmooth(0.5f);
                 _inflateAmount = 0f;
@@ -291,7 +291,7 @@ namespace ChimeraHairMaster.Editor
 
         private void DrawSymmetrySettings()
         {
-            EditorGUILayout.LabelField("対称編集", EditorStyles.boldLabel);
+            EditorGUILayout.LabelField(CHMLocales.Tr("MeshDeformInspector:Symmetry:Header"), EditorStyles.boldLabel);
 
             EditorGUILayout.BeginHorizontal();
 
@@ -305,7 +305,7 @@ namespace ChimeraHairMaster.Editor
 
             using (new EditorGUI.DisabledScope(!canX))
             {
-                bool newX = GUILayout.Toggle(SceneEditor.SymmetryX && canX, "X (左右)", EditorStyles.miniButtonLeft);
+                bool newX = GUILayout.Toggle(SceneEditor.SymmetryX && canX, CHMLocales.Tr("MeshDeformInspector:Symmetry:X"), EditorStyles.miniButtonLeft);
                 if (canX && newX && !SceneEditor.SymmetryX)
                 {
                     SceneEditor.SymmetryY = false;
@@ -316,7 +316,7 @@ namespace ChimeraHairMaster.Editor
             }
             using (new EditorGUI.DisabledScope(!canY))
             {
-                bool newY = GUILayout.Toggle(SceneEditor.SymmetryY && canY, "Y (前後)", EditorStyles.miniButtonMid);
+                bool newY = GUILayout.Toggle(SceneEditor.SymmetryY && canY, CHMLocales.Tr("MeshDeformInspector:Symmetry:Y"), EditorStyles.miniButtonMid);
                 if (canY && newY && !SceneEditor.SymmetryY)
                 {
                     SceneEditor.SymmetryX = false;
@@ -327,7 +327,7 @@ namespace ChimeraHairMaster.Editor
             }
             using (new EditorGUI.DisabledScope(!canZ))
             {
-                bool newZ = GUILayout.Toggle(SceneEditor.SymmetryZ && canZ, "Z (上下)", EditorStyles.miniButtonRight);
+                bool newZ = GUILayout.Toggle(SceneEditor.SymmetryZ && canZ, CHMLocales.Tr("MeshDeformInspector:Symmetry:Z"), EditorStyles.miniButtonRight);
                 if (canZ && newZ && !SceneEditor.SymmetryZ)
                 {
                     SceneEditor.SymmetryX = false;
@@ -341,11 +341,11 @@ namespace ChimeraHairMaster.Editor
 
             // 有効な軸のオフセット入力
             if (SceneEditor.SymmetryX)
-                SceneEditor.SymmetryOffsetX = EditorGUILayout.FloatField("オフセット X", SceneEditor.SymmetryOffsetX);
+                SceneEditor.SymmetryOffsetX = EditorGUILayout.FloatField(CHMLocales.Tr("MeshDeformInspector:Symmetry:OffsetX"), SceneEditor.SymmetryOffsetX);
             if (SceneEditor.SymmetryY)
-                SceneEditor.SymmetryOffsetY = EditorGUILayout.FloatField("オフセット Y", SceneEditor.SymmetryOffsetY);
+                SceneEditor.SymmetryOffsetY = EditorGUILayout.FloatField(CHMLocales.Tr("MeshDeformInspector:Symmetry:OffsetY"), SceneEditor.SymmetryOffsetY);
             if (SceneEditor.SymmetryZ)
-                SceneEditor.SymmetryOffsetZ = EditorGUILayout.FloatField("オフセット Z", SceneEditor.SymmetryOffsetZ);
+                SceneEditor.SymmetryOffsetZ = EditorGUILayout.FloatField(CHMLocales.Tr("MeshDeformInspector:Symmetry:OffsetZ"), SceneEditor.SymmetryOffsetZ);
         }
 
         #endregion
@@ -354,7 +354,7 @@ namespace ChimeraHairMaster.Editor
 
         private void DrawAdvancedSettings()
         {
-            _showAdvancedSettings = EditorGUILayout.Foldout(_showAdvancedSettings, "詳細設定", true);
+            _showAdvancedSettings = EditorGUILayout.Foldout(_showAdvancedSettings, CHMLocales.Tr("MeshDeformInspector:Advanced:Header"), true);
             if (!_showAdvancedSettings) return;
 
             EditorGUI.indentLevel++;
@@ -363,22 +363,34 @@ namespace ChimeraHairMaster.Editor
             if (SceneEditor.CurrentMode == MeshDeformationSceneEditor.EditMode.Vertex)
             {
                 SceneEditor.BrushRadius = EditorGUILayout.Slider(
-                    new GUIContent("影響範囲 (m)", "選択した頂点の周囲にどこまで変形の影響を広げるか。ドラッグ中にマウスホイールで変更可能"),
+                    new GUIContent(CHMLocales.Tr("MeshDeformInspector:Advanced:BrushRadius"), CHMLocales.Tr("MeshDeformInspector:Advanced:BrushRadiusTooltip")),
                     SceneEditor.BrushRadius, 0.001f, 1.0f);
-                SceneEditor.Falloff = (FalloffType)EditorGUILayout.EnumPopup(
-                    new GUIContent("距離減衰", "影響範囲の端に向かって変形量をどう弱めるか"),
-                    SceneEditor.Falloff);
-                SceneEditor.Metric = (DistanceMetric)EditorGUILayout.EnumPopup(
-                    new GUIContent("距離の扱い", "頂点間の距離をどう計算するか"),
-                    SceneEditor.Metric);
+                var falloffNames = new[]
+                {
+                    CHMLocales.Tr("FalloffType:Constant"),
+                    CHMLocales.Tr("FalloffType:Linear"),
+                    CHMLocales.Tr("FalloffType:Smooth"),
+                    CHMLocales.Tr("FalloffType:Sphere"),
+                };
+                SceneEditor.Falloff = (FalloffType)EditorGUILayout.Popup(
+                    new GUIContent(CHMLocales.Tr("MeshDeformInspector:Advanced:Falloff"), CHMLocales.Tr("MeshDeformInspector:Advanced:FalloffTooltip")),
+                    (int)SceneEditor.Falloff, falloffNames);
+                var metricNames = new[]
+                {
+                    CHMLocales.Tr("DistanceMetric:Euclidean"),
+                    CHMLocales.Tr("DistanceMetric:Geodesic"),
+                };
+                SceneEditor.Metric = (DistanceMetric)EditorGUILayout.Popup(
+                    new GUIContent(CHMLocales.Tr("MeshDeformInspector:Advanced:Metric"), CHMLocales.Tr("MeshDeformInspector:Advanced:MetricTooltip")),
+                    (int)SceneEditor.Metric, metricNames);
             }
 
             // 表示設定
             SceneEditor.BackfaceCulling = EditorGUILayout.Toggle(
-                new GUIContent("背面カリング", "こちらを向いていない頂点を非表示にして選択対象から除外する"),
+                new GUIContent(CHMLocales.Tr("MeshDeformInspector:Advanced:BackfaceCulling"), CHMLocales.Tr("MeshDeformInspector:Advanced:BackfaceCullingTooltip")),
                 SceneEditor.BackfaceCulling);
             SceneEditor.ZTest = EditorGUILayout.Toggle(
-                new GUIContent("Z-test（遮蔽非表示）", "他のメッシュの裏に隠れている頂点を非表示にする"),
+                new GUIContent(CHMLocales.Tr("MeshDeformInspector:Advanced:ZTest"), CHMLocales.Tr("MeshDeformInspector:Advanced:ZTestTooltip")),
                 SceneEditor.ZTest);
 
             EditorGUI.indentLevel--;
@@ -400,12 +412,12 @@ namespace ChimeraHairMaster.Editor
 
             EditorGUILayout.BeginHorizontal();
 
-            if (GUILayout.Button("メッシュを保存"))
+            if (GUILayout.Button(CHMLocales.Tr("MeshDeformInspector:Export:SaveMesh")))
             {
                 ExportMesh(component, deformation, replaceOriginal: false);
             }
 
-            if (GUILayout.Button("メッシュを保存して入れ替え"))
+            if (GUILayout.Button(CHMLocales.Tr("MeshDeformInspector:Export:SaveAndReplace")))
             {
                 ExportMesh(component, deformation, replaceOriginal: true);
             }
@@ -425,10 +437,10 @@ namespace ChimeraHairMaster.Editor
             if (exportedMesh == null) return;
 
             var path = EditorUtility.SaveFilePanelInProject(
-                "変形済みメッシュを保存",
+                CHMLocales.Tr("MeshDeformInspector:Export:SaveDialogTitle"),
                 renderer.sharedMesh.name + "_Deformed",
                 "asset",
-                "変形済みメッシュの保存先を選択してください");
+                CHMLocales.Tr("MeshDeformInspector:Export:SaveDialogMessage"));
 
             if (string.IsNullOrEmpty(path))
             {
@@ -443,11 +455,9 @@ namespace ChimeraHairMaster.Editor
             if (replaceOriginal)
             {
                 if (EditorUtility.DisplayDialog(
-                    "メッシュの入れ替え確認",
-                    $"{renderer.name} のメッシュを変形済みメッシュに入れ替えますか？\n" +
-                    "変形データはメッシュに焼き込まれ、デルタはクリアされます。\n" +
-                    "この操作はUndo可能です。",
-                    "入れ替える", "キャンセル"))
+                    CHMLocales.Tr("MeshDeformInspector:Export:ReplaceConfirmTitle"),
+                    string.Format(CHMLocales.Tr("MeshDeformInspector:Export:ReplaceConfirmMessage"), renderer.name),
+                    CHMLocales.Tr("MeshDeformInspector:Export:ReplaceConfirmOk"), CHMLocales.Tr("MeshDeformInspector:Export:Cancel")))
                 {
                     Undo.RegisterCompleteObjectUndo(component.UndoTarget, "Replace Mesh with Deformed");
                     Undo.RecordObject(renderer, "Replace Mesh with Deformed");
@@ -476,12 +486,12 @@ namespace ChimeraHairMaster.Editor
             if (!hasDeltas && !hasOrphanedMesh) return;
 
             GUI.backgroundColor = new Color(1f, 0.5f, 0.5f);
-            if (GUILayout.Button("変形をリセット"))
+            if (GUILayout.Button(CHMLocales.Tr("MeshDeformInspector:Reset:Button")))
             {
                 if (EditorUtility.DisplayDialog(
-                    "変形リセット確認",
-                    "このRendererの変形データをすべてリセットしますか？",
-                    "リセット", "キャンセル"))
+                    CHMLocales.Tr("MeshDeformInspector:Reset:ConfirmTitle"),
+                    CHMLocales.Tr("MeshDeformInspector:Reset:ConfirmMessage"),
+                    CHMLocales.Tr("MeshDeformInspector:Reset:ConfirmOk"), CHMLocales.Tr("MeshDeformInspector:Export:Cancel")))
                 {
                     if (SceneEditor.CurrentMode != MeshDeformationSceneEditor.EditMode.Off
                         && SceneEditor.ActiveRendererIndex == _selectedRendererIndex)

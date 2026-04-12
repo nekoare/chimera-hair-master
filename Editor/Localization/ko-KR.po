@@ -1,0 +1,706 @@
+msgid ""
+msgstr ""
+"Language: ko-KR\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+
+msgid "Window:Title"
+msgstr "키메라 헤어 마스터"
+
+msgid "Window:Header:Description"
+msgstr "여러 헤어 텍스처의 색상 매칭, UV 통합, Material 통합을 수행합니다."
+
+msgid "Window:TargetSelection:Header"
+msgstr "대상 선택"
+
+msgid "Window:TargetSelection:Avatar"
+msgstr "아바타"
+
+msgid "Window:TargetSelection:NoAvatarDescriptor"
+msgstr "선택한 GameObject에 VRC Avatar Descriptor가 없습니다."
+
+msgid "Window:TargetSelection:HairPartsList"
+msgstr "헤어 파츠 목록"
+
+msgid "Window:TargetSelection:DragHint"
+msgstr "창 안 아무 곳에나 헤어 파츠(SkinnedMeshRenderer)를 드래그 앤 드롭\n또는 [+] 버튼으로 추가"
+
+msgid "Window:MaterialSelection:Header"
+msgstr "대상 Material 선택"
+
+msgid "Window:MaterialSelection:HintMerge"
+msgstr "통합에 포함할 Material에 체크해 주세요.\n체크를 해제한 Material은 원래 Renderer에서 표시됩니다."
+
+msgid "Window:MaterialSelection:HintNoMerge"
+msgstr "처리 대상으로 할 Material에 체크해 주세요.\n체크를 해제한 Material에는 변경이 적용되지 않습니다."
+
+msgid "Window:MaterialSelection:NoRenderer"
+msgstr "헤어 Renderer가 선택되지 않았습니다"
+
+msgid "Window:MaterialSelection:CutMask"
+msgstr "컷 마스크"
+
+msgid "Window:ColorSettings:Header"
+msgstr "색상 매칭 설정(간단 설정)"
+
+msgid "Window:ColorSettings:Mode"
+msgstr "색상 변환 모드"
+
+msgid "Window:ColorSettings:Gradient"
+msgstr "Mode 1"
+
+msgid "Window:ColorSettings:ChangeToThisColor"
+msgstr "이 색상으로 변경"
+
+msgid "Window:ColorSettings:HueShiftHint"
+msgstr "지정한 색상으로 텍스처의 색조를 변경합니다.\n자세한 설정은 Inspector에서 할 수 있습니다."
+
+msgid "Window:ColorPicker:FoldoutFromTexture"
+msgstr "텍스처에서 색상 선택"
+
+msgid "Window:ColorPicker:ClickToPick"
+msgstr "클릭해서 색상 가져오기"
+
+msgid "Window:ColorPicker:CandidateColors"
+msgstr "후보 색상:"
+
+msgid "Window:ColorPicker:TextureNotFound"
+msgstr "텍스처를 찾을 수 없습니다"
+
+msgid "Window:GradientColorPicker:FoldoutAddFromTexture"
+msgstr "텍스처에서 색상 추가"
+
+msgid "Window:GradientColorPicker:DarkColor"
+msgstr "어두운 색"
+
+msgid "Window:GradientColorPicker:LightColor"
+msgstr "밝은 색"
+
+msgid "Window:GradientColorPicker:ClickToAdd"
+msgstr "클릭해서 그라데이션에 색상 추가"
+
+msgid "Window:UVSettings:Header"
+msgstr "UV 배치"
+
+msgid "Window:UVSettings:Resolution"
+msgstr "해상도"
+
+msgid "Window:UVSettings:Preview"
+msgstr "UV 배치 미리보기"
+
+msgid "Window:UVSettings:FitHint"
+msgstr "프레임 안에 들어가도록 배치해 주세요"
+
+msgid "Window:UVSettings:Legend"
+msgstr "범례: (클릭으로 선택)"
+
+msgid "Window:UVSettings:OutOfBounds"
+msgstr "UV가 프레임을 벗어났습니다. UV 배치를 조정해 주세요."
+
+msgid "Window:UVSettings:AutoArrange"
+msgstr "자동 배치"
+
+msgid "Window:UVSettings:Reset"
+msgstr "초기화"
+
+msgid "Window:UVSettings:DragHint"
+msgstr "UV 아일랜드를 드래그해서 배치를 조정할 수 있습니다."
+
+msgid "Window:UVSettings:OverlapWarningHeader"
+msgstr "⚠ UV가 겹쳐 있습니다:"
+
+msgid "Window:UVSettings:OverlapWarningLine"
+msgstr "  • {0} 와(과) {1}"
+
+msgid "Window:OutputSettings:Header"
+msgstr "출력 설정"
+
+msgid "Window:OutputSettings:BaseMaterial"
+msgstr "Material 설정의 기준이 될 Material"
+
+msgid "Window:OutputSettings:BaseMaterialHint"
+msgstr "통합 후 Material 설정의 기준이 될 Material을 지정합니다.\nMaterial 또는 GameObject를 드롭할 수 있습니다."
+
+msgid "Window:Action:Setup"
+msgstr "셋업"
+
+msgid "Window:Validation:SelectAvatar"
+msgstr "아바타를 선택해 주세요."
+
+msgid "Window:Validation:AtLeastTwoRenderers"
+msgstr "2개 이상의 헤어 Renderer를 추가해 주세요."
+
+msgid "Window:Validation:AtLeastOneRenderer"
+msgstr "1개 이상의 헤어 Renderer를 추가해 주세요."
+
+msgid "Window:Validation:SelectBaseMaterial"
+msgstr "기준 Material을 선택해 주세요."
+
+msgid "Window:Validation:UnsetRenderer"
+msgstr "설정되지 않은 Renderer가 있습니다."
+
+msgid "Window:Validation:UVOverlap"
+msgstr "UV가 겹쳐 있습니다. UV 배치를 조정해 주세요."
+
+msgid "Window:Setup:CompleteMessage"
+msgstr "셋업이 완료되었습니다.\n생성된 GameObject에서 세부 설정을 조정할 수 있습니다.\n\nScene에서 미리보기를 확인하려면 \"미리보기 활성화\"를 켜 주세요."
+
+msgid "Window:ColorTransform:Enabled"
+msgstr "색상 매칭\n활성화"
+
+msgid "Window:ColorTransform:Disabled"
+msgstr "색상 매칭"
+
+msgid "Window:MeshMerge:Enabled"
+msgstr "Mesh 통합\n활성화"
+
+msgid "Window:MeshMerge:Disabled"
+msgstr "Mesh 통합"
+
+msgid "MeshDeformWindow:Title"
+msgstr "Mesh 변형"
+
+msgid "MeshDeformWindow:Header:Title"
+msgstr "Mesh 변형 셋업"
+
+msgid "MeshDeformWindow:Header:Description"
+msgstr "변형할 Renderer를 등록하고 \"셋업\"을 눌러 주세요.\n셋업 후에는 Inspector에서 편집할 수 있습니다."
+
+msgid "MeshDeformWindow:TargetRenderer"
+msgstr "대상 Renderer"
+
+msgid "MeshDeformWindow:RegisterRendererHint"
+msgstr "Renderer를 등록해 주세요."
+
+msgid "MeshDeformWindow:Action:Setup"
+msgstr "셋업"
+
+msgid "MeshDeformWindow:Dialog:NoSMR"
+msgstr "선택한 GameObject에 SkinnedMeshRenderer가 없습니다."
+
+msgid "MeshDeformWindow:Dialog:ConfirmTitle"
+msgstr "확인"
+
+msgid "MeshDeformWindow:Dialog:OverwriteMessage"
+msgstr "{0} 에 이미 Mesh 변형 컴포넌트가 있습니다.\n대상 Renderer를 덮어쓰시겠습니까?"
+
+msgid "MeshDeformWindow:Dialog:Overwrite"
+msgstr "덮어쓰기"
+
+msgid "MeshDeformWindow:Dialog:Cancel"
+msgstr "취소"
+
+msgid "MeshDeformWindow:Conflict:CHM"
+msgstr "{0} 에 Chimera Hair Master가 있으므로 변형은 거기서 진행해 주세요."
+
+msgid "MeshDeformWindow:Conflict:Existing"
+msgstr "{0} 에 이미 Mesh 변형 컴포넌트가 있습니다."
+
+msgid "MeshDeformStandalone:Header"
+msgstr "CHM - Mesh 변형 기능"
+
+msgid "MeshDeformStandalone:NoRendererWarning"
+msgstr "대상 Renderer가 설정되지 않았습니다.\n메뉴 \"Chimera Hair Master > Mesh 변형\"에서 셋업해 주세요."
+
+msgid "Inspector:Title"
+msgstr "키메라 헤어 마스터"
+
+msgid "Inspector:Enabled"
+msgstr "활성화"
+
+msgid "Inspector:Help"
+msgstr "도움말"
+
+msgid "Inspector:DisabledHelp"
+msgstr "컴포넌트가 비활성화되어 있습니다. 빌드 시 처리되지 않습니다."
+
+msgid "Inspector:BasicSettings"
+msgstr "기본 설정"
+
+msgid "Inspector:TargetRenderers"
+msgstr "대상 Renderer"
+
+msgid "Inspector:TargetRenderersHelp"
+msgstr "대상 Renderer 변경은 EditorWindow에서 진행해 주세요.\n메뉴: Chimera Hair Master > 창 열기"
+
+msgid "Inspector:TextureSettings"
+msgstr "텍스처 설정"
+
+msgid "Inspector:TextureResolution"
+msgstr "해상도"
+
+msgid "Inspector:ColorChangeTargets"
+msgstr "색상 변경 대상"
+
+msgid "Inspector:UVPlacements"
+msgstr "UV 배치"
+
+msgid "Inspector:UVPlacementsHelp"
+msgstr "UV 배치 변경은 EditorWindow에서 진행해 주세요."
+
+msgid "Inspector:BaseMaterial"
+msgstr "기준 Material"
+
+msgid "Inspector:MeshCutSettings"
+msgstr "Mesh 컷 설정"
+
+msgid "Inspector:MeshCutHelp"
+msgstr "마스크를 사용해서 헤어 Mesh의 일부를 통합에서 제외할 수 있습니다. 마스크는 원본 헤어의 UV를 참조합니다."
+
+msgid "Inspector:SubmeshLabelFormat"
+msgstr "SubMesh {0}: {1}"
+
+msgid "Inspector:MaterialFallback"
+msgstr "(Material {0})"
+
+msgid "Inspector:CreateMask"
+msgstr "마스크 만들기"
+
+msgid "Inspector:ColorSettings"
+msgstr "색상 매칭 설정"
+
+msgid "Inspector:EnableColorTransform"
+msgstr "색상 매칭 활성화"
+
+msgid "Inspector:EnableColorTransformHelp"
+msgstr "색상 매칭을 하지 않는 경우 텍스처는 그대로 통합됩니다.\n여러 텍스처를 통합하지만 색은 바꾸고 싶지 않을 때 사용합니다."
+
+msgid "Inspector:ColorTransformMode"
+msgstr "색상 변환 모드"
+
+msgid "Inspector:GradientCurve"
+msgstr "Mode 1"
+
+msgid "Inspector:GradientHelp"
+msgstr "그라데이션 모드\n원본 텍스처의 명암에 맞춰 설정한 그라데이션에 따라 색을 지정합니다.\n그라데이션 왼쪽 끝 색은 가장 어두웠던 색, 오른쪽 끝 색은 가장 밝았던 색이 됩니다.\n명암 차이를 표현하고 싶을 때 유용합니다."
+
+msgid "Inspector:TargetColor"
+msgstr "이 색상으로 변경"
+
+msgid "Inspector:SaturationPreserve"
+msgstr "원본 채도 유지"
+
+msgid "Inspector:ValuePreserve"
+msgstr "원본 밝기 유지"
+
+msgid "Inspector:AutoAdjust"
+msgstr "자동 조정"
+
+msgid "Inspector:BrightnessUnifyMode"
+msgstr "전체 밝기 맞추기(고부하)"
+
+msgid "Inspector:HueShiftHelp"
+msgstr "색상 지정 모드(기본값)\n전체를 지정한 색으로 변경합니다.\n원본 헤어의 명암 차이가 작을 때 유용합니다."
+
+msgid "Inspector:BrightnessAdjustment"
+msgstr "개별 밝기 조정"
+
+msgid "Inspector:Reset"
+msgstr "초기화"
+
+msgid "Inspector:BrightnessAdjustmentHelp"
+msgstr "각 Renderer의 밝기를 개별적으로 조정할 수 있습니다.\n양수 값은 밝게, 음수 값은 어둡게 만듭니다.\n\"초기화\" 버튼으로 리셋(0으로 복원)할 수 있습니다."
+
+msgid "Inspector:ColorMaskSettings"
+msgstr "색상 매칭 무시(마스크)"
+
+msgid "Inspector:ColorMaskHelp"
+msgstr "마스크를 사용해서 색상 매칭을 부분적으로 무시할 수 있습니다.\n마스크는 원본 헤어의 UV를 참조합니다.\n검은 부분은 색상 매칭이 적용되지 않고 원래 색이 유지됩니다."
+
+msgid "Inspector:PhysBoneList"
+msgstr "관련 PhysBone"
+
+msgid "Inspector:PhysBoneListHelp"
+msgstr "각 Renderer의 Mesh에 영향을 주는 PhysBone 컴포넌트 목록입니다.\n클릭하면 Hierarchy에서 하이라이트됩니다."
+
+msgid "Inspector:AvatarDescriptorNotFound"
+msgstr "VRC Avatar Descriptor를 찾을 수 없습니다."
+
+msgid "Inspector:NoPhysBone"
+msgstr "(PhysBone 없음)"
+
+msgid "Inspector:TextureColorPicker"
+msgstr "텍스처에서 색상 선택"
+
+msgid "Inspector:ClickToPickColor"
+msgstr "클릭해서 색상 가져오기"
+
+msgid "Inspector:CandidateColors"
+msgstr "후보 색상:"
+
+msgid "Inspector:TextureNotFound"
+msgstr "텍스처를 찾을 수 없습니다"
+
+msgid "Inspector:GradientTextureColorPicker"
+msgstr "텍스처에서 색상 추가"
+
+msgid "Inspector:DarkColor"
+msgstr "어두운 색"
+
+msgid "Inspector:LightColor"
+msgstr "밝은 색"
+
+msgid "Inspector:ClickToAddColorToGradient"
+msgstr "클릭해서 그라데이션에 색상 추가\n양 끝 색은 다소 극단적인 색으로 지정하면 조정이 잘 되는 경우가 많습니다."
+
+msgid "Inspector:PreviewGenerateHelp"
+msgstr "미리보기를 시작하면 Material 설정이 표시됩니다."
+
+msgid "Inspector:GeneratePreviewMaterial"
+msgstr "미리보기용 Material 생성"
+
+msgid "Inspector:MaterialSettings"
+msgstr "Material 설정"
+
+msgid "Inspector:BaseMaterialRequiredHelp"
+msgstr "기준 Material을 설정하면 Material 설정이 표시됩니다."
+
+msgid "Inspector:MeshSettings"
+msgstr "Mesh 설정"
+
+msgid "Inspector:MeshSettingsHelp"
+msgstr "통합 후 Mesh의 Probe Anchor와 Bounds를 설정할 수 있습니다.\nBounds가 적절하지 않으면 카메라 각도에 따라 Mesh가 사라질 수 있습니다."
+
+msgid "Inspector:ProbeAnchorHeader"
+msgstr "Probe Anchor(라이팅 기준점)"
+
+msgid "Inspector:SettingMode"
+msgstr "설정 모드"
+
+msgid "Inspector:ProbeAnchor"
+msgstr "Probe Anchor"
+
+msgid "Inspector:ProbeAnchorHelp"
+msgstr "통합 Mesh가 라이팅을 계산할 때의 기준점입니다.\n일반적으로 Head 본 등을 지정합니다."
+
+msgid "Inspector:BoundsHeader"
+msgstr "Bounds(바운딩 박스)"
+
+msgid "Inspector:RootBone"
+msgstr "Root Bone"
+
+msgid "Inspector:Bounds"
+msgstr "Bounds"
+
+msgid "Inspector:BoundsHelp"
+msgstr "통합 Mesh의 렌더링 범위입니다. Root Bone 기준 상대 좌표로 지정합니다.\n기본값(Center: 0,0,0 Size: 2,2,2)으로 문제없는 경우가 많지만\nMesh가 사라진다면 Size를 크게 키워 주세요."
+
+msgid "Inspector:FrameBoundsInScene"
+msgstr "Scene 뷰에서 Bounds 확인"
+
+msgid "Inspector:MeshDeformSection"
+msgstr "Mesh 변형"
+
+msgid "Inspector:MeshDeformConflictTitle"
+msgstr "Mesh 변형 중복"
+
+msgid "Inspector:MeshDeformConflictMessage"
+msgstr "{0} 에서 Mesh 변형을 사용 중이라 변형이 중복됩니다.\n컴포넌트를 삭제하거나 변형 후 Mesh를 익스포트한 뒤에 다시 시도해 주세요."
+
+msgid "Inspector:StandaloneConflictFormat"
+msgstr "Mesh 변형 ({0})의 {1}"
+
+msgid "Inspector:PreviewStop"
+msgstr "미리보기 중지"
+
+msgid "Inspector:PreviewStart"
+msgstr "미리보기 시작"
+
+msgid "Inspector:EditMask"
+msgstr "마스크 편집하기"
+
+msgid "Inspector:PreviewResolution"
+msgstr "미리보기 해상도"
+
+msgid "Inspector:PreviewHelpNoMerge"
+msgstr "미리보기가 활성화되어 있습니다. Scene에서 외형을 확인할 수 있습니다.\n메인 컬러 2nd, 3rd, 발광 설정 변경은 원본 Material에서 조작해 주세요.\n각 Material의 설정은 미리보기 Material의 수치(텍스처 제외)로 통일됩니다."
+
+msgid "Inspector:UnifyMatCap"
+msgstr "MatCap 통일"
+
+msgid "Inspector:UnifyMatCapTooltip"
+msgstr "활성화하면 미리보기 Material의 MatCap 설정(1st/2nd)으로 통일됩니다.\n비활성화하면 각 Renderer의 원본 Material MatCap 설정을 그대로 유지합니다."
+
+msgid "Inspector:PreviewHelpMerge"
+msgstr "미리보기가 활성화되어 있습니다. Scene에서 결과를 확인할 수 있습니다.\n동작이 무겁다면 중지해 주세요.\n미리보기에서는 노멀맵, AO 맵이 적용되지 않습니다. 실제 외형은 GestureManager 등으로 확인해 주세요."
+
+msgid "Inspector:PreviewRequiresSetup"
+msgstr "미리보기를 활성화하려면 대상 Renderer와 기준 Material을 설정해 주세요."
+
+msgid "Inspector:SaveAsTextureSection"
+msgstr "텍스처로 저장 기능"
+
+msgid "Inspector:ApplyTexture"
+msgstr "텍스처를 Material에 적용"
+
+msgid "Inspector:UnifySettings"
+msgstr "Material 설정 통일"
+
+msgid "Inspector:ApplyDeformation"
+msgstr "변형도 반영하기"
+
+msgid "Inspector:ApplyDeformationTooltip"
+msgstr "Mesh 변형 데이터를 반영한 변형 완료 Mesh를 생성해 Renderer에 설정합니다"
+
+msgid "Inspector:ApplyHelp"
+msgstr "색상 매칭된 텍스처를 PNG로 출력합니다.\n\"텍스처를 Material에 적용\": 생성된 텍스처를 원본 Material의 _MainTex에 설정합니다.\n\"Material 설정 통일\": 미리보기 Material의 수치 설정을 원본 Material에 덮어씁니다.\n\"변형도 반영하기\": Mesh 변형 데이터를 적용한 변형 완료 Mesh를 저장해 Renderer에 설정합니다.\n적용 후 컴포넌트는 자동으로 비활성화됩니다."
+
+msgid "Inspector:ApplyButton"
+msgstr "Chimera Hair Master를 원본 헤어에 반영하기"
+
+msgid "Inspector:ApplyRequiresSetup"
+msgstr "적용하려면 대상 Renderer와 기준 Material을 설정해 주세요."
+
+msgid "Inspector:SharedRendererWarningFormat"
+msgstr "다음 Renderer가 다른 Chimera Hair Master와 중복되어 있습니다.\n빌드 시 충돌이 발생해 결과가 불확실해집니다.\n{0}"
+
+msgid "Inspector:SharedRendererItemFormat"
+msgstr "  - {0}"
+
+msgid "Inspector:SharedRendererNameFormat"
+msgstr "{0} ({1})"
+
+msgid "MeshDeformInspector:RendererNotSet"
+msgstr "대상 Renderer가 설정되지 않았습니다"
+
+msgid "MeshDeformInspector:TargetRenderer"
+msgstr "대상 Renderer"
+
+msgid "MeshDeformInspector:Mode:UVIsland"
+msgstr "파츠 변형"
+
+msgid "MeshDeformInspector:Mode:UVIslandActive"
+msgstr "■ 파츠 변형 중"
+
+msgid "MeshDeformInspector:Mode:Vertex"
+msgstr "버텍스 변형"
+
+msgid "MeshDeformInspector:Mode:VertexActive"
+msgstr "■ 버텍스 변형 중"
+
+msgid "MeshDeformInspector:Mode:Lattice"
+msgstr "전체 형태 조정 (래티스 변형)"
+
+msgid "MeshDeformInspector:Mode:LatticeActive"
+msgstr "■ 래티스 편집 중"
+
+msgid "MeshDeformInspector:Lattice:Revert"
+msgstr "래티스 변형 전으로 되돌리기"
+
+msgid "MeshDeformInspector:Lattice:RevertTooltip"
+msgstr "래티스로 진행한 모든 변형을 취소하고 생성 전 상태로 되돌립니다"
+
+msgid "MeshDeformInspector:Lattice:SettingsHeader"
+msgstr "래티스 설정"
+
+msgid "MeshDeformInspector:Lattice:HelpBox"
+msgstr "제어점을 드래그해서 이동, 클릭해서 선택하면 XYZ 축 핸들이 표시됩니다.\n변형은 실시간으로 반영됩니다."
+
+msgid "MeshDeformInspector:Lattice:DivX"
+msgstr "X 분할"
+
+msgid "MeshDeformInspector:Lattice:DivY"
+msgstr "Y 분할"
+
+msgid "MeshDeformInspector:Lattice:DivZ"
+msgstr "Z 분할"
+
+msgid "MeshDeformInspector:Vertex:ToolsHeader"
+msgstr "선택 중인 버텍스 도구"
+
+msgid "MeshDeformInspector:Vertex:Shrink"
+msgstr "수축 ←"
+
+msgid "MeshDeformInspector:Vertex:Inflate"
+msgstr "→ 팽창"
+
+msgid "MeshDeformInspector:Vertex:ResetSlider"
+msgstr "슬라이더를 0으로 초기화"
+
+msgid "MeshDeformInspector:Vertex:Smooth"
+msgstr "스무딩"
+
+msgid "MeshDeformInspector:Vertex:SmoothTooltip"
+msgstr "선택한 버텍스의 위치를 주변 버텍스에 가깝게 만들어 매끄럽게 합니다. 여러 번 누르면 더 매끄러워집니다"
+
+msgid "MeshDeformInspector:Symmetry:Header"
+msgstr "대칭 편집"
+
+msgid "MeshDeformInspector:Symmetry:X"
+msgstr "X (좌우)"
+
+msgid "MeshDeformInspector:Symmetry:Y"
+msgstr "Y (앞뒤)"
+
+msgid "MeshDeformInspector:Symmetry:Z"
+msgstr "Z (상하)"
+
+msgid "MeshDeformInspector:Symmetry:OffsetX"
+msgstr "오프셋 X"
+
+msgid "MeshDeformInspector:Symmetry:OffsetY"
+msgstr "오프셋 Y"
+
+msgid "MeshDeformInspector:Symmetry:OffsetZ"
+msgstr "오프셋 Z"
+
+msgid "MeshDeformInspector:Advanced:Header"
+msgstr "상세 설정"
+
+msgid "MeshDeformInspector:Advanced:BrushRadius"
+msgstr "영향 범위 (m)"
+
+msgid "MeshDeformInspector:Advanced:BrushRadiusTooltip"
+msgstr "선택한 버텍스 주변 어디까지 변형 영향을 확장할지 설정합니다. 드래그 중 마우스 휠로 변경 가능"
+
+msgid "MeshDeformInspector:Advanced:Falloff"
+msgstr "거리 감쇠"
+
+msgid "MeshDeformInspector:Advanced:FalloffTooltip"
+msgstr "영향 범위의 끝으로 갈수록 변형량을 어떻게 약하게 할지 설정합니다"
+
+msgid "MeshDeformInspector:Advanced:Metric"
+msgstr "거리 계산 방식"
+
+msgid "MeshDeformInspector:Advanced:MetricTooltip"
+msgstr "버텍스 간 거리를 어떻게 계산할지 설정합니다"
+
+msgid "MeshDeformInspector:Advanced:BackfaceCulling"
+msgstr "백페이스 컬링"
+
+msgid "MeshDeformInspector:Advanced:BackfaceCullingTooltip"
+msgstr "이쪽을 향하지 않는 버텍스를 숨겨 선택 대상에서 제외합니다"
+
+msgid "MeshDeformInspector:Advanced:ZTest"
+msgstr "Z-test(가려짐 숨김)"
+
+msgid "MeshDeformInspector:Advanced:ZTestTooltip"
+msgstr "다른 Mesh 뒤에 가려진 버텍스를 숨깁니다"
+
+msgid "MeshDeformInspector:Export:SaveMesh"
+msgstr "Mesh 저장"
+
+msgid "MeshDeformInspector:Export:SaveAndReplace"
+msgstr "Mesh 저장 후 교체"
+
+msgid "MeshDeformInspector:Export:SaveDialogTitle"
+msgstr "변형 완료 Mesh 저장"
+
+msgid "MeshDeformInspector:Export:SaveDialogMessage"
+msgstr "변형 완료 Mesh의 저장 위치를 선택해 주세요"
+
+msgid "MeshDeformInspector:Export:ReplaceConfirmTitle"
+msgstr "Mesh 교체 확인"
+
+msgid "MeshDeformInspector:Export:ReplaceConfirmMessage"
+msgstr "{0} 의 Mesh를 변형 완료 Mesh로 교체하시겠습니까?\n변형 데이터는 Mesh에 베이크되고 델타는 지워집니다.\n이 작업은 Undo 가능합니다."
+
+msgid "MeshDeformInspector:Export:ReplaceConfirmOk"
+msgstr "교체하기"
+
+msgid "MeshDeformInspector:Export:Cancel"
+msgstr "취소"
+
+msgid "MeshDeformInspector:Reset:Button"
+msgstr "변형 초기화"
+
+msgid "MeshDeformInspector:Reset:ConfirmTitle"
+msgstr "변형 초기화 확인"
+
+msgid "MeshDeformInspector:Reset:ConfirmMessage"
+msgstr "이 Renderer의 변형 데이터를 모두 초기화하시겠습니까?"
+
+msgid "MeshDeformInspector:Reset:ConfirmOk"
+msgstr "초기화"
+
+msgid "Scene:Mode:UVIsland"
+msgstr "UV 아일랜드 편집"
+
+msgid "Scene:Mode:Lattice"
+msgstr "래티스 편집"
+
+msgid "Scene:Mode:Vertex"
+msgstr "버텍스 편집"
+
+msgid "Scene:Guide:Lattice"
+msgstr "--- {0} ---\n클릭: 제어점 선택\n드래그: 제어점 자유 이동\nCtrl+클릭: 추가/해제\nShift+클릭: 추가\n선택 후: XYZ 축 핸들로 이동"
+
+msgid "Scene:Guide:UVIsland"
+msgstr "--- {0} ---\n클릭: 아일랜드 선택\nCtrl+클릭: 추가/해제\nShift+클릭: 추가\nW/E/R: 이동/회전/스케일"
+
+msgid "Scene:Guide:Vertex"
+msgstr "--- {0} ---\n클릭: 버텍스 선택\n드래그: 사각형 선택\nCtrl+클릭: 추가/해제\nShift+클릭: 추가\nW/E/R: 이동/회전/스케일\n드래그 중 휠: 영향 범위 변경"
+
+msgid "MaskTool:Dialog:UpdateRequiredTitle"
+msgstr "마스크 툴 업데이트 필요"
+
+msgid "MaskTool:Dialog:NotInstalledTitle"
+msgstr "마스크 툴 미설치"
+
+msgid "MaskTool:Dialog:UpdateAssetsV1Body"
+msgstr "설치된 \"칠하고 골라서 마스크 만들기\"는 CHM 연동을 지원하지 않습니다. v1.0 이상으로 업데이트해 주세요."
+
+msgid "MaskTool:Dialog:OpenProductPage"
+msgstr "상품 페이지 열기"
+
+msgid "MaskTool:Dialog:Close"
+msgstr "닫기"
+
+msgid "MaskTool:Dialog:NotInstalledBody"
+msgstr "마스크 작성 지원 툴이 설치되지 않았습니다. 마스크 툴 동봉판 또는 \"칠하고 골라서 마스크 만들기\" v1.0 이상을 도입해 주세요."
+
+msgid "MaskTool:Dialog:UpdateVpmV11Body"
+msgstr "이 기능에는 마스크 작성 지원 툴 v1.1 이상이 필요합니다. 동봉판 패키지를 업데이트해 주세요."
+
+msgid "MaskTool:Dialog:UpdateAssetsV11Body"
+msgstr "이 기능에는 \"칠하고 골라서 마스크 만들기\" v1.1 이상이 필요합니다. 업데이트해 주세요."
+
+msgid "MaskTool:Dialog:UpdateAssetsV11IncompatBody"
+msgstr "설치된 \"칠하고 골라서 마스크 만들기\"는 이 기능을 지원하지 않습니다. v1.1 이상으로 업데이트해 주세요."
+
+msgid "MaskTool:Dialog:NotInstalledSubmeshBody"
+msgstr "이 기능에는 마스크 작성 지원 툴이 필요합니다. 마스크 툴 동봉판 또는 \"칠하고 골라서 마스크 만들기\" v1.1 이상을 도입해 주세요."
+
+msgid "ColorTransformMode:Gradient"
+msgstr "Mode 2"
+
+msgid "ColorTransformMode:HueShift"
+msgstr "Mode 1"
+
+msgid "BrightnessUnifyMode:Off"
+msgstr "끄기"
+
+msgid "BrightnessUnifyMode:ToBrightest"
+msgstr "가장 밝게 맞추기(고부하)"
+
+msgid "BrightnessUnifyMode:ToDarkest"
+msgstr "가장 어둡게 맞추기(고부하)"
+
+msgid "FalloffType:Constant"
+msgstr "균일"
+
+msgid "FalloffType:Linear"
+msgstr "직선"
+
+msgid "FalloffType:Smooth"
+msgstr "스무스"
+
+msgid "FalloffType:Sphere"
+msgstr "중심 우선"
+
+msgid "DistanceMetric:Euclidean"
+msgstr "공간상 거리"
+
+msgid "DistanceMetric:Geodesic"
+msgstr "잡은 표면상 거리"
+
+msgid "MeshSettingsInheritMode:Inherit"
+msgstr "상속"
+
+msgid "MeshSettingsInheritMode:Set"
+msgstr "지정"
+
+msgid "MeshSettingsInheritMode:DontSet"
+msgstr "지정 안 함"
+
+msgid "MeshSettingsInheritMode:SetOrInherit"
+msgstr "부모에 지정되어 있으면 상속, 아니면 지정"
