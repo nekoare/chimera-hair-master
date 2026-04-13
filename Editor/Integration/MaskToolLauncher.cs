@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEditor;
 using ChimeraHairMaster.Editor.Processing;
+using ChimeraHairMaster.Editor.Localization;
 #if CHM_MASK_CREATION_TOOL
 using NekoareMaskTool.Editor;
 #endif
