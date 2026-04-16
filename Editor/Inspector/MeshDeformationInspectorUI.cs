@@ -110,11 +110,28 @@ namespace ChimeraHairMaster.Editor
                 return;
             }
 
-            var names = new string[component.DeformTargetRenderers.Count];
-            for (int i = 0; i < component.DeformTargetRenderers.Count; i++)
+            int count = component.DeformTargetRenderers.Count;
+            var names = new string[count];
+
+            // Popup は GenericMenu ベースで同名項目を一意キー扱いするため、
+            // 同名 GameObject が登録されていると 2 件目以降が選択不能になる。
+            // 重複名のみ末尾に (2), (3) ... を付けて一意化する（非重複名は素のまま）。
+            var nameCounts = new System.Collections.Generic.Dictionary<string, int>();
+            for (int i = 0; i < count; i++)
             {
                 var r = component.DeformTargetRenderers[i];
-                names[i] = r != null ? r.name : "(missing)";
+                var baseName = r != null ? r.name : "(missing)";
+                names[i] = baseName;
+                nameCounts[baseName] = nameCounts.TryGetValue(baseName, out int c) ? c + 1 : 1;
+            }
+            var running = new System.Collections.Generic.Dictionary<string, int>();
+            for (int i = 0; i < count; i++)
+            {
+                var baseName = names[i];
+                if (nameCounts[baseName] <= 1) continue;
+                int occ = running.TryGetValue(baseName, out int c) ? c + 1 : 1;
+                running[baseName] = occ;
+                if (occ > 1) names[i] = $"{baseName} ({occ})";
             }
 
             _selectedRendererIndex = Mathf.Clamp(_selectedRendererIndex, 0, names.Length - 1);
