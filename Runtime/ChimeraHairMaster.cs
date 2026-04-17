@@ -89,7 +89,7 @@ namespace ChimeraHairMaster
         public float saturationPreserve = 0f;
 
         /// <summary>
-        /// 明度の保持率（ColorTransformMode.HueShift時に使用）
+        /// 明度の保持率（ColorTransformMode.HueShift + HSV algorithm時に使用）
         /// 1.0で元の明度を完全に保持、0.0でターゲット色の明度に合わせる
         /// </summary>
         [SerializeField]
@@ -97,11 +97,76 @@ namespace ChimeraHairMaster
         public float valuePreserve = 1.0f;
 
         /// <summary>
-        /// 輝度統一モード（ColorTransformMode.HueShift時に使用）
-        /// 複数のテクスチャの明るさを統一する処理（処理コストが高いため、必要な場合のみ有効化）
+        /// 色相シフトモード時に使用するアルゴリズム
+        /// HSV: 従来実装（互換性維持）
+        /// Oklab: 新実装（テクスチャ毎の輝度を target に自動補正）
         /// </summary>
         [SerializeField]
-        public BrightnessUnifyMode brightnessUnifyMode = BrightnessUnifyMode.Off;
+        public HueShiftAlgorithm hueShiftAlgorithm = HueShiftAlgorithm.Oklab;
+
+        #region HueShift (Oklab algorithm) パラメータ
+
+        /// <summary>
+        /// 色相保持率（Oklab algorithm 時に使用）
+        /// 0.0=target.h で色相完全固定、1.0=元の色相を保持
+        /// </summary>
+        [SerializeField]
+        [Range(0f, 1f)]
+        public float oklabHueRetain = 0f;
+
+        /// <summary>
+        /// 彩度を target.C に寄せる強さ（Oklab algorithm 時に使用）
+        /// 0.0=元の彩度を保持、1.0=target.C に寄せる
+        /// </summary>
+        [SerializeField]
+        [Range(0f, 1f)]
+        public float oklabSaturationToTarget = 1.0f;
+
+        /// <summary>
+        /// L（明度）を target.L に寄せる強さ（Oklab algorithm 時に使用）
+        /// 0.0=L 補正なし（元のまま）、1.0=完全に線形リマップを適用
+        /// 内部では [source.L_p05, source.L_p95] を [target.L * darkEndRatio, target.L] に線形リマップする
+        /// </summary>
+        [SerializeField]
+        [Range(0f, 1f)]
+        public float oklabLToTarget = 1.0f;
+
+        /// <summary>
+        /// 線形リマップ時、暗端（source.L_p05）を target.L の何倍にマップするか（Oklab algorithm 時に使用）
+        /// 0.0=暗端を黒に / 1.0=暗端も target.L に寄せる（明暗差消失）
+        /// target 色変更時に自動で再計算される（UpdateOklabLDarkEndRatioFromTargetColor）
+        /// </summary>
+        [SerializeField]
+        [Range(0f, 1f)]
+        public float oklabLDarkEndRatio = 0.5f;
+
+        /// <summary>
+        /// 前回 target 色変更を検出するためのシャドウコピー（UI 非表示）
+        /// </summary>
+        [SerializeField, HideInInspector]
+        private Color _lastTargetColorForOklabAutoAdjust = Color.white;
+
+        #endregion
+
+        #region RGBDelta モードパラメータ
+
+        /// <summary>
+        /// RGB差分の加算強度（RGBDelta モード時に使用）
+        /// 0.0=変化なし、1.0=完全に target.base 差分を加算
+        /// </summary>
+        [SerializeField]
+        [Range(0f, 1f)]
+        public float rgbDeltaIntensity = 1.0f;
+
+        /// <summary>
+        /// RGB差分のソフトクリップ領域幅（RGBDelta モード時に使用）
+        /// 大きいほど範囲外の漸近領域が広い。0.05 程度が標準
+        /// </summary>
+        [SerializeField]
+        [Range(0.01f, 0.3f)]
+        public float rgbDeltaSoftClipZone = 0.05f;
+
+        #endregion
 
         /// <summary>
         /// Renderer単位の明度調整リスト
@@ -109,6 +174,13 @@ namespace ChimeraHairMaster
         /// </summary>
         [SerializeField]
         public List<RendererBrightnessAdjustment> rendererBrightnessAdjustments = new List<RendererBrightnessAdjustment>();
+
+        /// <summary>
+        /// Renderer単位のブラー／シャープ調整リスト
+        /// 色変換の直前にテクスチャの塗り感を統一するための前処理
+        /// </summary>
+        [SerializeField]
+        public List<RendererBlurSharpAdjustment> rendererBlurSharpAdjustments = new List<RendererBlurSharpAdjustment>();
 
         /// <summary>
         /// 色合わせ無視マスク一覧
@@ -220,9 +292,10 @@ namespace ChimeraHairMaster
 
         /// <summary>
         /// メッシュ変形を有効にするかどうか
+        /// 通常は常に true（UIからは操作しない、スタンドアロンとの重複時のみ false）
         /// </summary>
         [SerializeField]
-        public bool enableMeshDeformation = false;
+        public bool enableMeshDeformation = true;
 
         /// <summary>
         /// Renderer単位の変形データ一覧
@@ -322,6 +395,10 @@ namespace ChimeraHairMaster
 
             // 明度保持をターゲット色のV値に基づいて設定
             UpdateValuePreserveFromTargetColor();
+
+            // Oklab 暗端比率もターゲット色から初期化
+            UpdateOklabLDarkEndRatioFromTargetColor();
+            _lastTargetColorForOklabAutoAdjust = targetColor;
         }
 
         /// <summary>
@@ -332,6 +409,31 @@ namespace ChimeraHairMaster
         {
             Color.RGBToHSV(targetColor, out _, out _, out float v);
             valuePreserve = 0.3f + v * 0.7f;
+        }
+
+        /// <summary>
+        /// ターゲット色の V 値に基づいて Oklab algorithm の暗端 target 追従率を更新。
+        ///
+        /// 経験則に基づく式（Oklab 線形リマップと組み合わせたときに破綻しにくい値）:
+        ///   - target.V が極端（V≈0 の暗い target / V≈1 の白い target）: dark_ratio を小さく（0.3）
+        ///     → テクスチャ元の明暗 range をより活かしたリマップになる。
+        ///       target.L が 0 付近 / 1 付近では p95 が target.L に近づくので、
+        ///       暗端も target に近い位置で良く、range 圧縮を控える。
+        ///   - target.V が中間（V≈0.5）: dark_ratio を大きく（0.9）
+        ///     → [target.L * 0.9, target.L] の狭い range に圧縮され、
+        ///       複数テクスチャの明度感が揃いやすい。
+        ///
+        /// 式:  0.3 + 0.6 * (1 - |2V - 1|)
+        ///   - |2V - 1| は V=0.5 で 0、V=0 / V=1 で 1 になる三角波
+        ///   - 結果として V=0.5 で 0.9、V=0 / V=1 で 0.3 の山形カーブ
+        ///
+        /// ユーザーが手動微調整したい場合は、このメソッドを呼ばずに oklabLDarkEndRatio を直接設定する
+        /// （OnValidate で target 色変更時に再計算されるので注意）。
+        /// </summary>
+        public void UpdateOklabLDarkEndRatioFromTargetColor()
+        {
+            Color.RGBToHSV(targetColor, out _, out _, out float v);
+            oklabLDarkEndRatio = 0.3f + 0.6f * (1f - Mathf.Abs(2f * v - 1f));
         }
 
         // ----------------------- Material selection sync -----------------------
@@ -375,6 +477,14 @@ namespace ChimeraHairMaster
         private void OnValidate()
         {
             SyncMaterialSelectionsFromRenderers();
+
+            // target 色が変わったら Oklab 暗端比率を自動更新
+            if (_lastTargetColorForOklabAutoAdjust != targetColor)
+            {
+                _lastTargetColorForOklabAutoAdjust = targetColor;
+                UpdateOklabLDarkEndRatioFromTargetColor();
+            }
+
             UnityEditor.EditorUtility.SetDirty(this);
         }
 #endif

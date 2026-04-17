@@ -124,7 +124,7 @@ msgid "Window:Action:Setup"
 msgstr "一键配置"
 
 msgid "Window:Validation:SelectAvatar"
-msgstr "请选择模型。"
+msgstr "请从 Hierarchy 拖放头发部件。"
 
 msgid "Window:Validation:AtLeastTwoRenderers"
 msgstr "请添加2个以上的头发Renderer。"
@@ -285,9 +285,6 @@ msgstr "保留原明度"
 msgid "Inspector:AutoAdjust"
 msgstr "自动调整"
 
-msgid "Inspector:BrightnessUnifyMode"
-msgstr "统一整体亮度(高负荷)"
-
 msgid "Inspector:HueShiftHelp"
 msgstr "指定色模式(默认)\n将整体变更为指定颜色。\n适合原头发明暗对比较小的情况。"
 
@@ -427,7 +424,7 @@ msgid "Inspector:PreviewRequiresSetup"
 msgstr "要启用预览，请先设置目标Renderer和基准Material。"
 
 msgid "Inspector:SaveAsTextureSection"
-msgstr "另存为贴图功能"
+msgstr "导出贴图"
 
 msgid "Inspector:ApplyTexture"
 msgstr "将贴图应用到Material"
@@ -666,15 +663,6 @@ msgstr "Mode 2"
 msgid "ColorTransformMode:HueShift"
 msgstr "Mode 1"
 
-msgid "BrightnessUnifyMode:Off"
-msgstr "关闭"
-
-msgid "BrightnessUnifyMode:ToBrightest"
-msgstr "统一到最亮(高负荷)"
-
-msgid "BrightnessUnifyMode:ToDarkest"
-msgstr "统一到最暗(高负荷)"
-
 msgid "FalloffType:Constant"
 msgstr "均匀"
 
@@ -704,3 +692,76 @@ msgstr "不设置"
 
 msgid "MeshSettingsInheritMode:SetOrInherit"
 msgstr "父对象已设置时继承，否则使用此设置"
+
+# ---- Color mode: RGB Delta ----
+msgid "Inspector:ColorTransformMode:RGBDelta"
+msgstr "Mode 3"
+
+# ---- Hue shift algorithm ----
+msgid "Inspector:HueShiftAlgorithm"
+msgstr "算法"
+
+msgid "Inspector:HueShiftAlgorithm:HSV"
+msgstr "HSV（传统）"
+
+msgid "Inspector:HueShiftAlgorithm:Oklab"
+msgstr "Oklab"
+
+# ---- Oklab parameters ----
+msgid "Inspector:OklabHueRetain"
+msgstr "保留原始色相"
+
+msgid "Inspector:OklabHueRetainTooltip"
+msgstr "0 = 锁定为目标色相 / 1 = 保留原始色相细节"
+
+msgid "Inspector:OklabHelp"
+msgstr "Oklab 是亮度和彩度独立的色彩空间，容易将多张贴图的颜色自动对齐到目标色。"
+
+# ---- RGB Delta parameters ----
+msgid "Inspector:RgbDeltaIntensity"
+msgstr "差分强度"
+
+msgid "Inspector:RgbDeltaIntensityTooltip"
+msgstr "0 = 不变化 / 1 = 将贴图代表色到目标色的差分完全相加"
+
+msgid "Inspector:RgbDeltaSoftClipZone"
+msgstr "软裁剪区域"
+
+msgid "Inspector:RgbDeltaSoftClipZoneTooltip"
+msgstr "范围外的渐近带宽（在 Linear RGB 空间中测量）。0.05 左右为标准"
+
+msgid "Inspector:RgbDeltaHelp"
+msgstr "RGB差分模式：将贴图代表色到目标色的差分添加到所有像素。\n不强制色相，因此保留高光等细节。"
+
+# ---- Blur / Sharpen ----
+msgid "Inspector:BlurSharpAdjustment"
+msgstr "调整涂色细节"
+
+msgid "Inspector:BlurSharpAdjustmentHelp"
+msgstr "负值模糊、正值锐化。在色彩转换之前作为预处理应用。\n用于统一贴图之间的涂色质感（犀利或柔和）。"
+
+# ---- Texture Export: mesh merge discard warning ----
+msgid "Inspector:MeshMergeDiscardWarning"
+msgstr "已启用网格合并，但应用此功能将放弃网格合并设置，仅执行贴图保存。"
+
+# ---- UV expand view ----
+msgid "Window:UVSettings:ExpandView"
+msgstr "扩大视图"
+
+msgid "Window:UVPreview:Title"
+msgstr "UV 排布预览"
+
+msgid "Window:UVPreview:Hint"
+msgstr "拖拽/缩放操作与主窗口相同"
+
+msgid "Window:UVPreview:OwnerClosed"
+msgstr "主窗口已关闭。\n请关闭此窗口。"
+
+msgid "Inspector:MeshMergeDiscardConfirm"
+msgstr "已启用网格合并。\n应用后网格合并设置（enableMeshMerge）将被禁用，不进行合并处理，仅执行贴图输出。\nUV 排布设置（islandPlacements）会保留，但之后的构建中将不会被使用。\n是否继续？"
+
+msgid "Inspector:Confirm:Apply"
+msgstr "应用"
+
+msgid "Inspector:Confirm:Cancel"
+msgstr "取消"

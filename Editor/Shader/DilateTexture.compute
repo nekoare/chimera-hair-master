@@ -1,0 +1,76 @@
+// UV 使用領域マスク外のピクセルを近隣マスク内ピクセル色で 1 pixel 拡張するカーネル
+// ColorProcessor.DilateTexture の GPU 版実装
+//
+// 呼び出しパターン（CPU 側）:
+//   iterations 回だけ _Source / _Target と _Mask / _NewMask を ping-pong して Dispatch
+
+#pragma kernel CSDilate
+
+RWTexture2D<float4> _Source;       // 現イテレーションの入力
+RWTexture2D<float4> _Target;       // 現イテレーションの出力
+RWStructuredBuffer<uint> _Mask;    // 入力マスク（packed uint, 1=使用領域）
+RWStructuredBuffer<uint> _NewMask; // 出力マスク
+int _Width;
+int _Height;
+
+bool IsInMask(int x, int y)
+{
+    if (x < 0 || x >= _Width || y < 0 || y >= _Height) return false;
+    int idx = y * _Width + x;
+    uint word = _Mask[idx >> 5];
+    return (word & (1u << (idx & 31))) != 0u;
+}
+
+[numthreads(16, 16, 1)]
+void CSDilate(uint3 id : SV_DispatchThreadID)
+{
+    if ((int)id.x >= _Width || (int)id.y >= _Height) return;
+
+    int linearIdx = (int)id.y * _Width + (int)id.x;
+
+    float4 src = _Source[id.xy];
+
+    if (IsInMask((int)id.x, (int)id.y))
+    {
+        // 既にマスク内: そのまま出力、マスクも立てる
+        _Target[id.xy] = src;
+        uint wordIdx = (uint)(linearIdx >> 5);
+        uint bit = 1u << (linearIdx & 31);
+        InterlockedOr(_NewMask[wordIdx], bit);
+        return;
+    }
+
+    // マスク外: 8 近傍から mask=true のピクセルの RGB を平均
+    float3 sumRgb = float3(0, 0, 0);
+    int count = 0;
+
+    [unroll]
+    for (int dy = -1; dy <= 1; dy++)
+    {
+        [unroll]
+        for (int dx = -1; dx <= 1; dx++)
+        {
+            if (dx == 0 && dy == 0) continue;
+            int nx = (int)id.x + dx;
+            int ny = (int)id.y + dy;
+            if (!IsInMask(nx, ny)) continue;
+            sumRgb += _Source[int2(nx, ny)].rgb;
+            count++;
+        }
+    }
+
+    if (count > 0)
+    {
+        float inv = 1.0 / count;
+        // RGB のみ平均で拡張、alpha は元のピクセル alpha を保持
+        _Target[id.xy] = float4(sumRgb * inv, src.a);
+        uint wordIdx2 = (uint)(linearIdx >> 5);
+        uint bit2 = 1u << (linearIdx & 31);
+        InterlockedOr(_NewMask[wordIdx2], bit2);
+    }
+    else
+    {
+        // 近隣に mask=true のピクセルが無い: 元のまま、マスクも立てない
+        _Target[id.xy] = src;
+    }
+}

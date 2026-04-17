@@ -361,9 +361,20 @@ namespace ChimeraHairMaster.Editor.NDMF
         /// テクスチャ以外のプロパティ（数値、色、ベクトル、キーワード、レンダーキュー）をコピー
         /// テクスチャスロットはスキップし、元のマテリアルのテクスチャをそのまま保持する
         /// excludeOverlayAndEmission が true の場合、メインカラー2nd/3rd・発光設定もスキップする
+        ///
+        /// 冒頭で to.shader = from.shader; を行うので、
+        /// lilToon の輪郭線 ON/OFF（lts ↔ ltso など）のようなシェーダー自体の入れ替えにも対応する。
+        /// Unity は shader 変更時に同名プロパティの値を保持するため、色変換済みのテクスチャ等は残る。
         /// </summary>
         internal static void ApplyShaderSettings(Material from, Material to, bool excludeOverlayAndEmission = false, bool excludeMatCap = false)
         {
+            // シェーダー自体を from に合わせる（lilToon 輪郭線トグル等に対応）
+            // 同名プロパティの値は Unity が自動で引き継ぐので、色変換済みテクスチャ等は保持される
+            if (from.shader != null && to.shader != from.shader)
+            {
+                to.shader = from.shader;
+            }
+
             to.renderQueue = from.renderQueue;
             to.shaderKeywords = from.shaderKeywords;
 

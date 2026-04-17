@@ -15,10 +15,17 @@ namespace ChimeraHairMaster
         Gradient,
 
         /// <summary>
-        /// 色相シフト - HSV色空間で色相のみをシフト
+        /// 色相シフト - HSV または Oklab で色相を target に揃える
         /// 陰影を保ちつつ色を変えたい場合に使用（推奨）
         /// </summary>
         [InspectorName("色指定（デフォルト）")]
-        HueShift
+        HueShift,
+
+        /// <summary>
+        /// RGB差分 - テクスチャ代表色から target への RGB差分を全ピクセルに加算
+        /// 色のバリエーション（ハイライト等のニュアンス）を残しつつ色味を寄せたい場合に使用
+        /// </summary>
+        [InspectorName("RGB差分")]
+        RGBDelta,
     }
 }

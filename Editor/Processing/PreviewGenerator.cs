@@ -141,7 +141,14 @@ namespace ChimeraHairMaster.Editor.Processing
                             SourceColor = sourceColor,
                             GradientCurve = component.gradientCurve,
                             SaturationPreserve = component.saturationPreserve,
-                            ValuePreserve = component.valuePreserve
+                            ValuePreserve = component.valuePreserve,
+                            HueShiftAlgorithm = component.hueShiftAlgorithm,
+                            OklabHueRetain = component.oklabHueRetain,
+                            OklabSaturationToTarget = component.oklabSaturationToTarget,
+                            OklabLToTarget = component.oklabLToTarget,
+                            OklabLDarkEndRatio = component.oklabLDarkEndRatio,
+                            RgbDeltaIntensity = component.rgbDeltaIntensity,
+                            RgbDeltaSoftClipZone = component.rgbDeltaSoftClipZone,
                         };
 
                         // 色変換を実行

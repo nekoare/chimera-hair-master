@@ -124,7 +124,7 @@ msgid "Window:Action:Setup"
 msgstr "セットアップ"
 
 msgid "Window:Validation:SelectAvatar"
-msgstr "アバターを選択してください。"
+msgstr "Hierarchyからパーツをドラッグドロップしてください。"
 
 msgid "Window:Validation:AtLeastTwoRenderers"
 msgstr "2つ以上の髪Rendererを追加してください。"
@@ -285,9 +285,6 @@ msgstr "元の明るさを保持"
 msgid "Inspector:AutoAdjust"
 msgstr "自動調整"
 
-msgid "Inspector:BrightnessUnifyMode"
-msgstr "全体の明るさを合わせる(高負荷)"
-
 msgid "Inspector:HueShiftHelp"
 msgstr "色指定モード（デフォルト）\n全体を指定した色に変更します。\n元の髪の明暗の差が小さいときに有効です。"
 
@@ -427,7 +424,7 @@ msgid "Inspector:PreviewRequiresSetup"
 msgstr "プレビューを有効にするには、対象Rendererと基準マテリアルを設定してください。"
 
 msgid "Inspector:SaveAsTextureSection"
-msgstr "テクスチャとして保存機能"
+msgstr "テクスチャ出力"
 
 msgid "Inspector:ApplyTexture"
 msgstr "テクスチャをマテリアルに適用"
@@ -666,15 +663,6 @@ msgstr "グラデーション"
 msgid "ColorTransformMode:HueShift"
 msgstr "色指定（デフォルト）"
 
-msgid "BrightnessUnifyMode:Off"
-msgstr "オフ"
-
-msgid "BrightnessUnifyMode:ToBrightest"
-msgstr "明るい方に合わせる（高負荷）"
-
-msgid "BrightnessUnifyMode:ToDarkest"
-msgstr "暗い方に合わせる（高負荷）"
-
 msgid "FalloffType:Constant"
 msgstr "均一"
 
@@ -704,3 +692,76 @@ msgstr "設定しない"
 
 msgid "MeshSettingsInheritMode:SetOrInherit"
 msgstr "親で指定されている時は継承、それ以外では指定"
+
+# ---- 色指定モード: RGB差分 ----
+msgid "Inspector:ColorTransformMode:RGBDelta"
+msgstr "RGB差分"
+
+# ---- 色指定モード: algorithm ----
+msgid "Inspector:HueShiftAlgorithm"
+msgstr "アルゴリズム"
+
+msgid "Inspector:HueShiftAlgorithm:HSV"
+msgstr "HSV（従来）"
+
+msgid "Inspector:HueShiftAlgorithm:Oklab"
+msgstr "Oklab"
+
+# ---- Oklab パラメータ・ヘルプ ----
+msgid "Inspector:OklabHueRetain"
+msgstr "元の色合いを保持"
+
+msgid "Inspector:OklabHueRetainTooltip"
+msgstr "0=色相を target に固定 / 1=元の色相のニュアンスを残す"
+
+msgid "Inspector:OklabHelp"
+msgstr "Oklab は輝度と彩度が独立した色空間なので、複数テクスチャの色味を target に自動で揃えやすい。"
+
+# ---- RGBDelta パラメータ・ヘルプ ----
+msgid "Inspector:RgbDeltaIntensity"
+msgstr "差分の強度"
+
+msgid "Inspector:RgbDeltaIntensityTooltip"
+msgstr "0=変化なし / 1=テクスチャ代表色から target への差分を完全加算"
+
+msgid "Inspector:RgbDeltaSoftClipZone"
+msgstr "ソフトクリップ領域"
+
+msgid "Inspector:RgbDeltaSoftClipZoneTooltip"
+msgstr "範囲外を端へ漸近させる領域幅（Linear RGB 空間での値）。0.05 程度が標準"
+
+msgid "Inspector:RgbDeltaHelp"
+msgstr "RGB差分モード: テクスチャ代表色 → target への差分を全ピクセルに加算します。\n色相を強制せず差を保つため、ハイライト等のニュアンスが残ります。"
+
+# ---- 塗りの細かさを調整 ----
+msgid "Inspector:BlurSharpAdjustment"
+msgstr "塗りの細かさを調整"
+
+msgid "Inspector:BlurSharpAdjustmentHelp"
+msgstr "負の値でブラー（ぼかし）、正の値でシャープ化を適用。色変換の直前に前処理として効果を入れます。\nテクスチャ毎の塗り感（カリカリ or 柔らかい）を揃えたいときに使用。"
+
+# ---- テクスチャ出力: メッシュ統合有効時の警告 ----
+msgid "Inspector:MeshMergeDiscardWarning"
+msgstr "メッシュ統合が有効ですが、この機能を適用するとメッシュ統合設定は破棄され、テクスチャ保存のみが実行されます。"
+
+# ---- UV 拡大ビュー ----
+msgid "Window:UVSettings:ExpandView"
+msgstr "拡大ビュー"
+
+msgid "Window:UVPreview:Title"
+msgstr "UV配置プレビュー"
+
+msgid "Window:UVPreview:Hint"
+msgstr "ドラッグ・スケール操作は親ウィンドウと同じです"
+
+msgid "Window:UVPreview:OwnerClosed"
+msgstr "親ウィンドウが閉じられました。\nこのウィンドウも閉じてください。"
+
+msgid "Inspector:MeshMergeDiscardConfirm"
+msgstr "メッシュ統合が有効です。\n適用するとメッシュ統合設定（enableMeshMerge）が無効化され、統合処理は行わずテクスチャ出力のみ実行されます。\nUV配置設定（islandPlacements）は残りますが、以降のビルド時には使用されなくなります。\n続けますか？"
+
+msgid "Inspector:Confirm:Apply"
+msgstr "適用する"
+
+msgid "Inspector:Confirm:Cancel"
+msgstr "キャンセル"

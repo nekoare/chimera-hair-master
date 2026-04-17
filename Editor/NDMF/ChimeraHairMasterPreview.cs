@@ -165,9 +165,15 @@ namespace ChimeraHairMaster.Editor.NDMF
                 {
                     hash = hash * 31 + component.targetColor.GetHashCode();
                     hash = hash * 31 + component.colorTransformMode.GetHashCode();
-                    hash = hash * 31 + component.brightnessUnifyMode.GetHashCode();
+                    hash = hash * 31 + component.hueShiftAlgorithm.GetHashCode();
                     hash = hash * 31 + component.saturationPreserve.GetHashCode();
                     hash = hash * 31 + component.valuePreserve.GetHashCode();
+                    hash = hash * 31 + component.oklabHueRetain.GetHashCode();
+                    hash = hash * 31 + component.oklabSaturationToTarget.GetHashCode();
+                    hash = hash * 31 + component.oklabLToTarget.GetHashCode();
+                    hash = hash * 31 + component.oklabLDarkEndRatio.GetHashCode();
+                    hash = hash * 31 + component.rgbDeltaIntensity.GetHashCode();
+                    hash = hash * 31 + component.rgbDeltaSoftClipZone.GetHashCode();
                     // gradientCurve: 全カラーキー（色+位置）+ 全アルファキー（値+位置）
                     if (component.gradientCurve != null)
                     {
@@ -198,6 +204,16 @@ namespace ChimeraHairMaster.Editor.NDMF
                     {
                         hash = hash * 31 + adj.rendererIndex;
                         hash = hash * 31 + adj.brightnessOffset.GetHashCode();
+                    }
+                }
+
+                // ブラー／シャープ調整
+                if (component.rendererBlurSharpAdjustments != null)
+                {
+                    foreach (var adj in component.rendererBlurSharpAdjustments)
+                    {
+                        hash = hash * 31 + adj.rendererIndex;
+                        hash = hash * 31 + adj.blurSharp.GetHashCode();
                     }
                 }
 
@@ -318,9 +334,15 @@ namespace ChimeraHairMaster.Editor.NDMF
                 {
                     hash = hash * 31 + component.targetColor.GetHashCode();
                     hash = hash * 31 + component.colorTransformMode.GetHashCode();
-                    hash = hash * 31 + component.brightnessUnifyMode.GetHashCode();
+                    hash = hash * 31 + component.hueShiftAlgorithm.GetHashCode();
                     hash = hash * 31 + component.saturationPreserve.GetHashCode();
                     hash = hash * 31 + component.valuePreserve.GetHashCode();
+                    hash = hash * 31 + component.oklabHueRetain.GetHashCode();
+                    hash = hash * 31 + component.oklabSaturationToTarget.GetHashCode();
+                    hash = hash * 31 + component.oklabLToTarget.GetHashCode();
+                    hash = hash * 31 + component.oklabLDarkEndRatio.GetHashCode();
+                    hash = hash * 31 + component.rgbDeltaIntensity.GetHashCode();
+                    hash = hash * 31 + component.rgbDeltaSoftClipZone.GetHashCode();
 
                     if (component.gradientCurve != null)
                     {
@@ -351,6 +373,16 @@ namespace ChimeraHairMaster.Editor.NDMF
                     {
                         hash = hash * 31 + (slot.propertyName?.GetHashCode() ?? 0);
                         hash = hash * 31 + slot.applyColorChange.GetHashCode();
+                    }
+                }
+
+                // ブラー／シャープ調整（色変換の前処理なので色変換結果そのものが変わる）
+                if (component.rendererBlurSharpAdjustments != null)
+                {
+                    foreach (var adj in component.rendererBlurSharpAdjustments)
+                    {
+                        hash = hash * 31 + adj.rendererIndex;
+                        hash = hash * 31 + adj.blurSharp.GetHashCode();
                     }
                 }
 
@@ -419,6 +451,8 @@ namespace ChimeraHairMaster.Editor.NDMF
                             context.Observe(c, x => x.enableColorTransform);
                             // 明度調整リストの変更も監視
                             context.Observe(c, x => x.rendererBrightnessAdjustments);
+                            // ブラー／シャープ調整リストの変更も監視
+                            context.Observe(c, x => x.rendererBlurSharpAdjustments);
                             // プレビュー解像度の変更も監視
                             context.Observe(c, x => x.previewResolution);
                             return c;
@@ -647,7 +681,6 @@ namespace ChimeraHairMaster.Editor.NDMF
 
                 // 色変換設定を取得（色合わせが有効な場合のみ使用）
                 Processing.ColorTransformSettings? settings = null;
-                Dictionary<Texture2D, Texture2D>? brightnessAdjustedCache = null;
 
                 if (enableColorTransform)
                 {
@@ -674,12 +707,6 @@ namespace ChimeraHairMaster.Editor.NDMF
 
                         settings = Processing.ColorTransformSettings.FromComponent(component, sourceColor);
 
-                        // 輝度統一が有効な場合、事前にすべてのテクスチャを収集して明度を調整
-                        if (settings.Mode == ColorTransformMode.HueShift && settings.BrightnessUnifyMode != BrightnessUnifyMode.Off)
-                        {
-                            brightnessAdjustedCache = ApplyBrightnessUnificationForPreview(component, settings.BrightnessUnifyMode);
-                        }
-
                         // 旧キャッシュを破棄
                         if (_colorTransformCache.TryGetValue(componentId, out var oldCache))
                         {
@@ -696,8 +723,9 @@ namespace ChimeraHairMaster.Editor.NDMF
                     var renderer = component.targetRenderers[rendererIndex];
                     if (renderer == null) continue;
 
-                    // Renderer単位の明度オフセットを取得
+                    // Renderer単位の明度オフセットとブラー／シャープ強度を取得
                     float brightnessOffset = GetRendererBrightnessOffset(component, rendererIndex);
+                    float blurSharp = GetRendererBlurSharp(component, rendererIndex);
 
                     var materials = renderer.sharedMaterials;
                     for (int submeshIndex = 0; submeshIndex < materials.Length; submeshIndex++)
@@ -790,8 +818,8 @@ namespace ChimeraHairMaster.Editor.NDMF
 
                             // キャッシュまたは新規変換で色変換済みテクスチャを取得
                             Texture2D? baseTex = GetOrCreateColorTransformedTexture(
-                                tex, cachedColorTransforms, newColorCacheTextures,
-                                brightnessAdjustedCache, settings);
+                                tex, cachedColorTransforms, newColorCacheTextures, settings,
+                                renderer, new[] { submeshIndex }, blurSharp);
                             if (baseTex == null) continue;
 
                             Texture2D currentTex = baseTex;
@@ -829,8 +857,8 @@ namespace ChimeraHairMaster.Editor.NDMF
                             if (tex != null)
                             {
                                 Texture2D? baseTex = GetOrCreateColorTransformedTexture(
-                                    tex, cachedColorTransforms, newColorCacheTextures,
-                                    brightnessAdjustedCache, settings);
+                                    tex, cachedColorTransforms, newColorCacheTextures, settings,
+                                    renderer, new[] { submeshIndex }, blurSharp);
 
                                 if (baseTex != null)
                                 {
@@ -876,15 +904,6 @@ namespace ChimeraHairMaster.Editor.NDMF
                         TransformedTextures = newColorCacheTextures
                     };
                 }
-
-                // 輝度統一の中間テクスチャを破棄
-                if (brightnessAdjustedCache != null)
-                {
-                    foreach (var tex in brightnessAdjustedCache.Values)
-                    {
-                        if (tex != null) Object.DestroyImmediate(tex);
-                    }
-                }
             }
             catch (Exception ex)
             {
@@ -899,10 +918,14 @@ namespace ChimeraHairMaster.Editor.NDMF
             Texture2D originalTex,
             Dictionary<Texture2D, Texture2D>? cachedTransforms,
             Dictionary<Texture2D, Texture2D>? newCacheTextures,
-            Dictionary<Texture2D, Texture2D>? brightnessAdjustedCache,
-            Processing.ColorTransformSettings? settings)
+            Processing.ColorTransformSettings? settings,
+            SkinnedMeshRenderer? renderer = null,
+            IReadOnlyCollection<int>? submeshIndices = null,
+            float blurSharp = 0f)
         {
             // キャッシュヒット: 既存の変換済みテクスチャを返す
+            // blurSharp は colorHash に含まれているので、変更時はキャッシュ全体が無効化される
+            // 同じ colorHash 内で異なる blurSharp が混在すると先勝ちになるが、実用上は稀
             if (cachedTransforms != null && cachedTransforms.TryGetValue(originalTex, out var cached))
             {
                 return cached;
@@ -917,13 +940,44 @@ namespace ChimeraHairMaster.Editor.NDMF
             // 色変換を実行
             if (settings == null) return null;
 
-            Texture2D sourceTexture = originalTex;
-            if (brightnessAdjustedCache != null && brightnessAdjustedCache.TryGetValue(originalTex, out var adjusted))
+            // テクスチャ毎の Oklab/RGBDelta 事前計算（Renderer/Submesh 情報があれば）
+            // ※ 代表色抽出は元テクスチャから（ブラー/シャープ前）
+            var perTextureSettings = renderer != null && submeshIndices != null
+                ? Processing.MeshUVSampler.PrepareSettingsWithUVStats(settings, renderer, submeshIndices, originalTex)
+                : settings;
+
+            // UV マスク（ブラー/シャープ前処理と dilation で共用）
+            bool[]? uvMask = null;
+            if (renderer != null && submeshIndices != null)
             {
-                sourceTexture = adjusted;
+                uvMask = Processing.MeshUVRasterizer.Rasterize(
+                    renderer, submeshIndices, originalTex.width, originalTex.height);
             }
 
-            var processedTex = Processing.ColorProcessor.ProcessTexture(sourceTexture, settings, true);
+            // 色変換の入力（ブラー/シャープ前処理）
+            Texture2D colorTransformInput = originalTex;
+            Texture2D? preprocessed = null;
+            if (Mathf.Abs(blurSharp) > 0.001f)
+            {
+                preprocessed = Processing.TextureBlurSharpener.Process(originalTex, blurSharp, uvMask);
+                if (preprocessed != null) colorTransformInput = preprocessed;
+            }
+
+            var processedTex = Processing.ColorProcessor.ProcessTexture(colorTransformInput, perTextureSettings, true);
+
+            if (preprocessed != null) Object.DestroyImmediate(preprocessed);
+
+            // UV 使用領域外を edge dilation で塗り足し
+            if (processedTex != null && uvMask != null)
+            {
+                var dilated = Processing.ColorProcessor.DilateTexture(processedTex, uvMask, 8);
+                if (dilated != null)
+                {
+                    Object.DestroyImmediate(processedTex);
+                    processedTex = dilated;
+                }
+            }
+
             if (processedTex != null && newCacheTextures != null)
             {
                 newCacheTextures[originalTex] = processedTex;
@@ -1033,24 +1087,15 @@ namespace ChimeraHairMaster.Editor.NDMF
                         }
                         var settings = Processing.ColorTransformSettings.FromComponent(component, sourceColor);
 
-                        Dictionary<Texture2D, Texture2D>? brightnessAdjustedCache = null;
-                        if (settings.Mode == ColorTransformMode.HueShift && settings.BrightnessUnifyMode != BrightnessUnifyMode.Off)
-                        {
-                            brightnessAdjustedCache = ApplyBrightnessUnificationForPreview(component, settings.BrightnessUnifyMode);
-                            foreach (var adjTex in brightnessAdjustedCache.Values)
-                            {
-                                tempTextures.Add(adjTex);
-                            }
-                        }
-
                         for (int r = 0; r < component.targetRenderers.Count; r++)
                         {
                             var renderer = component.targetRenderers[r];
                             if (renderer == null) continue;
 
                             float brightnessOffset = GetRendererBrightnessOffset(component, r);
+                            float blurSharp = GetRendererBlurSharp(component, r);
                             bool hasAnyMask = component.colorMasks?.Any(e => e.rendererIndex == r && e.mask != null) ?? false;
-                            if (Mathf.Abs(brightnessOffset) < 0.001f && !hasAnyMask) continue;
+                            if (Mathf.Abs(brightnessOffset) < 0.001f && !hasAnyMask && Mathf.Abs(blurSharp) < 0.001f) continue;
 
                             savedMaterials[renderer] = renderer.sharedMaterials;
                             var mats = renderer.sharedMaterials;
@@ -1068,7 +1113,7 @@ namespace ChimeraHairMaster.Editor.NDMF
 
                                 // このサブメッシュに修正が必要か確認
                                 var colorMask = component.GetColorMask(r, s);
-                                if (Mathf.Abs(brightnessOffset) < 0.001f && colorMask == null)
+                                if (Mathf.Abs(brightnessOffset) < 0.001f && colorMask == null && Mathf.Abs(blurSharp) < 0.001f)
                                 {
                                     newMats[s] = mat;
                                     continue;
@@ -1085,13 +1130,24 @@ namespace ChimeraHairMaster.Editor.NDMF
                                     var tex = tempMat.GetTexture(slot.propertyName) as Texture2D;
                                     if (tex == null) continue;
 
-                                    Texture2D source = tex;
-                                    if (brightnessAdjustedCache != null && brightnessAdjustedCache.TryGetValue(tex, out var adjusted))
+                                    var perTexSettings = Processing.MeshUVSampler.PrepareSettingsWithUVStats(
+                                        settings, renderer, new[] { s }, tex);
+
+                                    // UV マスク（前処理/dilation 共用）
+                                    var uvMask = Processing.MeshUVRasterizer.Rasterize(
+                                        renderer, new[] { s }, tex.width, tex.height);
+
+                                    // ブラー／シャープ前処理
+                                    Texture2D colorInput = tex;
+                                    Texture2D? preprocessed = null;
+                                    if (Mathf.Abs(blurSharp) > 0.001f)
                                     {
-                                        source = adjusted;
+                                        preprocessed = Processing.TextureBlurSharpener.Process(tex, blurSharp, uvMask);
+                                        if (preprocessed != null) colorInput = preprocessed;
                                     }
 
-                                    var processed = Processing.ColorProcessor.ProcessTexture(source, settings, true);
+                                    var processed = Processing.ColorProcessor.ProcessTexture(colorInput, perTexSettings, true);
+                                    if (preprocessed != null) Object.DestroyImmediate(preprocessed);
                                     if (processed == null) continue;
 
                                     // 明度オフセットを適用
@@ -1102,6 +1158,16 @@ namespace ChimeraHairMaster.Editor.NDMF
                                         {
                                             Object.DestroyImmediate(processed);
                                             processed = offsetApplied;
+                                        }
+                                    }
+
+                                    // UV 使用領域外を edge dilation で塗り足し
+                                    {
+                                        var dilated = Processing.ColorProcessor.DilateTexture(processed, uvMask, 8);
+                                        if (dilated != null)
+                                        {
+                                            Object.DestroyImmediate(processed);
+                                            processed = dilated;
                                         }
                                     }
 
@@ -1128,13 +1194,22 @@ namespace ChimeraHairMaster.Editor.NDMF
                                         .Any(ct => ct.propertyName == "_MainTex" && ct.applyColorChange);
                                     if (tex != null && !alreadyProcessed)
                                     {
-                                        Texture2D source = tex;
-                                        if (brightnessAdjustedCache != null && brightnessAdjustedCache.TryGetValue(tex, out var adj))
+                                        var perTexSettings = Processing.MeshUVSampler.PrepareSettingsWithUVStats(
+                                            settings, renderer, new[] { s }, tex);
+
+                                        var uvMask = Processing.MeshUVRasterizer.Rasterize(
+                                            renderer, new[] { s }, tex.width, tex.height);
+
+                                        Texture2D colorInput = tex;
+                                        Texture2D? preprocessed = null;
+                                        if (Mathf.Abs(blurSharp) > 0.001f)
                                         {
-                                            source = adj;
+                                            preprocessed = Processing.TextureBlurSharpener.Process(tex, blurSharp, uvMask);
+                                            if (preprocessed != null) colorInput = preprocessed;
                                         }
 
-                                        var processed = Processing.ColorProcessor.ProcessTexture(source, settings, true);
+                                        var processed = Processing.ColorProcessor.ProcessTexture(colorInput, perTexSettings, true);
+                                        if (preprocessed != null) Object.DestroyImmediate(preprocessed);
                                         if (processed != null)
                                         {
                                             // 明度オフセットを適用
@@ -1145,6 +1220,16 @@ namespace ChimeraHairMaster.Editor.NDMF
                                                 {
                                                     Object.DestroyImmediate(processed);
                                                     processed = offsetApplied;
+                                                }
+                                            }
+
+                                            // UV 使用領域外を edge dilation で塗り足し
+                                            {
+                                                var dilated = Processing.ColorProcessor.DilateTexture(processed, uvMask, 8);
+                                                if (dilated != null)
+                                                {
+                                                    Object.DestroyImmediate(processed);
+                                                    processed = dilated;
                                                 }
                                             }
 
@@ -1347,18 +1432,6 @@ namespace ChimeraHairMaster.Editor.NDMF
 
             var settings = Processing.ColorTransformSettings.FromComponent(component, sourceColor);
 
-            // 輝度統一
-            Dictionary<Texture2D, Texture2D>? brightnessAdjustedCache = null;
-            if (settings.Mode == ColorTransformMode.HueShift && settings.BrightnessUnifyMode != BrightnessUnifyMode.Off)
-            {
-                brightnessAdjustedCache = ApplyBrightnessUnificationForPreview(component, settings.BrightnessUnifyMode);
-                // 輝度調整テクスチャもトラッキング
-                foreach (var tex in brightnessAdjustedCache.Values)
-                {
-                    generatedTextures.Add(tex);
-                }
-            }
-
             // 統合対象の全テクスチャを色変換
             for (int r = 0; r < component.targetRenderers.Count; r++)
             {
@@ -1380,15 +1453,20 @@ namespace ChimeraHairMaster.Editor.NDMF
                         var tex = mat.GetTexture(slot.propertyName) as Texture2D;
                         if (tex == null || cache.ContainsKey(tex)) continue;
 
-                        Texture2D source = tex;
-                        if (brightnessAdjustedCache != null && brightnessAdjustedCache.TryGetValue(tex, out var adjusted))
-                        {
-                            source = adjusted;
-                        }
-
-                        var processed = Processing.ColorProcessor.ProcessTexture(source, settings, true);
+                        var perTexSettings = Processing.MeshUVSampler.PrepareSettingsWithUVStats(
+                            settings, renderer, new[] { s }, tex);
+                        var processed = Processing.ColorProcessor.ProcessTexture(tex, perTexSettings, true);
                         if (processed != null)
                         {
+                            // UV 使用領域外を edge dilation で塗り足し
+                            var uvMask = Processing.MeshUVRasterizer.Rasterize(
+                                renderer, new[] { s }, processed.width, processed.height);
+                            var dilated = Processing.ColorProcessor.DilateTexture(processed, uvMask, 8);
+                            if (dilated != null)
+                            {
+                                Object.DestroyImmediate(processed);
+                                processed = dilated;
+                            }
                             cache[tex] = processed;
                             generatedTextures.Add(processed);
                         }
@@ -1400,15 +1478,20 @@ namespace ChimeraHairMaster.Editor.NDMF
                         var tex = mat.GetTexture("_MainTex") as Texture2D;
                         if (tex != null && !cache.ContainsKey(tex))
                         {
-                            Texture2D source = tex;
-                            if (brightnessAdjustedCache != null && brightnessAdjustedCache.TryGetValue(tex, out var adjusted))
-                            {
-                                source = adjusted;
-                            }
-
-                            var processed = Processing.ColorProcessor.ProcessTexture(source, settings, true);
+                            var perTexSettings = Processing.MeshUVSampler.PrepareSettingsWithUVStats(
+                                settings, renderer, new[] { s }, tex);
+                            var processed = Processing.ColorProcessor.ProcessTexture(tex, perTexSettings, true);
                             if (processed != null)
                             {
+                                // UV 使用領域外を edge dilation で塗り足し
+                                var uvMask = Processing.MeshUVRasterizer.Rasterize(
+                                    renderer, new[] { s }, processed.width, processed.height);
+                                var dilated = Processing.ColorProcessor.DilateTexture(processed, uvMask, 8);
+                                if (dilated != null)
+                                {
+                                    Object.DestroyImmediate(processed);
+                                    processed = dilated;
+                                }
                                 cache[tex] = processed;
                                 generatedTextures.Add(processed);
                             }
@@ -1418,6 +1501,19 @@ namespace ChimeraHairMaster.Editor.NDMF
             }
 
             return cache;
+        }
+
+        /// <summary>
+        /// Renderer単位のブラー／シャープ強度を取得
+        /// </summary>
+        private float GetRendererBlurSharp(ChimeraHairMaster component, int rendererIndex)
+        {
+            if (component.rendererBlurSharpAdjustments == null) return 0f;
+            foreach (var adj in component.rendererBlurSharpAdjustments)
+            {
+                if (adj.rendererIndex == rendererIndex) return adj.blurSharp;
+            }
+            return 0f;
         }
 
         /// <summary>
@@ -1436,79 +1532,6 @@ namespace ChimeraHairMaster.Editor.NDMF
             }
 
             return 0f;
-        }
-
-        /// <summary>
-        /// プレビュー用：輝度統一を適用
-        /// </summary>
-        private Dictionary<Texture2D, Texture2D> ApplyBrightnessUnificationForPreview(ChimeraHairMaster component, BrightnessUnifyMode mode)
-        {
-            var result = new Dictionary<Texture2D, Texture2D>();
-            var textureBrightnessMap = new Dictionary<Texture2D, float>();
-
-            // すべてのテクスチャを収集して平均明度を計算
-            foreach (var renderer in component.targetRenderers)
-            {
-                if (renderer == null) continue;
-
-                var materials = renderer.sharedMaterials;
-                foreach (var mat in materials)
-                {
-                    if (mat == null) continue;
-
-                    foreach (var slot in component.colorChangeTargets)
-                    {
-                        if (!slot.applyColorChange) continue;
-                        if (!mat.HasProperty(slot.propertyName)) continue;
-
-                        var texture = mat.GetTexture(slot.propertyName) as Texture2D;
-                        if (texture == null || textureBrightnessMap.ContainsKey(texture)) continue;
-
-                        float avgBrightness = Processing.ColorProcessor.CalculateAverageBrightness(texture);
-                        textureBrightnessMap[texture] = avgBrightness;
-                    }
-
-                    // _MainTexもチェック
-                    if (mat.HasProperty("_MainTex"))
-                    {
-                        var texture = mat.GetTexture("_MainTex") as Texture2D;
-                        if (texture != null && !textureBrightnessMap.ContainsKey(texture))
-                        {
-                            float avgBrightness = Processing.ColorProcessor.CalculateAverageBrightness(texture);
-                            textureBrightnessMap[texture] = avgBrightness;
-                        }
-                    }
-                }
-            }
-
-            if (textureBrightnessMap.Count == 0) return result;
-
-            // 最も明るいテクスチャと最も暗いテクスチャの平均明度を取得
-            float minBrightness = textureBrightnessMap.Values.Min();
-            float maxBrightness = textureBrightnessMap.Values.Max();
-
-            // モードに基づいて目標明度を決定
-            float targetBrightness;
-            switch (mode)
-            {
-                case BrightnessUnifyMode.ToBrightest:
-                    targetBrightness = maxBrightness;
-                    break;
-                case BrightnessUnifyMode.ToDarkest:
-                    targetBrightness = minBrightness;
-                    break;
-                default:
-                    return result; // Offの場合は何もしない
-            }
-
-            // 各テクスチャの明度を調整
-            foreach (var kvp in textureBrightnessMap)
-            {
-                var adjustedTexture = Processing.ColorProcessor.AdjustBrightness(kvp.Key, targetBrightness);
-                result[kvp.Key] = adjustedTexture;
-            }
-
-            return result;
         }
 
         /// <summary>

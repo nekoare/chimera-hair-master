@@ -124,7 +124,7 @@ msgid "Window:Action:Setup"
 msgstr "셋업"
 
 msgid "Window:Validation:SelectAvatar"
-msgstr "아바타를 선택해 주세요."
+msgstr "Hierarchy에서 파츠를 드래그 앤 드롭해 주세요."
 
 msgid "Window:Validation:AtLeastTwoRenderers"
 msgstr "2개 이상의 헤어 Renderer를 추가해 주세요."
@@ -285,9 +285,6 @@ msgstr "원본 밝기 유지"
 msgid "Inspector:AutoAdjust"
 msgstr "자동 조정"
 
-msgid "Inspector:BrightnessUnifyMode"
-msgstr "전체 밝기 맞추기(고부하)"
-
 msgid "Inspector:HueShiftHelp"
 msgstr "색상 지정 모드(기본값)\n전체를 지정한 색으로 변경합니다.\n원본 헤어의 명암 차이가 작을 때 유용합니다."
 
@@ -427,7 +424,7 @@ msgid "Inspector:PreviewRequiresSetup"
 msgstr "미리보기를 활성화하려면 대상 Renderer와 기준 Material을 설정해 주세요."
 
 msgid "Inspector:SaveAsTextureSection"
-msgstr "텍스처로 저장 기능"
+msgstr "텍스처 내보내기"
 
 msgid "Inspector:ApplyTexture"
 msgstr "텍스처를 Material에 적용"
@@ -666,15 +663,6 @@ msgstr "Mode 2"
 msgid "ColorTransformMode:HueShift"
 msgstr "Mode 1"
 
-msgid "BrightnessUnifyMode:Off"
-msgstr "끄기"
-
-msgid "BrightnessUnifyMode:ToBrightest"
-msgstr "가장 밝게 맞추기(고부하)"
-
-msgid "BrightnessUnifyMode:ToDarkest"
-msgstr "가장 어둡게 맞추기(고부하)"
-
 msgid "FalloffType:Constant"
 msgstr "균일"
 
@@ -704,3 +692,76 @@ msgstr "지정 안 함"
 
 msgid "MeshSettingsInheritMode:SetOrInherit"
 msgstr "부모에 지정되어 있으면 상속, 아니면 지정"
+
+# ---- Color mode: RGB Delta ----
+msgid "Inspector:ColorTransformMode:RGBDelta"
+msgstr "Mode 3"
+
+# ---- Hue shift algorithm ----
+msgid "Inspector:HueShiftAlgorithm"
+msgstr "알고리즘"
+
+msgid "Inspector:HueShiftAlgorithm:HSV"
+msgstr "HSV (기존)"
+
+msgid "Inspector:HueShiftAlgorithm:Oklab"
+msgstr "Oklab"
+
+# ---- Oklab parameters ----
+msgid "Inspector:OklabHueRetain"
+msgstr "원래 색조 유지"
+
+msgid "Inspector:OklabHueRetainTooltip"
+msgstr "0 = 색조를 target에 고정 / 1 = 원래 색조의 뉘앙스를 남김"
+
+msgid "Inspector:OklabHelp"
+msgstr "Oklab은 휘도와 채도가 독립된 색 공간이므로 여러 텍스처의 색감을 target에 자동으로 맞추기 쉽습니다."
+
+# ---- RGB Delta parameters ----
+msgid "Inspector:RgbDeltaIntensity"
+msgstr "차분 강도"
+
+msgid "Inspector:RgbDeltaIntensityTooltip"
+msgstr "0 = 변화 없음 / 1 = 텍스처 대표색에서 target까지의 차분을 완전히 더함"
+
+msgid "Inspector:RgbDeltaSoftClipZone"
+msgstr "소프트 클립 영역"
+
+msgid "Inspector:RgbDeltaSoftClipZoneTooltip"
+msgstr "범위 외를 부드럽게 수렴시키는 영역 폭 (Linear RGB 공간 기준). 0.05 정도가 표준"
+
+msgid "Inspector:RgbDeltaHelp"
+msgstr "RGB 차분 모드: 텍스처 대표색 → target의 차분을 모든 픽셀에 더합니다.\n색조를 강제하지 않고 차이를 유지하므로 하이라이트 등의 뉘앙스가 남습니다."
+
+# ---- Blur / Sharpen ----
+msgid "Inspector:BlurSharpAdjustment"
+msgstr "도료의 세밀도 조정"
+
+msgid "Inspector:BlurSharpAdjustmentHelp"
+msgstr "음수 값으로 블러, 양수 값으로 샤프닝. 색 변환 직전의 전처리로 적용됩니다.\n텍스처별 도료 질감(뚜렷함 vs 부드러움)을 맞추고 싶을 때 사용."
+
+# ---- Texture Export: mesh merge discard warning ----
+msgid "Inspector:MeshMergeDiscardWarning"
+msgstr "메쉬 병합이 활성화되어 있지만 이 기능을 적용하면 메쉬 병합 설정이 폐기되고 텍스처 저장만 실행됩니다."
+
+# ---- UV expand view ----
+msgid "Window:UVSettings:ExpandView"
+msgstr "확대 뷰"
+
+msgid "Window:UVPreview:Title"
+msgstr "UV 배치 프리뷰"
+
+msgid "Window:UVPreview:Hint"
+msgstr "드래그 및 스케일 조작은 메인 창과 동일합니다"
+
+msgid "Window:UVPreview:OwnerClosed"
+msgstr "메인 창이 닫혔습니다.\n이 창도 닫아 주세요."
+
+msgid "Inspector:MeshMergeDiscardConfirm"
+msgstr "메쉬 병합이 활성화되어 있습니다.\n적용하면 메쉬 병합 설정(enableMeshMerge)이 비활성화되고, 병합 처리 없이 텍스처 출력만 실행됩니다.\nUV 배치 설정(islandPlacements)은 남지만 이후 빌드 시에는 사용되지 않습니다.\n계속하시겠습니까?"
+
+msgid "Inspector:Confirm:Apply"
+msgstr "적용"
+
+msgid "Inspector:Confirm:Cancel"
+msgstr "취소"

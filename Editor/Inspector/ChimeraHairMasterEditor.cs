@@ -26,7 +26,10 @@ namespace ChimeraHairMaster.Editor
         private SerializedProperty gradientCurveProp;
         private SerializedProperty saturationPreserveProp;
         private SerializedProperty valuePreserveProp;
-        private SerializedProperty brightnessUnifyModeProp;
+        private SerializedProperty hueShiftAlgorithmProp;
+        private SerializedProperty oklabHueRetainProp;
+        private SerializedProperty rgbDeltaIntensityProp;
+        private SerializedProperty rgbDeltaSoftClipZoneProp;
         private SerializedProperty textureResolutionProp;
         private SerializedProperty colorChangeTargetsProp;
         private SerializedProperty uvPlacementsProp;
@@ -55,6 +58,7 @@ namespace ChimeraHairMaster.Editor
         private bool showMeshCutSettings = false;
         private bool showMeshSettings = false;
         private bool showBrightnessAdjustment = false;
+        private bool showBlurSharpAdjustment = false;
         private bool showColorMaskSettings = false;
         private bool showPhysBoneList = false;
         private Dictionary<int, bool> physBoneFoldouts = new Dictionary<int, bool>();
@@ -106,7 +110,10 @@ namespace ChimeraHairMaster.Editor
             gradientCurveProp = serializedObject.FindProperty("gradientCurve");
             saturationPreserveProp = serializedObject.FindProperty("saturationPreserve");
             valuePreserveProp = serializedObject.FindProperty("valuePreserve");
-            brightnessUnifyModeProp = serializedObject.FindProperty("brightnessUnifyMode");
+            hueShiftAlgorithmProp = serializedObject.FindProperty("hueShiftAlgorithm");
+            oklabHueRetainProp = serializedObject.FindProperty("oklabHueRetain");
+            rgbDeltaIntensityProp = serializedObject.FindProperty("rgbDeltaIntensity");
+            rgbDeltaSoftClipZoneProp = serializedObject.FindProperty("rgbDeltaSoftClipZone");
             textureResolutionProp = serializedObject.FindProperty("textureResolution");
             colorChangeTargetsProp = serializedObject.FindProperty("colorChangeTargets");
             uvPlacementsProp = serializedObject.FindProperty("uvPlacements");
@@ -475,6 +482,7 @@ namespace ChimeraHairMaster.Editor
             showColorSettings = EditorGUILayout.Foldout(showColorSettings, CHMLocales.Tr("Inspector:ColorSettings"), true, EditorStyles.foldoutHeader);
             if (showColorSettings)
             {
+                EditorGUILayout.BeginVertical(EditorStyles.helpBox);
                 EditorGUI.indentLevel++;
 
                 // 色合わせの有効/無効トグル
@@ -492,22 +500,29 @@ namespace ChimeraHairMaster.Editor
                 if (!enableColorTransformProp.boolValue)
                 {
                     EditorGUI.indentLevel--;
+                    EditorGUILayout.EndVertical();
                     return;
                 }
 
                 EditorGUILayout.Space(5);
 
-                // 色変換モード
+                // 色変換モード（表示順: Mode1=HueShift, Mode2=Gradient, Mode3=RGBDelta）
+                // enum 値 (0=Gradient, 1=HueShift, 2=RGBDelta) はシリアライズ互換のため維持
                 {
                     var modeNames = new[]
                     {
-                        CHMLocales.Tr("ColorTransformMode:Gradient"),
-                        CHMLocales.Tr("ColorTransformMode:HueShift"),
+                        CHMLocales.Tr("ColorTransformMode:HueShift"),        // display 0 (enum 1)
+                        CHMLocales.Tr("ColorTransformMode:Gradient"),        // display 1 (enum 0)
+                        CHMLocales.Tr("Inspector:ColorTransformMode:RGBDelta"), // display 2 (enum 2)
                     };
-                    colorTransformModeProp.enumValueIndex = EditorGUILayout.Popup(
+                    int[] displayToEnum = { 1, 0, 2 };
+                    int[] enumToDisplay = { 1, 0, 2 };
+                    int currentDisplay = enumToDisplay[colorTransformModeProp.enumValueIndex];
+                    int newDisplay = EditorGUILayout.Popup(
                         CHMLocales.Tr("Inspector:ColorTransformMode"),
-                        colorTransformModeProp.enumValueIndex,
+                        currentDisplay,
                         modeNames);
+                    colorTransformModeProp.enumValueIndex = displayToEnum[newDisplay];
                 }
 
                 ColorTransformMode transformMode = (ColorTransformMode)colorTransformModeProp.enumValueIndex;
@@ -536,32 +551,51 @@ namespace ChimeraHairMaster.Editor
                         DrawTextureColorPicker();
 
                         EditorGUILayout.Space(5);
-                        EditorGUILayout.PropertyField(saturationPreserveProp, new GUIContent(CHMLocales.Tr("Inspector:SaturationPreserve")));
-                        
-                        EditorGUILayout.BeginHorizontal();
-                        EditorGUILayout.PropertyField(valuePreserveProp, new GUIContent(CHMLocales.Tr("Inspector:ValuePreserve")));
-                        if (GUILayout.Button(CHMLocales.Tr("Inspector:AutoAdjust"), GUILayout.Width(70)))
+
+                        // algorithm サブオプション（HSV / Oklab）
                         {
-                            var component = (ChimeraHairMaster)target;
-                            Undo.RecordObject(component, "Auto Adjust Value Preserve");
-                            component.UpdateValuePreserveFromTargetColor();
-                            serializedObject.Update();
-                        }
-                        EditorGUILayout.EndHorizontal();
-                        
-                        {
-                            var unifyModeNames = new[]
+                            var algoNames = new[]
                             {
-                                CHMLocales.Tr("BrightnessUnifyMode:Off"),
-                                CHMLocales.Tr("BrightnessUnifyMode:ToBrightest"),
-                                CHMLocales.Tr("BrightnessUnifyMode:ToDarkest"),
+                                CHMLocales.Tr("Inspector:HueShiftAlgorithm:HSV"),
+                                CHMLocales.Tr("Inspector:HueShiftAlgorithm:Oklab")
                             };
-                            brightnessUnifyModeProp.enumValueIndex = EditorGUILayout.Popup(
-                                CHMLocales.Tr("Inspector:BrightnessUnifyMode"),
-                                brightnessUnifyModeProp.enumValueIndex,
-                                unifyModeNames);
+                            hueShiftAlgorithmProp.enumValueIndex = EditorGUILayout.Popup(
+                                CHMLocales.Tr("Inspector:HueShiftAlgorithm"),
+                                hueShiftAlgorithmProp.enumValueIndex,
+                                algoNames);
                         }
-                        
+
+                        var algorithm = (HueShiftAlgorithm)hueShiftAlgorithmProp.enumValueIndex;
+                        if (algorithm == HueShiftAlgorithm.HSV)
+                        {
+                            EditorGUILayout.PropertyField(saturationPreserveProp, new GUIContent(CHMLocales.Tr("Inspector:SaturationPreserve")));
+
+                            EditorGUILayout.BeginHorizontal();
+                            EditorGUILayout.PropertyField(valuePreserveProp, new GUIContent(CHMLocales.Tr("Inspector:ValuePreserve")));
+                            if (GUILayout.Button(CHMLocales.Tr("Inspector:AutoAdjust"), GUILayout.Width(70)))
+                            {
+                                var component = (ChimeraHairMaster)target;
+                                Undo.RecordObject(component, "Auto Adjust Value Preserve");
+                                component.UpdateValuePreserveFromTargetColor();
+                                serializedObject.Update();
+                            }
+                            EditorGUILayout.EndHorizontal();
+                        }
+                        else // Oklab
+                        {
+                            EditorGUILayout.PropertyField(oklabHueRetainProp,
+                                new GUIContent(
+                                    CHMLocales.Tr("Inspector:OklabHueRetain"),
+                                    CHMLocales.Tr("Inspector:OklabHueRetainTooltip")));
+
+                            if (showHelp)
+                            {
+                                EditorGUILayout.HelpBox(
+                                    CHMLocales.Tr("Inspector:OklabHelp"),
+                                    MessageType.Info);
+                            }
+                        }
+
                         if (showHelp)
                         {
                             EditorGUILayout.HelpBox(
@@ -570,17 +604,47 @@ namespace ChimeraHairMaster.Editor
                             );
                         }
                         break;
+
+                    case ColorTransformMode.RGBDelta:
+                        EditorGUILayout.Space(5);
+                        EditorGUILayout.PropertyField(targetColorProp, new GUIContent(CHMLocales.Tr("Inspector:TargetColor")));
+
+                        // テクスチャ色ピッカー（HueShift と共有）
+                        DrawTextureColorPicker();
+
+                        EditorGUILayout.Space(5);
+                        EditorGUILayout.PropertyField(rgbDeltaIntensityProp,
+                            new GUIContent(
+                                CHMLocales.Tr("Inspector:RgbDeltaIntensity"),
+                                CHMLocales.Tr("Inspector:RgbDeltaIntensityTooltip")));
+                        EditorGUILayout.PropertyField(rgbDeltaSoftClipZoneProp,
+                            new GUIContent(
+                                CHMLocales.Tr("Inspector:RgbDeltaSoftClipZone"),
+                                CHMLocales.Tr("Inspector:RgbDeltaSoftClipZoneTooltip")));
+
+                        if (showHelp)
+                        {
+                            EditorGUILayout.HelpBox(
+                                CHMLocales.Tr("Inspector:RgbDeltaHelp"),
+                                MessageType.Info);
+                        }
+                        break;
                 }
 
                 // 個別の明るさの調整（色合わせが有効な場合のみ表示）
                 EditorGUILayout.Space(10);
                 DrawBrightnessAdjustmentUI();
 
+                // 塗りの細かさを調整
+                EditorGUILayout.Space(10);
+                DrawBlurSharpAdjustmentUI();
+
                 // 色合わせ無視マスク
                 EditorGUILayout.Space(10);
                 DrawColorMaskUI();
 
                 EditorGUI.indentLevel--;
+                EditorGUILayout.EndVertical();
             }
         }
 
@@ -593,9 +657,15 @@ namespace ChimeraHairMaster.Editor
             if (component.targetRenderers == null || component.targetRenderers.Count == 0)
                 return;
 
+            EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+
             showBrightnessAdjustment = EditorGUILayout.Foldout(showBrightnessAdjustment, CHMLocales.Tr("Inspector:BrightnessAdjustment"), true);
 
-            if (!showBrightnessAdjustment) return;
+            if (!showBrightnessAdjustment)
+            {
+                EditorGUILayout.EndVertical();
+                return;
+            }
 
             EditorGUI.indentLevel++;
 
@@ -676,6 +746,115 @@ namespace ChimeraHairMaster.Editor
             }
 
             EditorGUI.indentLevel--;
+            EditorGUILayout.EndVertical();
+        }
+
+        /// <summary>
+        /// 塗りの細かさを調整UI
+        /// 色変換の直前にテクスチャの塗り感を統一するための前処理（ブラー／シャープ）
+        /// </summary>
+        private void DrawBlurSharpAdjustmentUI()
+        {
+            var component = (ChimeraHairMaster)target;
+            if (component.targetRenderers == null || component.targetRenderers.Count == 0)
+                return;
+
+            EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+
+            showBlurSharpAdjustment = EditorGUILayout.Foldout(showBlurSharpAdjustment, CHMLocales.Tr("Inspector:BlurSharpAdjustment"), true);
+
+            if (!showBlurSharpAdjustment)
+            {
+                EditorGUILayout.EndVertical();
+                return;
+            }
+
+            EditorGUI.indentLevel++;
+
+            SyncBlurSharpAdjustments(component);
+
+            for (int i = 0; i < component.targetRenderers.Count; i++)
+            {
+                var renderer = component.targetRenderers[i];
+                if (renderer == null) continue;
+
+                float currentValue = 0f;
+                int adjustmentIndex = -1;
+                for (int j = 0; j < component.rendererBlurSharpAdjustments.Count; j++)
+                {
+                    if (component.rendererBlurSharpAdjustments[j].rendererIndex == i)
+                    {
+                        currentValue = component.rendererBlurSharpAdjustments[j].blurSharp;
+                        adjustmentIndex = j;
+                        break;
+                    }
+                }
+
+                EditorGUILayout.BeginHorizontal();
+
+                string displayName = renderer.name;
+                if (displayName.Length > 15) displayName = displayName.Substring(0, 15) + "...";
+
+                if (GUILayout.Button(displayName, EditorStyles.label, GUILayout.Width(120)))
+                {
+                    HighlightRenderer(renderer);
+                }
+
+                EditorGUI.BeginChangeCheck();
+                float newValue = EditorGUILayout.Slider(currentValue, -1f, 1f);
+                if (EditorGUI.EndChangeCheck())
+                {
+                    Undo.RecordObject(component, "Adjust Renderer BlurSharp");
+
+                    if (adjustmentIndex >= 0)
+                    {
+                        component.rendererBlurSharpAdjustments[adjustmentIndex].blurSharp = newValue;
+                    }
+                    else
+                    {
+                        component.rendererBlurSharpAdjustments.Add(new RendererBlurSharpAdjustment(i) { blurSharp = newValue });
+                    }
+
+                    EditorUtility.SetDirty(component);
+                }
+
+                if (GUILayout.Button(CHMLocales.Tr("Inspector:Reset"), GUILayout.Width(50)))
+                {
+                    Undo.RecordObject(component, "Reset Renderer BlurSharp");
+                    if (adjustmentIndex >= 0)
+                    {
+                        component.rendererBlurSharpAdjustments[adjustmentIndex].blurSharp = 0f;
+                    }
+                    EditorUtility.SetDirty(component);
+                }
+
+                EditorGUILayout.EndHorizontal();
+            }
+
+            if (showHelp)
+            {
+                EditorGUILayout.HelpBox(
+                    CHMLocales.Tr("Inspector:BlurSharpAdjustmentHelp"),
+                    MessageType.Info);
+            }
+
+            EditorGUI.indentLevel--;
+            EditorGUILayout.EndVertical();
+        }
+
+        /// <summary>
+        /// rendererBlurSharpAdjustments を targetRenderers と同期
+        /// </summary>
+        private void SyncBlurSharpAdjustments(ChimeraHairMaster component)
+        {
+            for (int i = component.rendererBlurSharpAdjustments.Count - 1; i >= 0; i--)
+            {
+                int rendererIndex = component.rendererBlurSharpAdjustments[i].rendererIndex;
+                if (rendererIndex < 0 || rendererIndex >= component.targetRenderers.Count)
+                {
+                    component.rendererBlurSharpAdjustments.RemoveAt(i);
+                }
+            }
         }
 
         /// <summary>
@@ -687,9 +866,15 @@ namespace ChimeraHairMaster.Editor
             if (component.targetRenderers == null || component.targetRenderers.Count == 0)
                 return;
 
+            EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+
             showColorMaskSettings = EditorGUILayout.Foldout(showColorMaskSettings, CHMLocales.Tr("Inspector:ColorMaskSettings"), true);
 
-            if (!showColorMaskSettings) return;
+            if (!showColorMaskSettings)
+            {
+                EditorGUILayout.EndVertical();
+                return;
+            }
 
             EditorGUI.indentLevel++;
 
@@ -772,6 +957,7 @@ namespace ChimeraHairMaster.Editor
             }
 
             EditorGUI.indentLevel--;
+            EditorGUILayout.EndVertical();
         }
 
         /// <summary>
@@ -1016,7 +1202,9 @@ namespace ChimeraHairMaster.Editor
                 return;
 
             EditorGUILayout.Space(5);
+            EditorGUI.indentLevel++;
             showTextureColorPicker = EditorGUILayout.Foldout(showTextureColorPicker, CHMLocales.Tr("Inspector:TextureColorPicker"), true);
+            EditorGUI.indentLevel--;
 
             if (!showTextureColorPicker) return;
 
@@ -1195,7 +1383,9 @@ namespace ChimeraHairMaster.Editor
                 return;
 
             EditorGUILayout.Space(5);
+            EditorGUI.indentLevel++;
             showGradientTextureColorPicker = EditorGUILayout.Foldout(showGradientTextureColorPicker, CHMLocales.Tr("Inspector:GradientTextureColorPicker"), true);
+            EditorGUI.indentLevel--;
 
             if (!showGradientTextureColorPicker) return;
 
@@ -1580,27 +1770,15 @@ namespace ChimeraHairMaster.Editor
             showMeshDeformSection = EditorGUILayout.Foldout(showMeshDeformSection, CHMLocales.Tr("Inspector:MeshDeformSection"), true, EditorStyles.foldoutHeader);
             if (!showMeshDeformSection) return;
 
-            // 有効/無効トグル（CHM固有: スタンドアロンでは常に有効）
-            var enableProp = serializedObject.FindProperty("enableMeshDeformation");
-
-            EditorGUI.BeginChangeCheck();
-            EditorGUILayout.PropertyField(enableProp, new GUIContent(CHMLocales.Tr("Inspector:Enabled")));
-            if (EditorGUI.EndChangeCheck() && enableProp.boolValue)
+            // スタンドアロンとの重複チェック（重複時は機能を表示せず警告のみ）
+            var conflict = FindStandaloneConflict(component);
+            if (conflict != null)
             {
-                // 有効化しようとした時にスタンドアロンとの重複をチェック
-                var conflict = FindStandaloneConflict(component);
-                if (conflict != null)
-                {
-                    // 有効化を取り消し
-                    enableProp.boolValue = false;
-                    EditorUtility.DisplayDialog(
-                        CHMLocales.Tr("Inspector:MeshDeformConflictTitle"),
-                        string.Format(CHMLocales.Tr("Inspector:MeshDeformConflictMessage"), conflict),
-                        "OK");
-                }
+                EditorGUILayout.HelpBox(
+                    string.Format(CHMLocales.Tr("Inspector:MeshDeformConflictMessage"), conflict),
+                    MessageType.Warning);
+                return;
             }
-
-            if (!enableProp.boolValue) return;
 
             EditorGUILayout.Space(5);
             meshDeformationUI?.Draw(component);
@@ -1635,8 +1813,9 @@ namespace ChimeraHairMaster.Editor
 
             EditorGUILayout.Space(5);
 
-            // 色合わせ適用セクション（メッシュ統合無効 & 色合わせ有効の場合のみ）
-            if (!component.enableMeshMerge && component.enableColorTransform)
+            // 色合わせ適用セクション（色合わせ有効時）
+            // メッシュ統合有効時も表示するが、適用するとメッシュ統合情報は破棄される
+            if (component.enableColorTransform)
             {
                 DrawColorApplySection(component);
                 EditorGUILayout.Space(5);
@@ -1720,6 +1899,14 @@ namespace ChimeraHairMaster.Editor
 
             EditorGUILayout.LabelField(CHMLocales.Tr("Inspector:SaveAsTextureSection"), EditorStyles.boldLabel);
 
+            // メッシュ統合有効時の注意書き
+            if (component.enableMeshMerge)
+            {
+                EditorGUILayout.HelpBox(
+                    CHMLocales.Tr("Inspector:MeshMergeDiscardWarning"),
+                    MessageType.Warning);
+            }
+
             // チェックボックス
             bool applyTexture = EditorPrefs.GetBool(PREF_APPLY_TEXTURE, true);
             bool unifySettings = EditorPrefs.GetBool(PREF_UNIFY_SETTINGS, true);
@@ -1762,15 +1949,29 @@ namespace ChimeraHairMaster.Editor
 
             if (GUILayout.Button(CHMLocales.Tr("Inspector:ApplyButton"), GUILayout.Height(28)))
             {
-                Processing.ColorApplier.Apply(component, applyTexture, unifySettings);
-
-                // メッシュ変形の適用
-                if (applyDeformation && hasDeformation)
+                // メッシュ統合有効時は確認ダイアログを出す（設定破棄の明示）
+                bool proceed = true;
+                if (component.enableMeshMerge)
                 {
-                    ApplyDeformationToRenderers(component);
+                    proceed = EditorUtility.DisplayDialog(
+                        CHMLocales.Tr("Inspector:SaveAsTextureSection"),
+                        CHMLocales.Tr("Inspector:MeshMergeDiscardConfirm"),
+                        CHMLocales.Tr("Inspector:Confirm:Apply"),
+                        CHMLocales.Tr("Inspector:Confirm:Cancel"));
                 }
 
-                serializedObject.Update();
+                if (proceed)
+                {
+                    Processing.ColorApplier.Apply(component, applyTexture, unifySettings);
+
+                    // メッシュ変形の適用
+                    if (applyDeformation && hasDeformation)
+                    {
+                        ApplyDeformationToRenderers(component);
+                    }
+
+                    serializedObject.Update();
+                }
             }
 
             GUI.enabled = true;

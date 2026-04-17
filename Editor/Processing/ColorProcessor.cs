@@ -123,13 +123,32 @@ namespace ChimeraHairMaster.Editor.Processing
 
                 // 色変換モード
                 shader.SetInt("_TransformMode", (int)settings.Mode);
+                shader.SetInt("_HueShiftAlgorithm", (int)settings.HueShiftAlgorithm);
 
-                // ターゲット色をHSVに変換
+                // ターゲット色をHSVに変換（HSV algorithm 用）
                 Color.RGBToHSV(settings.TargetColor, out float targetH, out float targetS, out float targetV);
                 shader.SetVector("_TargetColorHSV", new Vector3(targetH, targetS, targetV));
 
                 shader.SetFloat("_SaturationPreserve", settings.SaturationPreserve);
                 shader.SetFloat("_ValuePreserve", settings.ValuePreserve);
+
+                // Oklab algorithm 用パラメータ
+                Vector3 targetLch = OklabConverter.SRGBToOklch(settings.TargetColor);
+                shader.SetVector("_TargetColorOklch", new Vector4(targetLch.x, targetLch.y, targetLch.z, 0f));
+                shader.SetFloat("_OklabHueRetain", settings.OklabHueRetain);
+                shader.SetFloat("_OklabSaturationToTarget", settings.OklabSaturationToTarget);
+                shader.SetFloat("_OklabLToTarget", settings.OklabLToTarget);
+                shader.SetFloat("_OklabLDarkEndRatio", settings.OklabLDarkEndRatio);
+                shader.SetFloat("_OklabSourceLP95", settings.OklabSourceLP95);
+                shader.SetFloat("_OklabSourceLP05", settings.OklabSourceLP05);
+                shader.SetFloat("_OklabSourceHDominant", settings.OklabSourceHDominant);
+
+                // RGBDelta モード用パラメータ
+                Vector3 sourceLin = OklabConverter.SRGBToLinear(settings.SourceColor);
+                Vector3 targetLin = OklabConverter.SRGBToLinear(settings.TargetColor);
+                Vector3 diffLin = (targetLin - sourceLin) * settings.RgbDeltaIntensity;
+                shader.SetVector("_RgbDeltaLinear", new Vector4(diffLin.x, diffLin.y, diffLin.z, 0f));
+                shader.SetFloat("_RgbDeltaSoftClipZone", settings.RgbDeltaSoftClipZone);
 
                 // グラデーションモード用のテクスチャ
                 if (settings.Mode == ColorTransformMode.Gradient)
@@ -468,7 +487,12 @@ namespace ChimeraHairMaster.Editor.Processing
                     return TransformGradient(pixel, settings);
 
                 case ColorTransformMode.HueShift:
-                    return TransformHueShift(pixel, settings);
+                    return settings.HueShiftAlgorithm == HueShiftAlgorithm.Oklab
+                        ? TransformHueShiftOklab(pixel, settings)
+                        : TransformHueShift(pixel, settings);
+
+                case ColorTransformMode.RGBDelta:
+                    return TransformRGBDelta(pixel, settings);
 
                 default:
                     return pixel;
@@ -545,6 +569,113 @@ namespace ChimeraHairMaster.Editor.Processing
         }
 
         /// <summary>
+        /// 色相シフトモードの変換（Oklab algorithm）
+        /// Oklab の L（明度）・C（彩度）・h（色相）が独立している性質を利用して
+        /// 色相を target.h に揃え、彩度・明度を滑らかに target に寄せる。
+        /// L の target 寄せは「テクスチャ上位 5% L」を target.L に揃える加算オフセット + ソフトクリップ
+        /// </summary>
+        private static Color TransformHueShiftOklab(Color pixel, ColorTransformSettings settings)
+        {
+            // ピクセルを OKLCh に変換
+            Vector3 pixLin = OklabConverter.SRGBToLinear(pixel);
+            Vector3 pixLab = OklabConverter.LinearRGBToOklab(pixLin);
+            Vector3 pixLch = OklabConverter.OklabToOklch(pixLab);
+
+            // target を OKLCh に変換
+            Vector3 targetLch = OklabConverter.SRGBToOklch(settings.TargetColor);
+
+            // --- L の補正 ---
+            // 線形リマップ: [source.L_p05, source.L_p95] → [target.L * darkEndRatio, target.L]
+            // これにより source 側のテクスチャ毎の暗部-明部 range が target 側の
+            // 同じ range に圧縮され、複数テクスチャの中間 V でも明度感が揃う。
+            // oklabLToTarget で「どれだけリマップを適用するか」を線形補間する。
+            float sourceRange = settings.OklabSourceLP95 - settings.OklabSourceLP05;
+            float normalized = sourceRange > 1e-5f
+                ? (pixLch.x - settings.OklabSourceLP05) / sourceRange
+                : 0.5f;
+            float targetDarkL = targetLch.x * settings.OklabLDarkEndRatio;
+            float mappedL = Mathf.Lerp(targetDarkL, targetLch.x, normalized);
+            float newL = Mathf.Lerp(pixLch.x, mappedL, settings.OklabLToTarget);
+            // ソフトクリップ（範囲外を [0,1] に緩やかに収束）
+            newL = OklabConverter.SoftClip01(newL, 0.05f);
+
+            // --- C（彩度）の補正 ---
+            // 元ピクセル彩度 → target.C へ直接 lerp
+            float newC = Mathf.Lerp(pixLch.y, targetLch.y, settings.OklabSaturationToTarget);
+            newC = Mathf.Max(0f, newC);
+
+            // --- h（色相）の補正 ---
+            // 全ピクセルで target.h に統一（hueRetain>0 なら元色相との相対差を一部保持）
+            // グレー判定分岐は設けない。彩度が小さいピクセルに target.h を与えても、
+            // C が小さければ色として見えないため破綻しない。
+            // 以前はグレー判定に入ったピクセルが元色相を保持してしまい、暗い target のとき
+            // 「元の色相の差」が浮き出る症状があったため、分岐を撤廃
+            float deltaH = pixLch.z - settings.OklabSourceHDominant;
+            deltaH = OklabConverter.WrapHueRadians(deltaH);
+            float retained = deltaH * settings.OklabHueRetain;
+            float newH = OklabConverter.WrapHueRadians(targetLch.z + retained);
+
+            // OKLCh → sRGB に戻す
+            Color result = OklchToSRGBWithAlpha(new Vector3(newL, newC, newH), pixel.a);
+            return result;
+        }
+
+        /// <summary>
+        /// RGBDelta モードの変換
+        /// テクスチャの代表色（SourceColor）から target への差分を、全ピクセルに加算する。
+        /// HSV を経由せず線形 RGB 空間で加算 + ソフトクリップするため、
+        /// 彩度ドリフトが発生せず「相対差を保ったまま色味を target に寄せる」挙動になる
+        /// </summary>
+        private static Color TransformRGBDelta(Color pixel, ColorTransformSettings settings)
+        {
+            Vector3 pixLin = OklabConverter.SRGBToLinear(pixel);
+            Vector3 baseLin = OklabConverter.SRGBToLinear(settings.SourceColor);
+            Vector3 targetLin = OklabConverter.SRGBToLinear(settings.TargetColor);
+
+            Vector3 diff = (targetLin - baseLin) * settings.RgbDeltaIntensity;
+            Vector3 shifted = pixLin + diff;
+
+            // 各チャンネルをソフトクリップ
+            float softZone = settings.RgbDeltaSoftClipZone;
+            shifted.x = OklabConverter.SoftClip01(shifted.x, softZone);
+            shifted.y = OklabConverter.SoftClip01(shifted.y, softZone);
+            shifted.z = OklabConverter.SoftClip01(shifted.z, softZone);
+
+            return OklabConverter.LinearToSRGB(shifted, pixel.a);
+        }
+
+        /// <summary>
+        /// OKLCh → sRGB（gamut外は彩度を段階的に下げて収める簡易ガミュートマッピング）
+        /// </summary>
+        private static Color OklchToSRGBWithAlpha(Vector3 lch, float alpha)
+        {
+            Vector3 lab = OklabConverter.OklchToOklab(lch);
+            Vector3 lin = OklabConverter.OklabToLinearRGB(lab);
+
+            // 線形 RGB が範囲外なら C を下げて再変換（最大 8 回）
+            // わずかなはみ出し（float 誤差レベル）は許容して過剰な彩度縮小を避ける
+            const int maxIter = 8;
+            const float eps = 1e-3f;     // float 誤差許容量
+            const float shrink = 0.9f;   // 縮小係数（0.75 → 0.9 に緩和）
+            float c = lch.y;
+            for (int i = 0; i < maxIter; i++)
+            {
+                if (lin.x >= -eps && lin.x <= 1f + eps &&
+                    lin.y >= -eps && lin.y <= 1f + eps &&
+                    lin.z >= -eps && lin.z <= 1f + eps)
+                    break;
+                c *= shrink;
+                lab = OklabConverter.OklchToOklab(new Vector3(lch.x, c, lch.z));
+                lin = OklabConverter.OklabToLinearRGB(lab);
+            }
+
+            lin.x = Mathf.Clamp01(lin.x);
+            lin.y = Mathf.Clamp01(lin.y);
+            lin.z = Mathf.Clamp01(lin.z);
+            return OklabConverter.LinearToSRGB(lin, alpha);
+        }
+
+        /// <summary>
         /// 読み取り可能なテクスチャを取得
         /// </summary>
         public static Texture2D GetReadableTexture(Texture2D source)
@@ -607,71 +738,6 @@ namespace ChimeraHairMaster.Editor.Processing
         }
 
         /// <summary>
-        /// テクスチャの明度を調整
-        /// </summary>
-        /// <param name="texture">元テクスチャ</param>
-        /// <param name="targetBrightness">目標平均明度</param>
-        /// <returns>明度調整後のテクスチャ</returns>
-        public static Texture2D AdjustBrightness(Texture2D texture, float targetBrightness)
-        {
-#pragma warning disable CS8603
-            if (texture == null) return null;
-#pragma warning restore CS8603
-
-            var readable = GetReadableTexture(texture);
-            var currentBrightness = CalculateAverageBrightness(readable);
-
-            // 差がほとんどない場合はそのまま返す
-            if (Mathf.Abs(currentBrightness - targetBrightness) < 0.01f)
-            {
-                if (readable != texture)
-                {
-                    return readable;
-                }
-                return CopyTexture(texture);
-            }
-
-            // 明度差を計算
-            float brightnessDelta = targetBrightness - currentBrightness;
-
-            var result = new Texture2D(readable.width, readable.height, TextureFormat.RGBA32, true);
-            var pixels = readable.GetPixels();
-
-            for (int i = 0; i < pixels.Length; i++)
-            {
-                var pixel = pixels[i];
-                
-                // アルファが0に近いピクセルはそのまま
-                if (pixel.a < 0.01f)
-                {
-                    pixels[i] = pixel;
-                    continue;
-                }
-
-                Color.RGBToHSV(pixel, out float h, out float s, out float v);
-                
-                // V値を調整
-                v = Mathf.Clamp01(v + brightnessDelta);
-                
-                pixels[i] = Color.HSVToRGB(h, s, v) * new Color(1, 1, 1, pixel.a);
-                pixels[i].a = pixel.a;
-            }
-
-            result.SetPixels(pixels);
-            result.Apply(true);
-
-            CompressToMatch(result, texture.format);
-            ShaderUtils.EnableMipStreaming(result);
-
-            if (readable != texture)
-            {
-                Object.DestroyImmediate(readable);
-            }
-
-            return result;
-        }
-
-        /// <summary>
         /// テクスチャに明度オフセットを適用
         /// </summary>
         /// <param name="texture">元テクスチャ</param>
@@ -727,6 +793,208 @@ namespace ChimeraHairMaster.Editor.Processing
             }
 
             return result;
+        }
+
+        /// <summary>
+        /// テクスチャに UV 使用領域マスクを基準とした edge dilation（塗り足し）を適用する。
+        /// マスク外のピクセルを近隣マスク内ピクセル色の平均で iterations 回拡張する。
+        /// 目的: メッシュレンダリング時の bilinear / mipmap で UV 端の外側ピクセルが
+        /// 滲み出すのを防ぐ（髪の端が黒くなる現象の対策）。
+        ///
+        /// alpha チャンネルは保持（透明領域でも RGB だけ拡張する）。
+        /// </summary>
+        /// <param name="source">入力テクスチャ</param>
+        /// <param name="usageMask">UV 使用領域マスク（true=使用、false=未使用）。長さは source.width * source.height</param>
+        /// <param name="iterations">拡張ピクセル数（1イテレーションで1ピクセル拡張）</param>
+        /// <returns>dilation 適用後の新しい Texture2D</returns>
+        public static Texture2D? DilateTexture(Texture2D source, bool[] usageMask, int iterations)
+        {
+            if (source == null) return null;
+            if (usageMask == null) return CopyTexture(source);
+            if (iterations <= 0) return CopyTexture(source);
+
+            int width = source.width;
+            int height = source.height;
+            if (usageMask.Length != width * height) return CopyTexture(source);
+
+            // GPU 版が使えれば優先
+            if (ShaderUtils.IsGPUSupported() && ShaderUtils.GetDilateTextureShader() != null)
+            {
+                var gpuResult = DilateTextureGPU(source, usageMask, iterations, width, height);
+                if (gpuResult != null) return gpuResult;
+            }
+
+            // CPU フォールバック（GPU 非対応環境）
+            return DilateTextureCPU(source, usageMask, iterations, width, height);
+        }
+
+        /// <summary>
+        /// Dilation の GPU 実装（ping-pong で iterations 回 Dispatch）
+        /// </summary>
+        private static Texture2D? DilateTextureGPU(Texture2D source, bool[] usageMask, int iterations, int width, int height)
+        {
+            var shader = ShaderUtils.GetDilateTextureShader();
+            if (shader == null) return null;
+
+            RenderTexture? rtA = null;
+            RenderTexture? rtB = null;
+            ComputeBuffer? maskA = null;
+            ComputeBuffer? maskB = null;
+            try
+            {
+                rtA = CreateUAV(width, height);
+                rtB = CreateUAV(width, height);
+                Graphics.Blit(source, rtA);
+
+                int wordCount = (width * height + 31) / 32;
+                var packed = new uint[wordCount];
+                for (int i = 0; i < usageMask.Length; i++)
+                    if (usageMask[i]) packed[i >> 5] |= 1u << (i & 31);
+
+                maskA = new ComputeBuffer(wordCount, sizeof(uint));
+                maskA.SetData(packed);
+                maskB = new ComputeBuffer(wordCount, sizeof(uint));
+                maskB.SetData(new uint[wordCount]); // 初期化
+
+                int kernel = shader.FindKernel("CSDilate");
+                shader.SetInt("_Width", width);
+                shader.SetInt("_Height", height);
+                int groupsX = Mathf.CeilToInt(width / 16f);
+                int groupsY = Mathf.CeilToInt(height / 16f);
+
+                var srcRT = rtA;
+                var dstRT = rtB;
+                var srcMask = maskA;
+                var dstMask = maskB;
+
+                for (int iter = 0; iter < iterations; iter++)
+                {
+                    // dstMask を 0 クリア（次パスの出力先）
+                    dstMask.SetData(new uint[wordCount]);
+
+                    shader.SetTexture(kernel, "_Source", srcRT);
+                    shader.SetTexture(kernel, "_Target", dstRT);
+                    shader.SetBuffer(kernel, "_Mask", srcMask);
+                    shader.SetBuffer(kernel, "_NewMask", dstMask);
+                    shader.Dispatch(kernel, groupsX, groupsY, 1);
+
+                    // ping-pong
+                    (srcRT, dstRT) = (dstRT, srcRT);
+                    (srcMask, dstMask) = (dstMask, srcMask);
+                }
+
+                // 最終結果は srcRT（ループ末尾で swap された後）
+                var output = new Texture2D(width, height, TextureFormat.RGBA32, true);
+                output.name = source.name + "_Dilated";
+                var prev = RenderTexture.active;
+                RenderTexture.active = srcRT;
+                output.ReadPixels(new Rect(0, 0, width, height), 0, 0);
+                output.Apply(true);
+                RenderTexture.active = prev;
+
+                CompressToMatch(output, source.format);
+                ShaderUtils.EnableMipStreaming(output);
+                return output;
+            }
+            catch (System.Exception ex)
+            {
+                Debug.LogError($"[ChimeraHairMaster] Dilation GPU エラー（CPU フォールバック）: {ex}");
+                return null;
+            }
+            finally
+            {
+                RenderTexture.active = null;
+                if (rtA != null) { rtA.Release(); Object.DestroyImmediate(rtA); }
+                if (rtB != null) { rtB.Release(); Object.DestroyImmediate(rtB); }
+                maskA?.Dispose();
+                maskB?.Dispose();
+            }
+        }
+
+        private static RenderTexture CreateUAV(int w, int h)
+        {
+            var desc = new RenderTextureDescriptor(w, h, RenderTextureFormat.ARGB32, 0)
+            {
+                enableRandomWrite = true,
+                sRGB = true,
+            };
+            var rt = new RenderTexture(desc);
+            rt.Create();
+            return rt;
+        }
+
+        /// <summary>
+        /// Dilation の CPU 実装（GPU 非対応時のフォールバック）
+        /// </summary>
+        private static Texture2D? DilateTextureCPU(Texture2D source, bool[] usageMask, int iterations, int width, int height)
+        {
+            var readable = GetReadableTexture(source);
+            Color[] pixels = readable.GetPixels();
+            bool[] mask = (bool[])usageMask.Clone();
+
+            Color[] nextPixels = new Color[pixels.Length];
+            bool[] nextMask = new bool[mask.Length];
+
+            for (int iter = 0; iter < iterations; iter++)
+            {
+                System.Array.Copy(pixels, nextPixels, pixels.Length);
+                System.Array.Copy(mask, nextMask, mask.Length);
+
+                for (int y = 0; y < height; y++)
+                {
+                    for (int x = 0; x < width; x++)
+                    {
+                        int idx = y * width + x;
+                        if (mask[idx]) continue;
+
+                        float sumR = 0f, sumG = 0f, sumB = 0f;
+                        int count = 0;
+
+                        for (int dy = -1; dy <= 1; dy++)
+                        {
+                            int ny = y + dy;
+                            if (ny < 0 || ny >= height) continue;
+                            for (int dx = -1; dx <= 1; dx++)
+                            {
+                                if (dx == 0 && dy == 0) continue;
+                                int nx = x + dx;
+                                if (nx < 0 || nx >= width) continue;
+                                int nidx = ny * width + nx;
+                                if (!mask[nidx]) continue;
+                                var p = pixels[nidx];
+                                sumR += p.r; sumG += p.g; sumB += p.b;
+                                count++;
+                            }
+                        }
+
+                        if (count > 0)
+                        {
+                            float inv = 1f / count;
+                            float origAlpha = pixels[idx].a;
+                            nextPixels[idx] = new Color(sumR * inv, sumG * inv, sumB * inv, origAlpha);
+                            nextMask[idx] = true;
+                        }
+                    }
+                }
+
+                var tp = pixels; pixels = nextPixels; nextPixels = tp;
+                var tm = mask; mask = nextMask; nextMask = tm;
+            }
+
+            var output = new Texture2D(width, height, TextureFormat.RGBA32, true);
+            output.name = source.name + "_Dilated";
+            output.SetPixels(pixels);
+            output.Apply(true);
+
+            CompressToMatch(output, source.format);
+            ShaderUtils.EnableMipStreaming(output);
+
+            if (readable != source)
+            {
+                Object.DestroyImmediate(readable);
+            }
+
+            return output;
         }
 
         /// <summary>
@@ -846,6 +1114,7 @@ namespace ChimeraHairMaster.Editor.Processing
 
         /// <summary>
         /// ソース色（変換元の基準色）
+        /// HueShift (HSV) と RGBDelta では「テクスチャの代表色」として使用
         /// </summary>
         public Color SourceColor { get; set; } = Color.white;
 
@@ -855,22 +1124,77 @@ namespace ChimeraHairMaster.Editor.Processing
         public Gradient GradientCurve { get; set; } = new Gradient();
 
         /// <summary>
-        /// 彩度の保持率（HueShiftモード用）
+        /// 彩度の保持率（HueShift + HSV algorithm 用）
         /// </summary>
         public float SaturationPreserve { get; set; } = 0f;
 
         /// <summary>
-        /// 明度の保持率（HueShiftモード用）
+        /// 明度の保持率（HueShift + HSV algorithm 用）
         /// </summary>
         public float ValuePreserve { get; set; } = 1.0f;
 
         /// <summary>
-        /// 輝度統一モード（HueShiftモード用）
+        /// 色相シフトモードのアルゴリズム選択
         /// </summary>
-        public BrightnessUnifyMode BrightnessUnifyMode { get; set; } = BrightnessUnifyMode.Off;
+        public HueShiftAlgorithm HueShiftAlgorithm { get; set; } = HueShiftAlgorithm.HSV;
+
+        // ----- Oklab algorithm パラメータ -----
+
+        /// <summary>
+        /// 色相保持率（Oklab algorithm 用）。0=target.h 完全固定、1=元の色相保持
+        /// </summary>
+        public float OklabHueRetain { get; set; } = 0f;
+
+        /// <summary>
+        /// 彩度を target.C に寄せる強さ（Oklab algorithm 用）
+        /// </summary>
+        public float OklabSaturationToTarget { get; set; } = 1f;
+
+        /// <summary>
+        /// L を target.L に寄せる強さ（Oklab algorithm 用）
+        /// 0=補正なし、1=完全に線形リマップ適用
+        /// </summary>
+        public float OklabLToTarget { get; set; } = 1f;
+
+        /// <summary>
+        /// 線形リマップ時、暗端を target.L の何倍にマップするか（Oklab algorithm 用）
+        /// 0=暗端を黒に / 1=暗端も target.L（明暗差消失）
+        /// </summary>
+        public float OklabLDarkEndRatio { get; set; } = 0.5f;
+
+        /// <summary>
+        /// テクスチャの上位 5% L 値（Oklab algorithm 用、事前計算）
+        /// ColorTransformPass 等から事前にメッシュ UV 経由で算出して設定する
+        /// </summary>
+        public float OklabSourceLP95 { get; set; } = 0.5f;
+
+        /// <summary>
+        /// テクスチャの下位 5% L 値（Oklab algorithm 用、事前計算）
+        /// 線形リマップの暗端基準点として使用する
+        /// </summary>
+        public float OklabSourceLP05 { get; set; } = 0f;
+
+        /// <summary>
+        /// テクスチャの代表 OKLCh の h 値ラジアン（Oklab algorithm 用、事前計算）
+        /// </summary>
+        public float OklabSourceHDominant { get; set; } = 0f;
+
+        // ----- RGBDelta モードパラメータ -----
+
+        /// <summary>
+        /// RGB差分の加算強度（RGBDelta モード用）
+        /// </summary>
+        public float RgbDeltaIntensity { get; set; } = 1f;
+
+        /// <summary>
+        /// RGB差分のソフトクリップ領域幅（RGBDelta モード用、0-1 線形空間）
+        /// </summary>
+        public float RgbDeltaSoftClipZone { get; set; } = 0.05f;
 
         /// <summary>
         /// ChimeraHairMasterコンポーネントから設定を作成
+        /// p95 や代表 OKLCh などの事前計算値はここでは設定されないため、
+        /// 必要に応じて呼び出し側で SetOklabPrecomputed() を呼ぶこと
         /// </summary>
         public static ColorTransformSettings FromComponent(ChimeraHairMaster component, Color sourceColor)
         {
@@ -882,8 +1206,24 @@ namespace ChimeraHairMaster.Editor.Processing
                 GradientCurve = component.gradientCurve,
                 SaturationPreserve = component.saturationPreserve,
                 ValuePreserve = component.valuePreserve,
-                BrightnessUnifyMode = component.brightnessUnifyMode
+                HueShiftAlgorithm = component.hueShiftAlgorithm,
+                OklabHueRetain = component.oklabHueRetain,
+                OklabSaturationToTarget = component.oklabSaturationToTarget,
+                OklabLToTarget = component.oklabLToTarget,
+                OklabLDarkEndRatio = component.oklabLDarkEndRatio,
+                RgbDeltaIntensity = component.rgbDeltaIntensity,
+                RgbDeltaSoftClipZone = component.rgbDeltaSoftClipZone,
             };
+        }
+
+        /// <summary>
+        /// Oklab algorithm 用の事前計算値（テクスチャ毎の代表値）を設定
+        /// </summary>
+        public void SetOklabPrecomputed(float lP95, float lP05, float hDominant)
+        {
+            OklabSourceLP95 = lP95;
+            OklabSourceLP05 = lP05;
+            OklabSourceHDominant = hDominant;
         }
     }
 }

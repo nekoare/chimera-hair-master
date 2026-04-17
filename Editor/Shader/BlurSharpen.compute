@@ -1,0 +1,116 @@
+// Photoshop Gaussian Blur / Unsharp Mask 相当の前処理シェーダー
+// 分離型ガウシアン（水平 → 垂直）で blur を生成し、シャープ合成パスでアンシャープマスクを適用する
+//
+// Pipeline:
+//   blur:     CSBlurHorizontal -> CSBlurVertical（_Target に書き出し）
+//   sharpen:  上記 blur 後、CSUnsharpComposite で _Source（オリジナル）と _Blurred を合成
+
+#pragma kernel CSBlurHorizontal
+#pragma kernel CSBlurVertical
+#pragma kernel CSUnsharpComposite
+
+RWTexture2D<float4> _Source;
+RWTexture2D<float4> _Intermediate;  // 水平 blur の出力 / 垂直 blur の入力
+RWTexture2D<float4> _Target;
+RWTexture2D<float4> _Blurred;       // シャープ合成パスでのみ使用
+RWStructuredBuffer<uint> _UVMask;   // 1=使用領域, 0=未使用（packed）
+int _UseUVMask;                     // 0/1
+int _Width;
+int _Height;
+
+float _Sigma;
+int _KernelRadius;
+float _SharpenAmount;
+
+// マスクの該当ビットを取得（packed 32 bit）
+bool IsInMask(int x, int y)
+{
+    if (_UseUVMask == 0) return true;
+    if (x < 0 || x >= _Width || y < 0 || y >= _Height) return false;
+    int idx = y * _Width + x;
+    uint word = _UVMask[idx >> 5];
+    return (word & (1u << (idx & 31))) != 0u;
+}
+
+float GaussWeight(int offset, float sigma)
+{
+    float x = (float)offset;
+    return exp(-(x * x) / (2.0 * sigma * sigma));
+}
+
+[numthreads(16, 16, 1)]
+void CSBlurHorizontal(uint3 id : SV_DispatchThreadID)
+{
+    if ((int)id.x >= _Width || (int)id.y >= _Height) return;
+
+    // マスク外のピクセルは元の値をそのまま中間バッファに転写
+    if (!IsInMask((int)id.x, (int)id.y))
+    {
+        _Intermediate[id.xy] = _Source[id.xy];
+        return;
+    }
+
+    float4 sum = float4(0, 0, 0, 0);
+    float weightSum = 0.0;
+    for (int i = -_KernelRadius; i <= _KernelRadius; i++)
+    {
+        int sx = (int)id.x + i;
+        if (sx < 0 || sx >= _Width) continue;
+        if (!IsInMask(sx, (int)id.y)) continue;
+        float w = GaussWeight(i, _Sigma);
+        sum += _Source[int2(sx, (int)id.y)] * w;
+        weightSum += w;
+    }
+
+    _Intermediate[id.xy] = weightSum > 0.0 ? (sum / weightSum) : _Source[id.xy];
+}
+
+[numthreads(16, 16, 1)]
+void CSBlurVertical(uint3 id : SV_DispatchThreadID)
+{
+    if ((int)id.x >= _Width || (int)id.y >= _Height) return;
+
+    if (!IsInMask((int)id.x, (int)id.y))
+    {
+        _Target[id.xy] = _Source[id.xy];
+        return;
+    }
+
+    float4 sum = float4(0, 0, 0, 0);
+    float weightSum = 0.0;
+    for (int j = -_KernelRadius; j <= _KernelRadius; j++)
+    {
+        int sy = (int)id.y + j;
+        if (sy < 0 || sy >= _Height) continue;
+        if (!IsInMask((int)id.x, sy)) continue;
+        float w = GaussWeight(j, _Sigma);
+        sum += _Intermediate[int2((int)id.x, sy)] * w;
+        weightSum += w;
+    }
+
+    _Target[id.xy] = weightSum > 0.0 ? (sum / weightSum) : _Source[id.xy];
+}
+
+// アンシャープマスク合成: result = source + (source - blurred) * amount
+// マスク外のピクセルは元のまま
+[numthreads(16, 16, 1)]
+void CSUnsharpComposite(uint3 id : SV_DispatchThreadID)
+{
+    if ((int)id.x >= _Width || (int)id.y >= _Height) return;
+
+    float4 src = _Source[id.xy];
+
+    if (!IsInMask((int)id.x, (int)id.y))
+    {
+        _Target[id.xy] = src;
+        return;
+    }
+
+    float4 blurred = _Blurred[id.xy];
+    float4 detail = src - blurred;
+    float4 result = src + detail * _SharpenAmount;
+
+    // alpha は元のまま保持（detail で alpha が変わるのを避ける）
+    result.a = src.a;
+    _Target[id.xy] = saturate(result);
+}

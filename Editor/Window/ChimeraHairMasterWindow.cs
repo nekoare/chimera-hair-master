@@ -25,7 +25,13 @@ namespace ChimeraHairMaster.Editor
         private Gradient gradientCurve = new Gradient();
         private float saturationPreserve = 0f;
         private float valuePreserve = 1.0f;
-        private BrightnessUnifyMode brightnessUnifyMode = BrightnessUnifyMode.Off;
+        private HueShiftAlgorithm hueShiftAlgorithm = HueShiftAlgorithm.Oklab;
+        private float oklabHueRetain = 0f;
+        private float oklabSaturationToTarget = 1.0f;
+        private float oklabLToTarget = 1.0f;
+        private float oklabLDarkEndRatio = 0.5f;
+        private float rgbDeltaIntensity = 1.0f;
+        private float rgbDeltaSoftClipZone = 0.05f;
 
         // テクスチャ設定
         private TextureResolution textureResolution = TextureResolution._2048;
@@ -166,7 +172,13 @@ namespace ChimeraHairMaster.Editor
             }
             saturationPreserve = component.saturationPreserve;
             valuePreserve = component.valuePreserve;
-            brightnessUnifyMode = component.brightnessUnifyMode;
+            hueShiftAlgorithm = component.hueShiftAlgorithm;
+            oklabHueRetain = component.oklabHueRetain;
+            oklabSaturationToTarget = component.oklabSaturationToTarget;
+            oklabLToTarget = component.oklabLToTarget;
+            oklabLDarkEndRatio = component.oklabLDarkEndRatio;
+            rgbDeltaIntensity = component.rgbDeltaIntensity;
+            rgbDeltaSoftClipZone = component.rgbDeltaSoftClipZone;
 
             // テクスチャ・マテリアル設定
             textureResolution = component.textureResolution;
@@ -299,6 +311,23 @@ namespace ChimeraHairMaster.Editor
             );
         }
 
+        /// <summary>
+        /// targetRenderers（髪パーツ）の親を遡って VRC_AvatarDescriptor を持つ GameObject を探す
+        /// 見つからない場合は null を返す
+        /// </summary>
+        private GameObject DetectAvatarFromHairParts()
+        {
+            if (targetRenderers == null || targetRenderers.Count == 0) return null;
+
+            foreach (var renderer in targetRenderers)
+            {
+                if (renderer == null) continue;
+                var descriptor = renderer.GetComponentInParent<VRC_AvatarDescriptor>();
+                if (descriptor != null) return descriptor.gameObject;
+            }
+            return null;
+        }
+
         private void DrawTargetSelection()
         {
             showTargetSelection = EditorGUILayout.BeginFoldoutHeaderGroup(showTargetSelection, CHMLocales.Tr("Window:TargetSelection:Header"));
@@ -306,17 +335,20 @@ namespace ChimeraHairMaster.Editor
             {
                 EditorGUI.indentLevel++;
 
+                // 髪パーツからアバターを自動検出
+                var autoAvatar = DetectAvatarFromHairParts();
+                if (autoAvatar != selectedAvatar)
+                {
+                    selectedAvatar = autoAvatar;
+                    ClearUVCache();
+                }
+
+                // アバター表示（read-only、確認用）
                 EditorGUILayout.BeginHorizontal();
                 EditorGUILayout.LabelField(CHMLocales.Tr("Window:TargetSelection:Avatar"), GUILayout.Width(80));
-                var newAvatar = (GameObject)EditorGUILayout.ObjectField(
-                    selectedAvatar,
-                    typeof(GameObject),
-                    true
-                );
-                if (newAvatar != selectedAvatar)
+                using (new EditorGUI.DisabledScope(true))
                 {
-                    selectedAvatar = newAvatar;
-                    ClearUVCache();
+                    EditorGUILayout.ObjectField(selectedAvatar, typeof(GameObject), true);
                 }
                 EditorGUILayout.EndHorizontal();
 
@@ -511,12 +543,18 @@ namespace ChimeraHairMaster.Editor
                 EditorGUILayout.BeginHorizontal();
                 EditorGUILayout.LabelField(CHMLocales.Tr("Window:ColorSettings:Mode"), GUILayout.Width(80));
                 {
+                    // 表示順: Mode1=HueShift, Mode2=Gradient, Mode3=RGBDelta
                     var modeNames = new[]
                     {
-                        CHMLocales.Tr("ColorTransformMode:Gradient"),
-                        CHMLocales.Tr("ColorTransformMode:HueShift"),
+                        CHMLocales.Tr("ColorTransformMode:HueShift"),        // display 0 (enum 1)
+                        CHMLocales.Tr("ColorTransformMode:Gradient"),        // display 1 (enum 0)
+                        CHMLocales.Tr("Inspector:ColorTransformMode:RGBDelta"), // display 2 (enum 2)
                     };
-                    colorTransformMode = (ColorTransformMode)EditorGUILayout.Popup((int)colorTransformMode, modeNames);
+                    int[] displayToEnum = { 1, 0, 2 };
+                    int[] enumToDisplay = { 1, 0, 2 };
+                    int currentDisplay = enumToDisplay[(int)colorTransformMode];
+                    int newDisplay = EditorGUILayout.Popup(currentDisplay, modeNames);
+                    colorTransformMode = (ColorTransformMode)displayToEnum[newDisplay];
                 }
                 EditorGUILayout.EndHorizontal();
 
@@ -546,6 +584,23 @@ namespace ChimeraHairMaster.Editor
 
                         EditorGUILayout.HelpBox(
                             CHMLocales.Tr("Window:ColorSettings:HueShiftHint"),
+                            MessageType.Info
+                        );
+                        break;
+
+                    case ColorTransformMode.RGBDelta:
+                        EditorGUILayout.Space(5);
+
+                        EditorGUILayout.BeginHorizontal();
+                        EditorGUILayout.LabelField(CHMLocales.Tr("Window:ColorSettings:ChangeToThisColor"), GUILayout.Width(80));
+                        targetColor = EditorGUILayout.ColorField(targetColor);
+                        EditorGUILayout.EndHorizontal();
+
+                        // テクスチャ色ピッカー（HueShift と共有）
+                        DrawTextureColorPicker();
+
+                        EditorGUILayout.HelpBox(
+                            CHMLocales.Tr("Inspector:RgbDeltaHelp"),
                             MessageType.Info
                         );
                         break;
@@ -966,7 +1021,14 @@ namespace ChimeraHairMaster.Editor
 
                 EditorGUILayout.Space(5);
 
+                // プレビューヘッダー（ラベル + 拡大ビューボタン）
+                EditorGUILayout.BeginHorizontal();
                 EditorGUILayout.LabelField(CHMLocales.Tr("Window:UVSettings:Preview"));
+                if (GUILayout.Button(CHMLocales.Tr("Window:UVSettings:ExpandView"), GUILayout.Width(80)))
+                {
+                    UVPlacementPreviewWindow.Open(this);
+                }
+                EditorGUILayout.EndHorizontal();
                 EditorGUILayout.LabelField(CHMLocales.Tr("Window:UVSettings:FitHint"), EditorStyles.miniLabel);
 
                 // プレビュー領域を正方形で確保
@@ -976,30 +1038,7 @@ namespace ChimeraHairMaster.Editor
                 // 中央寄せ
                 uvPreviewRect.x += (EditorGUIUtility.currentViewWidth - previewSize - 40) * 0.5f;
 
-                // 背景を描画
-                EditorGUI.DrawRect(uvPreviewRect, new Color(0.2f, 0.2f, 0.2f, 1f));
-
-                // マウスインタラクション処理（ScrollView内で処理する必要がある）
-                HandleUVInteraction();
-
-                // グリッドを描画
-                DrawUVGrid(uvPreviewRect);
-
-                // UVアイランドを描画
-                DrawUVIslands(uvPreviewRect);
-
-                // 枠線を描画
-                Handles.color = Color.white;
-                Handles.DrawWireDisc(uvPreviewRect.center, Vector3.forward, 0); // ダミー
-                var corners = new Vector3[]
-                {
-                    new Vector3(uvPreviewRect.xMin, uvPreviewRect.yMin, 0),
-                    new Vector3(uvPreviewRect.xMax, uvPreviewRect.yMin, 0),
-                    new Vector3(uvPreviewRect.xMax, uvPreviewRect.yMax, 0),
-                    new Vector3(uvPreviewRect.xMin, uvPreviewRect.yMax, 0),
-                    new Vector3(uvPreviewRect.xMin, uvPreviewRect.yMin, 0)
-                };
-                Handles.DrawPolyLine(corners);
+                DrawUVPreview(uvPreviewRect);
 
                 EditorGUILayout.Space(5);
 
@@ -1092,6 +1131,42 @@ namespace ChimeraHairMaster.Editor
                 EditorGUI.indentLevel--;
             }
             EditorGUILayout.EndFoldoutHeaderGroup();
+        }
+
+        /// <summary>
+        /// UV配置プレビューを指定の Rect に描画する
+        /// 背景・グリッド・アイランド・枠線をまとめて描く
+        /// uvPreviewRect フィールドはマウス操作用に一時的に rect で上書きされる
+        /// </summary>
+        internal void DrawUVPreview(Rect rect)
+        {
+            // マウス操作用に uvPreviewRect を上書き（HandleUVInteraction が参照する）
+            uvPreviewRect = rect;
+
+            // 背景を描画
+            EditorGUI.DrawRect(rect, new Color(0.2f, 0.2f, 0.2f, 1f));
+
+            // マウスインタラクション処理
+            HandleUVInteraction();
+
+            // グリッド描画
+            DrawUVGrid(rect);
+
+            // UVアイランド描画
+            DrawUVIslands(rect);
+
+            // 枠線を描画
+            Handles.color = Color.white;
+            Handles.DrawWireDisc(rect.center, Vector3.forward, 0); // ダミー
+            var corners = new Vector3[]
+            {
+                new Vector3(rect.xMin, rect.yMin, 0),
+                new Vector3(rect.xMax, rect.yMin, 0),
+                new Vector3(rect.xMax, rect.yMax, 0),
+                new Vector3(rect.xMin, rect.yMax, 0),
+                new Vector3(rect.xMin, rect.yMin, 0)
+            };
+            Handles.DrawPolyLine(corners);
         }
 
         private void DrawUVGrid(Rect rect)
@@ -2639,7 +2714,13 @@ namespace ChimeraHairMaster.Editor
             component.gradientCurve = gradientCurve;
             component.saturationPreserve = saturationPreserve;
             component.valuePreserve = valuePreserve;
-            component.brightnessUnifyMode = brightnessUnifyMode;
+            component.hueShiftAlgorithm = hueShiftAlgorithm;
+            component.oklabHueRetain = oklabHueRetain;
+            component.oklabSaturationToTarget = oklabSaturationToTarget;
+            component.oklabLToTarget = oklabLToTarget;
+            component.oklabLDarkEndRatio = oklabLDarkEndRatio;
+            component.rgbDeltaIntensity = rgbDeltaIntensity;
+            component.rgbDeltaSoftClipZone = rgbDeltaSoftClipZone;
             component.textureResolution = textureResolution;
             component.baseMaterial = baseMaterial;
             component.meshMergeMode = meshMergeMode;

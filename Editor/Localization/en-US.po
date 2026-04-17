@@ -124,7 +124,7 @@ msgid "Window:Action:Setup"
 msgstr "Set Up"
 
 msgid "Window:Validation:SelectAvatar"
-msgstr "Please select an avatar."
+msgstr "Drag and drop hair parts from the Hierarchy."
 
 msgid "Window:Validation:AtLeastTwoRenderers"
 msgstr "Please add at least two hair Renderers."
@@ -285,9 +285,6 @@ msgstr "Preserve Original Brightness"
 msgid "Inspector:AutoAdjust"
 msgstr "Auto Adjust"
 
-msgid "Inspector:BrightnessUnifyMode"
-msgstr "Unify Overall Brightness (heavy)"
-
 msgid "Inspector:HueShiftHelp"
 msgstr "Color mode (default)\nShifts the whole texture toward the chosen color.\nBest when the original hair has little contrast."
 
@@ -427,7 +424,7 @@ msgid "Inspector:PreviewRequiresSetup"
 msgstr "To enable preview, please set the target Renderers and the base material."
 
 msgid "Inspector:SaveAsTextureSection"
-msgstr "Save as Texture"
+msgstr "Texture Export"
 
 msgid "Inspector:ApplyTexture"
 msgstr "Apply texture to material"
@@ -666,15 +663,6 @@ msgstr "Mode 2"
 msgid "ColorTransformMode:HueShift"
 msgstr "Mode 1"
 
-msgid "BrightnessUnifyMode:Off"
-msgstr "Off"
-
-msgid "BrightnessUnifyMode:ToBrightest"
-msgstr "Match brightest (heavy)"
-
-msgid "BrightnessUnifyMode:ToDarkest"
-msgstr "Match darkest (heavy)"
-
 msgid "FalloffType:Constant"
 msgstr "Constant"
 
@@ -704,3 +692,76 @@ msgstr "Don't set"
 
 msgid "MeshSettingsInheritMode:SetOrInherit"
 msgstr "Inherit if parent is set, otherwise use this"
+
+# ---- Color mode: RGB Delta ----
+msgid "Inspector:ColorTransformMode:RGBDelta"
+msgstr "Mode 3"
+
+# ---- Hue shift algorithm ----
+msgid "Inspector:HueShiftAlgorithm"
+msgstr "Algorithm"
+
+msgid "Inspector:HueShiftAlgorithm:HSV"
+msgstr "HSV (legacy)"
+
+msgid "Inspector:HueShiftAlgorithm:Oklab"
+msgstr "Oklab"
+
+# ---- Oklab parameters ----
+msgid "Inspector:OklabHueRetain"
+msgstr "Preserve original hue"
+
+msgid "Inspector:OklabHueRetainTooltip"
+msgstr "0 = lock hue to target / 1 = keep original hue nuances"
+
+msgid "Inspector:OklabHelp"
+msgstr "Oklab is a color space where luminance and chroma are independent, making it easier to automatically align the color of multiple textures to the target."
+
+# ---- RGB Delta parameters ----
+msgid "Inspector:RgbDeltaIntensity"
+msgstr "Delta intensity"
+
+msgid "Inspector:RgbDeltaIntensityTooltip"
+msgstr "0 = no change / 1 = fully add the delta from the texture's representative color to the target"
+
+msgid "Inspector:RgbDeltaSoftClipZone"
+msgstr "Soft clip zone"
+
+msgid "Inspector:RgbDeltaSoftClipZoneTooltip"
+msgstr "Width of the soft asymptote near out-of-range values (measured in Linear RGB space). 0.05 is typical"
+
+msgid "Inspector:RgbDeltaHelp"
+msgstr "RGB Delta mode: adds the difference from the texture's representative color to the target across all pixels.\nHue is not forced so differences are preserved, retaining nuances such as highlights."
+
+# ---- Blur / Sharpen ----
+msgid "Inspector:BlurSharpAdjustment"
+msgstr "Adjust paint detail"
+
+msgid "Inspector:BlurSharpAdjustmentHelp"
+msgstr "Negative values apply blur, positive values apply sharpen. Applied as preprocessing just before color transform.\nUse this to match the paint feel (crisp vs. soft) across textures."
+
+# ---- Texture Export: mesh merge discard warning ----
+msgid "Inspector:MeshMergeDiscardWarning"
+msgstr "Mesh merge is enabled, but applying this feature will discard the mesh merge settings and only texture saving will be performed."
+
+# ---- UV expand view ----
+msgid "Window:UVSettings:ExpandView"
+msgstr "Expand View"
+
+msgid "Window:UVPreview:Title"
+msgstr "UV Placement Preview"
+
+msgid "Window:UVPreview:Hint"
+msgstr "Drag/scale operations work the same as in the main window"
+
+msgid "Window:UVPreview:OwnerClosed"
+msgstr "The main window has been closed.\nPlease close this window too."
+
+msgid "Inspector:MeshMergeDiscardConfirm"
+msgstr "Mesh merge is enabled.\nApplying will disable the mesh merge setting (enableMeshMerge) and only texture export will be performed without merging.\nUV placement (islandPlacements) will remain but will not be used in subsequent builds.\nContinue?"
+
+msgid "Inspector:Confirm:Apply"
+msgstr "Apply"
+
+msgid "Inspector:Confirm:Cancel"
+msgstr "Cancel"

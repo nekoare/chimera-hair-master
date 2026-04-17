@@ -10,6 +10,8 @@ namespace ChimeraHairMaster.Editor.Processing
     internal static class ShaderUtils
     {
         private static ComputeShader? _colorTransformShader;
+        private static ComputeShader? _blurSharpenShader;
+        private static ComputeShader? _dilateTextureShader;
         private static bool _initialized = false;
 
         /// <summary>
@@ -24,42 +26,71 @@ namespace ChimeraHairMaster.Editor.Processing
             return _colorTransformShader;
         }
 
+        /// <summary>
+        /// ブラー／シャープComputeShaderを取得
+        /// </summary>
+        internal static ComputeShader? GetBlurSharpenShader()
+        {
+            if (!_initialized)
+            {
+                Initialize();
+            }
+            return _blurSharpenShader;
+        }
+
+        /// <summary>
+        /// Dilation ComputeShader を取得
+        /// </summary>
+        internal static ComputeShader? GetDilateTextureShader()
+        {
+            if (!_initialized)
+            {
+                Initialize();
+            }
+            return _dilateTextureShader;
+        }
+
         private static void Initialize()
         {
             _initialized = true;
 
-            // パッケージ内のシェーダーを検索
-            string[] guids = AssetDatabase.FindAssets("ColorTransform t:ComputeShader");
+            _colorTransformShader = LoadShader("ColorTransform", "ColorTransform.compute");
+            _blurSharpenShader = LoadShader("BlurSharpen", "BlurSharpen.compute");
+            _dilateTextureShader = LoadShader("DilateTexture", "DilateTexture.compute");
+
+            if (_colorTransformShader == null)
+                Debug.LogError("[ChimeraHairMaster] ColorTransform.compute が見つかりません");
+            if (_blurSharpenShader == null)
+                Debug.LogError("[ChimeraHairMaster] BlurSharpen.compute が見つかりません");
+            if (_dilateTextureShader == null)
+                Debug.LogError("[ChimeraHairMaster] DilateTexture.compute が見つかりません");
+        }
+
+        private static ComputeShader? LoadShader(string searchName, string fileName)
+        {
+            string[] guids = AssetDatabase.FindAssets($"{searchName} t:ComputeShader");
             foreach (string guid in guids)
             {
                 string path = AssetDatabase.GUIDToAssetPath(guid);
                 if (path.Contains("com.nekoare.chimera-hair-master"))
                 {
-                    _colorTransformShader = AssetDatabase.LoadAssetAtPath<ComputeShader>(path);
-                    if (_colorTransformShader != null)
-                    {
-                        return;
-                    }
+                    var shader = AssetDatabase.LoadAssetAtPath<ComputeShader>(path);
+                    if (shader != null) return shader;
                 }
             }
 
-            // 見つからない場合はパスで直接検索
-            string[] searchPaths = new[]
+            string[] fallbackPaths = new[]
             {
-                "Packages/com.nekoare.chimera-hair-master/Editor/Shader/ColorTransform.compute",
-                "Assets/com.nekoare.chimera-hair-master/Editor/Shader/ColorTransform.compute"
+                $"Packages/com.nekoare.chimera-hair-master/Editor/Shader/{fileName}",
+                $"Assets/com.nekoare.chimera-hair-master/Editor/Shader/{fileName}"
             };
-
-            foreach (string path in searchPaths)
+            foreach (string path in fallbackPaths)
             {
-                _colorTransformShader = AssetDatabase.LoadAssetAtPath<ComputeShader>(path);
-                if (_colorTransformShader != null)
-                {
-                    return;
-                }
+                var shader = AssetDatabase.LoadAssetAtPath<ComputeShader>(path);
+                if (shader != null) return shader;
             }
 
-            Debug.LogError("[ChimeraHairMaster] ColorTransform.compute が見つかりません");
+            return null;
         }
 
         /// <summary>
