@@ -585,16 +585,26 @@ namespace ChimeraHairMaster.Editor.Processing
             Vector3 targetLch = OklabConverter.SRGBToOklch(settings.TargetColor);
 
             // --- L の補正 ---
-            // 線形リマップ: [source.L_p05, source.L_p95] → [target.L * darkEndRatio, target.L]
-            // これにより source 側のテクスチャ毎の暗部-明部 range が target 側の
-            // 同じ range に圧縮され、複数テクスチャの中間 V でも明度感が揃う。
-            // oklabLToTarget で「どれだけリマップを適用するか」を線形補間する。
+            // source の L 範囲に応じて、線形リマップと加算オフセットをスムーズに切替える。
+            //  - 通常テクスチャ (sourceRange >= threshold): 従来の線形リマップ
+            //    [source.L_p05, source.L_p95] → [target.L * darkEndRatio, target.L]
+            //    複数テクスチャの中間 V でも明度感を揃える効果を維持。
+            //  - 単色寄りテクスチャ (sourceRange << threshold): 加算オフセット
+            //    pixL - sourceMid + target.L （slope=1）
+            //    狭い range でリマップすると slope が大きくなり、テクスチャの
+            //    微小な陰影が増幅されてムラとして見える問題を回避する。
+            //  - 中間: smoothing で 2 つを線形補間（境界ジャンプ無し）。
+            const float SourceRangeThreshold = 0.20f;
             float sourceRange = settings.OklabSourceLP95 - settings.OklabSourceLP05;
+            float sourceMid = (settings.OklabSourceLP05 + settings.OklabSourceLP95) * 0.5f;
             float normalized = sourceRange > 1e-5f
                 ? (pixLch.x - settings.OklabSourceLP05) / sourceRange
                 : 0.5f;
             float targetDarkL = targetLch.x * settings.OklabLDarkEndRatio;
-            float mappedL = Mathf.Lerp(targetDarkL, targetLch.x, normalized);
+            float remapMode = Mathf.Lerp(targetDarkL, targetLch.x, normalized);
+            float offsetMode = pixLch.x - sourceMid + targetLch.x;
+            float smoothing = Mathf.Clamp01(sourceRange / SourceRangeThreshold);
+            float mappedL = Mathf.Lerp(offsetMode, remapMode, smoothing);
             float newL = Mathf.Lerp(pixLch.x, mappedL, settings.OklabLToTarget);
             // ソフトクリップ（範囲外を [0,1] に緩やかに収束）
             newL = OklabConverter.SoftClip01(newL, 0.05f);

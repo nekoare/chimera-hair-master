@@ -105,12 +105,20 @@ float3 TransformHueShiftOklab(float3 srgb)
     float targetC = _TargetColorOklch.y;
     float targetH = _TargetColorOklch.z;
 
-    // L 補正: 線形リマップ
-    // [source.L_p05, source.L_p95] → [target.L * darkEndRatio, target.L]
+    // L 補正: source の L 範囲に応じて、線形リマップと加算オフセットをスムーズに切替える。
+    //  - sourceRange >= threshold: 従来の線形リマップ（明度感を揃える）
+    //  - sourceRange << threshold: 加算オフセット（slope=1、陰影保持）
+    //  狭い range で線形リマップすると slope が大きくなり、テクスチャの微小な
+    //  陰影が増幅されてムラとして見える問題を回避する。
+    const float SourceRangeThreshold = 0.20;
     float sourceRange = _OklabSourceLP95 - _OklabSourceLP05;
+    float sourceMid = (_OklabSourceLP05 + _OklabSourceLP95) * 0.5;
     float normalized = sourceRange > 1e-5 ? (lch.x - _OklabSourceLP05) / sourceRange : 0.5;
     float targetDarkL = targetL * _OklabLDarkEndRatio;
-    float mappedL = lerp(targetDarkL, targetL, normalized);
+    float remapMode = lerp(targetDarkL, targetL, normalized);
+    float offsetMode = lch.x - sourceMid + targetL;
+    float smoothing = saturate(sourceRange / SourceRangeThreshold);
+    float mappedL = lerp(offsetMode, remapMode, smoothing);
     float newL = lerp(lch.x, mappedL, _OklabLToTarget);
     newL = SoftClip01(newL, 0.05);
 
