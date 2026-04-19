@@ -185,7 +185,7 @@ namespace ChimeraHairMaster.Editor.Processing
         /// <summary>
         /// 基準色（ソース色）を決定。最初のRendererの_MainTexから色を抽出
         /// </summary>
-        private static Color DetermineSourceColor(ChimeraHairMaster component)
+        internal static Color DetermineSourceColor(ChimeraHairMaster component)
         {
             foreach (var renderer in component.targetRenderers)
             {
@@ -208,7 +208,7 @@ namespace ChimeraHairMaster.Editor.Processing
         /// <summary>
         /// Renderer単位の明度オフセットを取得
         /// </summary>
-        private static float GetRendererBrightnessOffset(ChimeraHairMaster component, int rendererIndex)
+        internal static float GetRendererBrightnessOffset(ChimeraHairMaster component, int rendererIndex)
         {
             if (component.rendererBrightnessAdjustments == null) return 0f;
             foreach (var adj in component.rendererBrightnessAdjustments)
@@ -222,7 +222,7 @@ namespace ChimeraHairMaster.Editor.Processing
         /// <summary>
         /// Renderer単位のブラー／シャープ強度を取得
         /// </summary>
-        private static float GetRendererBlurSharp(ChimeraHairMaster component, int rendererIndex)
+        internal static float GetRendererBlurSharp(ChimeraHairMaster component, int rendererIndex)
         {
             if (component.rendererBlurSharpAdjustments == null) return 0f;
             foreach (var adj in component.rendererBlurSharpAdjustments)
@@ -286,7 +286,7 @@ namespace ChimeraHairMaster.Editor.Processing
         /// <summary>
         /// TextureImporter設定を元テクスチャからコピー
         /// </summary>
-        private static void CopyTextureImportSettings(string sourcePath, string destPath)
+        internal static void CopyTextureImportSettings(string sourcePath, string destPath)
         {
             var sourceImporter = AssetImporter.GetAtPath(sourcePath) as TextureImporter;
             var destImporter = AssetImporter.GetAtPath(destPath) as TextureImporter;
@@ -390,7 +390,7 @@ namespace ChimeraHairMaster.Editor.Processing
         /// <summary>
         /// MatCapテクスチャをコピー
         /// </summary>
-        private static void CopyMatCapTextures(Material source, Material dest)
+        internal static void CopyMatCapTextures(Material source, Material dest)
         {
             string[] matCapProps = new[]
             {
@@ -411,7 +411,7 @@ namespace ChimeraHairMaster.Editor.Processing
         /// 圧縮テクスチャをRenderTexture経由で非圧縮RGBA32に展開する
         /// EncodeToPNG()は圧縮フォーマット(DXT5, BC7等)をサポートしないため必要
         /// </summary>
-        private static Texture2D DecompressTexture(Texture2D source)
+        internal static Texture2D DecompressTexture(Texture2D source)
         {
             RenderTexture tmp = RenderTexture.GetTemporary(
                 source.width, source.height, 0,

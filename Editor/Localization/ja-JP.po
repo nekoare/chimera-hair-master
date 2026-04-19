@@ -423,6 +423,12 @@ msgstr "プレビューが有効です。Scene上で結果を確認できます�
 msgid "Inspector:PreviewRequiresSetup"
 msgstr "プレビューを有効にするには、対象Rendererと基準マテリアルを設定してください。"
 
+msgid "Inspector:ExportSection"
+msgstr "エクスポート"
+
+msgid "Inspector:ExportSectionHint"
+msgstr "非破壊処理が不要な場合、他ツールと併用して問題がある場合はエクスポートしてから試してください。"
+
 msgid "Inspector:SaveAsTextureSection"
 msgstr "テクスチャ出力"
 
@@ -446,6 +452,18 @@ msgstr "キメラヘアマスターを元の髪に反映する"
 
 msgid "Inspector:ApplyRequiresSetup"
 msgstr "適用するには、対象Rendererと基準マテリアルを設定してください。"
+
+msgid "Inspector:PrefabExportSection"
+msgstr "Prefab出力"
+
+msgid "Inspector:PrefabExportInfo"
+msgstr "色合わせ・マテリアル設定・変形情報を反映した髪パーツのPrefabを生成します。\n生成されたPrefabをアバター直下に配置してください。"
+
+msgid "Inspector:PrefabExportMeshMergeIgnored"
+msgstr "メッシュ統合設定は無視されます（Renderer個別で出力します）。"
+
+msgid "Inspector:PrefabExportButton"
+msgstr "Prefab出力"
 
 msgid "Inspector:SharedRendererWarningFormat"
 msgstr "以下のRendererが他のChimera Hair Masterと重複しています。\nビルド時に競合が発生し、結果が不定になります。\n{0}"

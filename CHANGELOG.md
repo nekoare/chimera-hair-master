@@ -1,5 +1,34 @@
 # Changelog
 
+## v1.4.2
+
+### 新機能
+
+- **Prefab出力機能**
+  - 色合わせ・マテリアル設定・変形情報を反映した髪パーツのPrefabを生成
+  - 元マテリアル / 元テクスチャ / 元アバターは書換しない非破壊エクスポート
+  - 元マテリアル単位で重複排除した clone マテリアルを `{元名}_CHM.mat` として元マテリアル同フォルダに保存
+  - 必要な bone・PhysBone・Constraint を含む単独 Prefab を生成
+  - ModularAvatar 検出時は各髪 Armature root に `MA Merge Armature` を自動付与（asmdef versionDefines による条件コンパイル）
+  - 生成 Prefab はアバターと同じシーンのルート直下に自動配置
+- **Inspector「エクスポート」セクション追加**
+  - 既存「テクスチャ出力」と新規「Prefab出力」を 1 つの Foldout に統合
+  - 「非破壊処理が不要な場合、他ツールと併用して問題がある場合はエクスポートしてから試してください」のヒントを表示
+  - サブセクション「Prefab出力」には「メッシュ変形を適用」トグル（デフォルト ON）
+
+### 改善
+
+- ローカライズ拡充
+  - エクスポート関連の文字列を 4 言語（ja-JP / en-US / zh-Hans / ko-KR）に対応
+
+### 内部整理
+
+- `ColorApplier` の以下メソッドを `internal` に格上げ（`PrefabExporter` から再利用）
+  - `DetermineSourceColor`、`GetRendererBrightnessOffset`、`GetRendererBlurSharp`、`CopyTextureImportSettings`、`DecompressTexture`、`CopyMatCapTextures`
+- `Editor/Processing/HierarchyDependencyResolver.cs` 新規追加（bone・PhysBone・Constraint 依存解決と不要 GameObject 削除）
+- `Editor/Processing/PrefabExporter.cs` 新規追加
+- asmdef の `versionDefines` に `nadena.dev.modular-avatar` 検出シンボル `CHM_MODULAR_AVATAR` を追加（MA 未導入でもコンパイル可能）
+
 ## v1.4.1
 
 ### バグ修正

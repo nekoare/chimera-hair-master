@@ -67,6 +67,7 @@ namespace ChimeraHairMaster.Editor
         private const string PREF_APPLY_TEXTURE = "CHM_ApplyTexture";
         private const string PREF_UNIFY_SETTINGS = "CHM_UnifySettings";
         private const string PREF_APPLY_DEFORMATION = "CHM_ApplyDeformation";
+        private const string PREF_PREFAB_APPLY_DEFORMATION = "CHM_PrefabApplyDeformation";
 
         // メッシュ変形UI
         private MeshDeformationInspectorUI meshDeformationUI;
@@ -1762,6 +1763,12 @@ namespace ChimeraHairMaster.Editor
             set => SessionState.SetBool("CHM_MeshDeform_ShowSection", value);
         }
 
+        private bool showExportSection
+        {
+            get => SessionState.GetBool("CHM_Export_ShowSection", false);
+            set => SessionState.SetBool("CHM_Export_ShowSection", value);
+        }
+
         private void DrawMeshDeformationSection()
         {
             var component = target as ChimeraHairMaster;
@@ -1813,11 +1820,32 @@ namespace ChimeraHairMaster.Editor
 
             EditorGUILayout.Space(5);
 
-            // 色合わせ適用セクション（色合わせ有効時）
-            // メッシュ統合有効時も表示するが、適用するとメッシュ統合情報は破棄される
+            // エクスポート枠（テクスチャ出力 + Prefab出力 を 1 つの Foldout で囲む）
+            // メッシュ統合有効時も表示するが、テクスチャ出力するとメッシュ統合情報は破棄される
             if (component.enableColorTransform)
             {
-                DrawColorApplySection(component);
+                showExportSection = EditorGUILayout.Foldout(
+                    showExportSection,
+                    CHMLocales.Tr("Inspector:ExportSection"),
+                    true,
+                    EditorStyles.foldoutHeader);
+
+                if (showExportSection)
+                {
+                    EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+                    EditorGUI.indentLevel++;
+
+                    EditorGUILayout.HelpBox(
+                        CHMLocales.Tr("Inspector:ExportSectionHint"),
+                        MessageType.Info);
+
+                    DrawColorApplySection(component);
+                    EditorGUILayout.Space(3);
+                    DrawPrefabExportSection(component);
+
+                    EditorGUI.indentLevel--;
+                    EditorGUILayout.EndVertical();
+                }
                 EditorGUILayout.Space(5);
             }
 
@@ -1985,6 +2013,70 @@ namespace ChimeraHairMaster.Editor
             }
 
             EditorGUILayout.EndVertical();
+        }
+
+        /// <summary>
+        /// Prefab出力セクションを描画。色変換適用済みの単独Prefabを書き出す（非破壊）。
+        /// </summary>
+        private void DrawPrefabExportSection(ChimeraHairMaster component)
+        {
+            EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+
+            EditorGUILayout.LabelField(CHMLocales.Tr("Inspector:PrefabExportSection"), EditorStyles.boldLabel);
+            EditorGUILayout.HelpBox(
+                CHMLocales.Tr("Inspector:PrefabExportInfo"),
+                MessageType.Info);
+
+            if (component.enableMeshMerge)
+            {
+                EditorGUILayout.HelpBox(
+                    CHMLocales.Tr("Inspector:PrefabExportMeshMergeIgnored"),
+                    MessageType.Warning);
+            }
+
+            bool prefabApplyDeformation = EditorPrefs.GetBool(PREF_PREFAB_APPLY_DEFORMATION, true);
+            bool hasDeformation = component.enableMeshDeformation
+                && component.rendererDeformations != null
+                && component.rendererDeformations.Exists(d => d.deltas != null && d.deltas.Count > 0);
+
+            if (hasDeformation)
+            {
+                EditorGUI.BeginChangeCheck();
+                prefabApplyDeformation = EditorGUILayout.ToggleLeft(
+                    new GUIContent(
+                        CHMLocales.Tr("Inspector:ApplyDeformation"),
+                        CHMLocales.Tr("Inspector:ApplyDeformationTooltip")),
+                    prefabApplyDeformation);
+                if (EditorGUI.EndChangeCheck())
+                {
+                    EditorPrefs.SetBool(PREF_PREFAB_APPLY_DEFORMATION, prefabApplyDeformation);
+                }
+            }
+
+            bool canExport = CanGeneratePreview(component);
+            GUI.enabled = canExport;
+            bool exportClicked = GUILayout.Button(CHMLocales.Tr("Inspector:PrefabExportButton"), GUILayout.Height(28));
+            GUI.enabled = true;
+
+            if (!canExport)
+            {
+                EditorGUILayout.HelpBox(
+                    CHMLocales.Tr("Inspector:ApplyRequiresSetup"),
+                    MessageType.Warning);
+            }
+
+            EditorGUILayout.EndVertical();
+
+            // Modal ダイアログ（SaveFilePanel）は GUI レイアウト確定後に呼ぶ。
+            // OnInspectorGUI 内で開くと EndVertical 等の Layout イベントが崩れるため、
+            // EndVertical 完了後に呼び出して GUIUtility.ExitGUI() で抜ける。
+            if (exportClicked)
+            {
+                bool deformation = prefabApplyDeformation && hasDeformation;
+                Processing.PrefabExporter.Export(component, deformation);
+                serializedObject.Update();
+                GUIUtility.ExitGUI();
+            }
         }
 
         /// <summary>

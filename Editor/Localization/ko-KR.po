@@ -423,6 +423,12 @@ msgstr "미리보기가 활성화되어 있습니다. Scene에서 결과를 확�
 msgid "Inspector:PreviewRequiresSetup"
 msgstr "미리보기를 활성화하려면 대상 Renderer와 기준 Material을 설정해 주세요."
 
+msgid "Inspector:ExportSection"
+msgstr "내보내기"
+
+msgid "Inspector:ExportSectionHint"
+msgstr "비파괴 처리가 필요 없는 경우, 다른 도구와 함께 사용할 때 문제가 있는 경우에는 내보내기 후에 시도해 주세요."
+
 msgid "Inspector:SaveAsTextureSection"
 msgstr "텍스처 내보내기"
 
@@ -446,6 +452,18 @@ msgstr "Chimera Hair Master를 원본 헤어에 반영하기"
 
 msgid "Inspector:ApplyRequiresSetup"
 msgstr "적용하려면 대상 Renderer와 기준 Material을 설정해 주세요."
+
+msgid "Inspector:PrefabExportSection"
+msgstr "Prefab 출력"
+
+msgid "Inspector:PrefabExportInfo"
+msgstr "색상 매칭・Material 설정・변형 정보를 반영한 머리 Prefab을 생성합니다.\n생성된 Prefab을 아바타 루트 아래에 배치해 주세요."
+
+msgid "Inspector:PrefabExportMeshMergeIgnored"
+msgstr "메시 통합 설정은 무시됩니다(Renderer 개별로 출력)."
+
+msgid "Inspector:PrefabExportButton"
+msgstr "Prefab 출력"
 
 msgid "Inspector:SharedRendererWarningFormat"
 msgstr "다음 Renderer가 다른 Chimera Hair Master와 중복되어 있습니다.\n빌드 시 충돌이 발생해 결과가 불확실해집니다.\n{0}"

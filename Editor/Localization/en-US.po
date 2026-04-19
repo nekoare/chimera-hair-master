@@ -423,6 +423,12 @@ msgstr "Preview is active. You can check the result in the Scene view.\nStop the
 msgid "Inspector:PreviewRequiresSetup"
 msgstr "To enable preview, please set the target Renderers and the base material."
 
+msgid "Inspector:ExportSection"
+msgstr "Export"
+
+msgid "Inspector:ExportSectionHint"
+msgstr "If you don't need non-destructive processing, or if there are conflicts with other tools, try exporting first."
+
 msgid "Inspector:SaveAsTextureSection"
 msgstr "Texture Export"
 
@@ -446,6 +452,18 @@ msgstr "Apply Chimera Hair Master to Original Hair"
 
 msgid "Inspector:ApplyRequiresSetup"
 msgstr "To apply, please set the target Renderers and the base material."
+
+msgid "Inspector:PrefabExportSection"
+msgstr "Prefab Export"
+
+msgid "Inspector:PrefabExportInfo"
+msgstr "Generates a hair Prefab with color matching, material settings, and deformation applied.\nPlace the generated Prefab under the avatar root."
+
+msgid "Inspector:PrefabExportMeshMergeIgnored"
+msgstr "Mesh merge settings will be ignored (renderers are exported individually)."
+
+msgid "Inspector:PrefabExportButton"
+msgstr "Export Prefab"
 
 msgid "Inspector:SharedRendererWarningFormat"
 msgstr "The following Renderers are shared with another Chimera Hair Master.\nThis will cause conflicts at build time with undefined results.\n{0}"

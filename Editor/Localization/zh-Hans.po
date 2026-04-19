@@ -423,6 +423,12 @@ msgstr "预览已启用，可在Scene中查看最终效果。\n卡顿时请停�
 msgid "Inspector:PreviewRequiresSetup"
 msgstr "要启用预览，请先设置目标Renderer和基准Material。"
 
+msgid "Inspector:ExportSection"
+msgstr "导出"
+
+msgid "Inspector:ExportSectionHint"
+msgstr "如果不需要非破坏性处理，或与其他工具配合使用时出现问题，请先导出后再尝试。"
+
 msgid "Inspector:SaveAsTextureSection"
 msgstr "导出贴图"
 
@@ -446,6 +452,18 @@ msgstr "将Chimera Hair Master应用到原头发"
 
 msgid "Inspector:ApplyRequiresSetup"
 msgstr "要应用，请先设置目标Renderer和基准Material。"
+
+msgid "Inspector:PrefabExportSection"
+msgstr "Prefab导出"
+
+msgid "Inspector:PrefabExportInfo"
+msgstr "生成已反映颜色匹配、Material设置和变形信息的头发Prefab。\n请将生成的Prefab放置到Avatar根节点下。"
+
+msgid "Inspector:PrefabExportMeshMergeIgnored"
+msgstr "Mesh合并设置将被忽略（按Renderer分别导出）。"
+
+msgid "Inspector:PrefabExportButton"
+msgstr "导出Prefab"
 
 msgid "Inspector:SharedRendererWarningFormat"
 msgstr "以下Renderer与其他Chimera Hair Master重复使用。\n构建时会产生冲突，结果将不确定。\n{0}"
