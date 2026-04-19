@@ -12,9 +12,6 @@ namespace ChimeraHairMaster.Editor.Processing
     /// <summary>
     /// 一時 GameObject から、対象 Renderer に必要な bone・PhysBone・Constraint だけを残し、
     /// 不要な GameObject を再帰削除するユーティリティ。
-    ///
-    /// module-creator (Ao_425, MIT) の RendererDepedency.cs と CleanUpHierarchy.cs の思想を参考に、
-    /// CHM 用に簡略化した自前実装。
     /// </summary>
     internal static class HierarchyDependencyResolver
     {
