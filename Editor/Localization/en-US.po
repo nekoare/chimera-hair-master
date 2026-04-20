@@ -15,6 +15,9 @@ msgstr "Target Selection"
 msgid "Window:TargetSelection:Avatar"
 msgstr "Avatar"
 
+msgid "Window:TargetSelection:AvatarAutoDetect"
+msgstr "* Avatar is detected automatically from the hair parts."
+
 msgid "Window:TargetSelection:NoAvatarDescriptor"
 msgstr "The selected GameObject has no VRC Avatar Descriptor."
 

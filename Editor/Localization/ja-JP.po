@@ -15,6 +15,9 @@ msgstr "対象選択"
 msgid "Window:TargetSelection:Avatar"
 msgstr "アバター"
 
+msgid "Window:TargetSelection:AvatarAutoDetect"
+msgstr "※アバターは髪パーツから自動選択されます"
+
 msgid "Window:TargetSelection:NoAvatarDescriptor"
 msgstr "選択されたGameObjectにVRC Avatar Descriptorがありません。"
 

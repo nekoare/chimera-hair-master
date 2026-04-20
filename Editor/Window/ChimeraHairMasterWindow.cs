@@ -352,6 +352,11 @@ namespace ChimeraHairMaster.Editor
                 }
                 EditorGUILayout.EndHorizontal();
 
+                EditorGUILayout.LabelField(
+                    CHMLocales.Tr("Window:TargetSelection:AvatarAutoDetect"),
+                    EditorStyles.miniLabel
+                );
+
                 if (selectedAvatar != null)
                 {
                     var descriptor = selectedAvatar.GetComponent<VRC_AvatarDescriptor>();
