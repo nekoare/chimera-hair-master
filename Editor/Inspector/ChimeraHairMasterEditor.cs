@@ -1821,8 +1821,8 @@ namespace ChimeraHairMaster.Editor
             EditorGUILayout.Space(5);
 
             // エクスポート枠（テクスチャ出力 + Prefab出力 を 1 つの Foldout で囲む）
-            // メッシュ統合有効時も表示するが、テクスチャ出力するとメッシュ統合情報は破棄される
-            if (component.enableColorTransform)
+            // 色変換オフ時も Prefab 出力は意味がある（不要bone整理・マテリアル統一・メッシュ変形反映）ため常時表示
+            if (component.targetRenderers != null && component.targetRenderers.Count > 0)
             {
                 showExportSection = EditorGUILayout.Foldout(
                     showExportSection,
@@ -1839,8 +1839,12 @@ namespace ChimeraHairMaster.Editor
                         CHMLocales.Tr("Inspector:ExportSectionHint"),
                         MessageType.Info);
 
-                    DrawColorApplySection(component);
-                    EditorGUILayout.Space(3);
+                    // 色変換オフ時はテクスチャ書き出し（DrawColorApplySection）は意味がないので非表示
+                    if (component.enableColorTransform)
+                    {
+                        DrawColorApplySection(component);
+                        EditorGUILayout.Space(3);
+                    }
                     DrawPrefabExportSection(component);
 
                     EditorGUI.indentLevel--;
@@ -2024,7 +2028,9 @@ namespace ChimeraHairMaster.Editor
 
             EditorGUILayout.LabelField(CHMLocales.Tr("Inspector:PrefabExportSection"), EditorStyles.boldLabel);
             EditorGUILayout.HelpBox(
-                CHMLocales.Tr("Inspector:PrefabExportInfo"),
+                CHMLocales.Tr(component.enableColorTransform
+                    ? "Inspector:PrefabExportInfo"
+                    : "Inspector:PrefabExportInfoNoColor"),
                 MessageType.Info);
 
             if (component.enableMeshMerge)
@@ -2032,6 +2038,20 @@ namespace ChimeraHairMaster.Editor
                 EditorGUILayout.HelpBox(
                     CHMLocales.Tr("Inspector:PrefabExportMeshMergeIgnored"),
                     MessageType.Warning);
+            }
+
+            // マテリアル設定統一トグル
+            EditorGUI.BeginChangeCheck();
+            bool unifyMaterialSettings = EditorGUILayout.ToggleLeft(
+                new GUIContent(
+                    CHMLocales.Tr("Inspector:PrefabUnifyMaterialSettings"),
+                    CHMLocales.Tr("Inspector:PrefabUnifyMaterialSettingsTooltip")),
+                component.unifyMaterialSettings);
+            if (EditorGUI.EndChangeCheck())
+            {
+                Undo.RecordObject(component, "CHM Toggle Unify Material Settings");
+                component.unifyMaterialSettings = unifyMaterialSettings;
+                EditorUtility.SetDirty(component);
             }
 
             bool prefabApplyDeformation = EditorPrefs.GetBool(PREF_PREFAB_APPLY_DEFORMATION, true);

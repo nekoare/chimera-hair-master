@@ -39,6 +39,14 @@ namespace ChimeraHairMaster
         public bool unifyMatCap = false;
 
         /// <summary>
+        /// Prefab出力時、マテリアル設定（shader 数値設定）をbaseMaterialで統一するかどうか
+        /// trueの場合、baseMaterialの shader 設定を全マテリアルにコピーする
+        /// falseの場合、各Rendererの元マテリアル設定をそのまま保持する（色変換による _MainTex 差替は別途実施）
+        /// </summary>
+        [SerializeField]
+        public bool unifyMaterialSettings = true;
+
+        /// <summary>
         /// 対象の髪Renderer一覧
         /// </summary>
         [SerializeField]

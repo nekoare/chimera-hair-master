@@ -459,11 +459,20 @@ msgstr "Prefab 출력"
 msgid "Inspector:PrefabExportInfo"
 msgstr "색상 매칭・Material 설정・변형 정보를 반영한 머리 Prefab을 생성합니다.\n생성된 Prefab을 아바타 루트 아래에 배치해 주세요."
 
+msgid "Inspector:PrefabExportInfoNoColor"
+msgstr "Material 설정・변형 정보를 반영한 머리 Prefab을 생성합니다.\n생성된 Prefab을 아바타 루트 아래에 배치해 주세요."
+
 msgid "Inspector:PrefabExportMeshMergeIgnored"
 msgstr "메시 통합 설정은 무시됩니다(Renderer 개별로 출력)."
 
 msgid "Inspector:PrefabExportButton"
 msgstr "Prefab 출력"
+
+msgid "Inspector:PrefabUnifyMaterialSettings"
+msgstr "머티리얼 설정 통일"
+
+msgid "Inspector:PrefabUnifyMaterialSettingsTooltip"
+msgstr "ON: 기준 머티리얼의 셰이더 설정을 모든 머티리얼에 복사합니다.\nOFF: 각 Renderer의 원본 머티리얼 설정을 그대로 유지합니다."
 
 msgid "Inspector:SharedRendererWarningFormat"
 msgstr "다음 Renderer가 다른 Chimera Hair Master와 중복되어 있습니다.\n빌드 시 충돌이 발생해 결과가 불확실해집니다.\n{0}"

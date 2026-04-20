@@ -31,12 +31,22 @@ namespace ChimeraHairMaster.Editor.Processing
             string? savePath = ChooseSavePath(avatarRoot!);
             if (string.IsNullOrEmpty(savePath)) return null;
 
-            // 色変換テクスチャ生成（元マテリアル単位で重複排除）
-            var processedTextures = GenerateColorTransformedTextures(component);
+            // 色変換テクスチャ生成（色変換オフ時は空 dict）
+            var processedTextures = component.enableColorTransform
+                ? GenerateColorTransformedTextures(component)
+                : new Dictionary<int, Texture2D>();
 
-            // clone マテリアル生成
-            Material? sourceMaterial = component.previewMaterial != null ? component.previewMaterial : component.baseMaterial;
-            var clonedMaterials = CreateClonedMaterials(component, sourceMaterial!, processedTextures);
+            // clone マテリアル生成（色変換オフ かつ 統一オフの場合はスキップ → 元マテリアル参照のまま）
+            Dictionary<int, Material> clonedMaterials;
+            if (component.enableColorTransform || component.unifyMaterialSettings)
+            {
+                Material? sourceMaterial = component.previewMaterial != null ? component.previewMaterial : component.baseMaterial;
+                clonedMaterials = CreateClonedMaterials(component, sourceMaterial!, processedTextures, component.unifyMaterialSettings);
+            }
+            else
+            {
+                clonedMaterials = new Dictionary<int, Material>();
+            }
 
             // アバター root を Instantiate
             var tempRoot = Object.Instantiate(avatarRoot!);
@@ -122,7 +132,9 @@ namespace ChimeraHairMaster.Editor.Processing
                 return false;
             }
 
-            if (component.previewMaterial == null && component.baseMaterial == null)
+            // マテリアル clone が必要な場合のみ sourceMaterial が必須
+            bool needsMaterialClone = component.enableColorTransform || component.unifyMaterialSettings;
+            if (needsMaterialClone && component.previewMaterial == null && component.baseMaterial == null)
             {
                 Debug.LogWarning("[CHM] previewMaterial / baseMaterial が設定されていません");
                 return false;
@@ -305,7 +317,8 @@ namespace ChimeraHairMaster.Editor.Processing
         private static Dictionary<int, Material> CreateClonedMaterials(
             ChimeraHairMaster component,
             Material sourceMaterial,
-            Dictionary<int, Texture2D> processedTextures)
+            Dictionary<int, Texture2D> processedTextures,
+            bool unifyMaterialSettings)
         {
             var cloned = new Dictionary<int, Material>();
 
@@ -325,7 +338,11 @@ namespace ChimeraHairMaster.Editor.Processing
                     if (cloned.ContainsKey(matId)) continue;
 
                     processedTextures.TryGetValue(matId, out var newTexture);
-                    var clone = CreateCloneMaterial(mat, sourceMaterial, newTexture, component.unifyMatCap);
+
+                    // 統一オフ かつ テクスチャ差替も無い場合は clone する意味がない（元マテリアルを参照させる）
+                    if (!unifyMaterialSettings && newTexture == null) continue;
+
+                    var clone = CreateCloneMaterial(mat, sourceMaterial, newTexture, component.unifyMatCap, unifyMaterialSettings);
                     if (clone != null)
                     {
                         cloned[matId] = clone;
@@ -341,7 +358,7 @@ namespace ChimeraHairMaster.Editor.Processing
         /// shader / 数値設定は sourceMaterial（previewMaterial）からコピー。
         /// _MainTex は newTexture に差し替え。
         /// </summary>
-        private static Material? CreateCloneMaterial(Material original, Material sourceMaterial, Texture2D? newTexture, bool unifyMatCap)
+        private static Material? CreateCloneMaterial(Material original, Material sourceMaterial, Texture2D? newTexture, bool unifyMatCap, bool unifyMaterialSettings)
         {
             string originalPath = AssetDatabase.GetAssetPath(original);
             if (string.IsNullOrEmpty(originalPath))
@@ -359,15 +376,18 @@ namespace ChimeraHairMaster.Editor.Processing
             var clone = Object.Instantiate(original);
             clone.name = Path.GetFileNameWithoutExtension(outputPath);
 
-            // shader / 数値設定を sourceMaterial から反映
-            NDMF.TextureAtlasPass.ApplyShaderSettings(
-                sourceMaterial, clone,
-                excludeOverlayAndEmission: true,
-                excludeMatCap: !unifyMatCap);
-
-            if (unifyMatCap)
+            // shader / 数値設定を sourceMaterial から反映（統一オン時のみ）
+            if (unifyMaterialSettings)
             {
-                ColorApplier.CopyMatCapTextures(sourceMaterial, clone);
+                NDMF.TextureAtlasPass.ApplyShaderSettings(
+                    sourceMaterial, clone,
+                    excludeOverlayAndEmission: true,
+                    excludeMatCap: !unifyMatCap);
+
+                if (unifyMatCap)
+                {
+                    ColorApplier.CopyMatCapTextures(sourceMaterial, clone);
+                }
             }
 
             // _MainTex を新規生成テクスチャに差し替え

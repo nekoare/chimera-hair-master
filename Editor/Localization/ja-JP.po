@@ -459,11 +459,20 @@ msgstr "Prefab出力"
 msgid "Inspector:PrefabExportInfo"
 msgstr "色合わせ・マテリアル設定・変形情報を反映した髪パーツのPrefabを生成します。\n生成されたPrefabをアバター直下に配置してください。"
 
+msgid "Inspector:PrefabExportInfoNoColor"
+msgstr "マテリアル設定・変形情報を反映した髪パーツのPrefabを生成します。\n生成されたPrefabをアバター直下に配置してください。"
+
 msgid "Inspector:PrefabExportMeshMergeIgnored"
 msgstr "メッシュ統合設定は無視されます（Renderer個別で出力します）。"
 
 msgid "Inspector:PrefabExportButton"
 msgstr "Prefab出力"
+
+msgid "Inspector:PrefabUnifyMaterialSettings"
+msgstr "マテリアル設定を統一"
+
+msgid "Inspector:PrefabUnifyMaterialSettingsTooltip"
+msgstr "ON: 基準マテリアルのshader設定を全マテリアルにコピーします。\nOFF: 各Rendererの元マテリアル設定をそのまま保持します。"
 
 msgid "Inspector:SharedRendererWarningFormat"
 msgstr "以下のRendererが他のChimera Hair Masterと重複しています。\nビルド時に競合が発生し、結果が不定になります。\n{0}"

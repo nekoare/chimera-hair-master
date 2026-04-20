@@ -459,11 +459,20 @@ msgstr "Prefab导出"
 msgid "Inspector:PrefabExportInfo"
 msgstr "生成已反映颜色匹配、Material设置和变形信息的头发Prefab。\n请将生成的Prefab放置到Avatar根节点下。"
 
+msgid "Inspector:PrefabExportInfoNoColor"
+msgstr "生成已反映Material设置和变形信息的头发Prefab。\n请将生成的Prefab放置到Avatar根节点下。"
+
 msgid "Inspector:PrefabExportMeshMergeIgnored"
 msgstr "Mesh合并设置将被忽略（按Renderer分别导出）。"
 
 msgid "Inspector:PrefabExportButton"
 msgstr "导出Prefab"
+
+msgid "Inspector:PrefabUnifyMaterialSettings"
+msgstr "统一材质设置"
+
+msgid "Inspector:PrefabUnifyMaterialSettingsTooltip"
+msgstr "ON: 将基准材质的shader设置复制到所有材质。\nOFF: 保留各Renderer的原始材质设置。"
 
 msgid "Inspector:SharedRendererWarningFormat"
 msgstr "以下Renderer与其他Chimera Hair Master重复使用。\n构建时会产生冲突，结果将不确定。\n{0}"

@@ -459,11 +459,20 @@ msgstr "Prefab Export"
 msgid "Inspector:PrefabExportInfo"
 msgstr "Generates a hair Prefab with color matching, material settings, and deformation applied.\nPlace the generated Prefab under the avatar root."
 
+msgid "Inspector:PrefabExportInfoNoColor"
+msgstr "Generates a hair Prefab with material settings and deformation applied.\nPlace the generated Prefab under the avatar root."
+
 msgid "Inspector:PrefabExportMeshMergeIgnored"
 msgstr "Mesh merge settings will be ignored (renderers are exported individually)."
 
 msgid "Inspector:PrefabExportButton"
 msgstr "Export Prefab"
+
+msgid "Inspector:PrefabUnifyMaterialSettings"
+msgstr "Unify Material Settings"
+
+msgid "Inspector:PrefabUnifyMaterialSettingsTooltip"
+msgstr "ON: Copy shader settings from the base material to all materials.\nOFF: Keep each renderer's original material settings as-is."
 
 msgid "Inspector:SharedRendererWarningFormat"
 msgstr "The following Renderers are shared with another Chimera Hair Master.\nThis will cause conflicts at build time with undefined results.\n{0}"
