@@ -15,7 +15,6 @@ namespace ChimeraHairMaster.Editor.NDMF
 {
     /// <summary>
     /// NDMFプレビューシステムを使用したScene上でのリアルタイムプレビュー
-    /// Color-Changer-For-Unityのアプローチを参考に実装
     ///
     /// プレビューでは色変換のみを適用し、アトラス化・UV変換はビルド時のみ行う
     /// </summary>
@@ -235,6 +234,19 @@ namespace ChimeraHairMaster.Editor.NDMF
                         hash = hash * 31 + entry.rendererIndex;
                         hash = hash * 31 + entry.submeshIndex;
                         hash = hash * 31 + (entry.mask != null ? entry.mask.GetInstanceID() : 0);
+                    }
+                }
+
+                // 毛束パターン統一設定（有効時のみ内部パラメータを hash に寄与）
+                if (component.strandPatternSettings != null)
+                {
+                    hash = hash * 31 + component.strandPatternSettings.enabled.GetHashCode();
+                    if (component.strandPatternSettings.enabled)
+                    {
+                        hash = hash * 31 + component.strandPatternSettings.referenceRendererIndex;
+                        hash = hash * 31 + component.strandPatternSettings.strengthFine.GetHashCode();
+                        hash = hash * 31 + component.strandPatternSettings.strengthShade.GetHashCode();
+                        hash = hash * 31 + component.strandPatternSettings.sigma.GetHashCode();
                     }
                 }
 
@@ -717,6 +729,63 @@ namespace ChimeraHairMaster.Editor.NDMF
                     }
                 }
 
+                // 毛束パターン (Phase 2 approach B): reference の 2 バンド (B_high, HP8) を抽出
+                // 非アトラス経路でも cache 経由で取得できるようにするため、ここで一度色変換を通す
+                // 注: cache hit 時は settings が null だが GetOrCreateColorTransformedTexture は cache hit なら settings 不要
+                Texture2D? strandRefBandHigh = null;
+                Texture2D? strandRefHP8 = null;
+                float strandRefStdHigh = 0f;
+                float strandRefStdMid = 0f;
+                int strandRefIndex = -1;
+                float strandSigmaHigh = 0f;
+                float strandSigmaLow = 0f;
+                if (enableColorTransform
+                    && component.strandPatternSettings != null && component.strandPatternSettings.enabled
+                    && component.targetRenderers.Count > 0)
+                {
+                    strandSigmaHigh = component.strandPatternSettings.sigma;
+                    strandSigmaLow = strandSigmaHigh * Processing.StrandPatternApplier.GetLowSigmaRatio();
+                    int rIdx = component.strandPatternSettings.referenceRendererIndex;
+                    if (rIdx < 0 || rIdx >= component.targetRenderers.Count || component.targetRenderers[rIdx] == null)
+                        rIdx = 0;
+                    var refRenderer = component.targetRenderers[rIdx];
+                    if (refRenderer != null)
+                    {
+                        float refBlurSharp = GetRendererBlurSharp(component, rIdx);
+                        var refMats = refRenderer.sharedMaterials;
+                        for (int rs = 0; rs < refMats.Length && strandRefBandHigh == null; rs++)
+                        {
+                            var rmat = refMats[rs];
+                            if (rmat == null || !rmat.HasProperty("_MainTex")) continue;
+                            if (!component.IsSubmeshIncluded(rIdx, rs)) continue;
+                            var refTex = rmat.GetTexture("_MainTex") as Texture2D;
+                            if (refTex == null) continue;
+                            var refProcessed = GetOrCreateColorTransformedTexture(
+                                refTex, cachedColorTransforms, newColorCacheTextures, settings,
+                                refRenderer, new[] { rs }, refBlurSharp);
+                            if (refProcessed == null) continue;
+                            var refMask = Processing.MeshUVRasterizer.Rasterize(refRenderer, new[] { rs }, refProcessed.width, refProcessed.height);
+                            if (refMask == null) continue;
+                            var bandHigh = Processing.StrandPatternExtractor.ExtractHighFrequency(refProcessed, strandSigmaHigh);
+                            if (bandHigh == null) continue;
+                            var hp8 = Processing.StrandPatternExtractor.ExtractHighFrequency(refProcessed, strandSigmaLow);
+                            if (hp8 == null) { Object.DestroyImmediate(bandHigh); continue; }
+                            var (sh, sm) = Processing.StrandPatternComposer.ComputeBandStds(bandHigh, hp8, refMask);
+                            if (sh < 1e-5f && sm < 1e-5f)
+                            {
+                                Object.DestroyImmediate(bandHigh);
+                                Object.DestroyImmediate(hp8);
+                                continue;
+                            }
+                            strandRefBandHigh = bandHigh;
+                            strandRefHP8 = hp8;
+                            strandRefStdHigh = sh;
+                            strandRefStdMid = sm;
+                            strandRefIndex = rIdx;
+                        }
+                    }
+                }
+
                 // 各Rendererのマテリアルを処理
                 for (int rendererIndex = 0; rendererIndex < component.targetRenderers.Count; rendererIndex++)
                 {
@@ -846,6 +915,47 @@ namespace ChimeraHairMaster.Editor.NDMF
                                 }
                             }
 
+                            // 毛束パターン: MainTex スロットかつお手本 Renderer 以外に適用 (approach B)
+                            if (strandRefBandHigh != null && strandRefHP8 != null && slot.propertyName == "_MainTex"
+                                && rendererIndex != strandRefIndex)
+                            {
+                                var strandMask = Processing.MeshUVRasterizer.Rasterize(renderer, new[] { submeshIndex }, currentTex.width, currentTex.height);
+                                if (strandMask != null)
+                                {
+                                    var tBandHigh = Processing.StrandPatternExtractor.ExtractHighFrequency(currentTex, strandSigmaHigh);
+                                    var tHP8 = tBandHigh != null ? Processing.StrandPatternExtractor.ExtractHighFrequency(currentTex, strandSigmaLow) : null;
+                                    if (tBandHigh != null && tHP8 != null)
+                                    {
+                                        try
+                                        {
+                                            var (tStdHigh, tStdMid) = Processing.StrandPatternComposer.ComputeBandStds(tBandHigh, tHP8, strandMask);
+                                            float ratioHigh = (tStdHigh >= 1e-5f) ? strandRefStdHigh / tStdHigh : 1f;
+                                            float ratioMid = (tStdMid >= 1e-5f) ? strandRefStdMid / tStdMid : 1f;
+                                            var composed = Processing.StrandPatternComposer.ComposeBands(
+                                                currentTex, tBandHigh, tHP8, strandMask,
+                                                ratioHigh, ratioMid,
+                                                component.strandPatternSettings!.strengthFine,
+                                                component.strandPatternSettings!.strengthShade);
+                                            if (composed != null)
+                                            {
+                                                currentTex = composed;
+                                                generatedTextures.Add(composed);
+                                            }
+                                        }
+                                        finally
+                                        {
+                                            Object.DestroyImmediate(tBandHigh);
+                                            Object.DestroyImmediate(tHP8);
+                                        }
+                                    }
+                                    else
+                                    {
+                                        if (tBandHigh != null) Object.DestroyImmediate(tBandHigh);
+                                        if (tHP8 != null) Object.DestroyImmediate(tHP8);
+                                    }
+                                }
+                            }
+
                             newMat.SetTexture(slot.propertyName, currentTex);
                             hasProcessedTexture = true;
                         }
@@ -885,6 +995,46 @@ namespace ChimeraHairMaster.Editor.NDMF
                                         }
                                     }
 
+                                    // 毛束パターン: お手本 Renderer 以外に適用 (approach B)
+                                    if (strandRefBandHigh != null && strandRefHP8 != null && rendererIndex != strandRefIndex)
+                                    {
+                                        var strandMask = Processing.MeshUVRasterizer.Rasterize(renderer, new[] { submeshIndex }, currentTex.width, currentTex.height);
+                                        if (strandMask != null)
+                                        {
+                                            var tBandHigh = Processing.StrandPatternExtractor.ExtractHighFrequency(currentTex, strandSigmaHigh);
+                                            var tHP8 = tBandHigh != null ? Processing.StrandPatternExtractor.ExtractHighFrequency(currentTex, strandSigmaLow) : null;
+                                            if (tBandHigh != null && tHP8 != null)
+                                            {
+                                                try
+                                                {
+                                                    var (tStdHigh, tStdMid) = Processing.StrandPatternComposer.ComputeBandStds(tBandHigh, tHP8, strandMask);
+                                                    float ratioHigh = (tStdHigh >= 1e-5f) ? strandRefStdHigh / tStdHigh : 1f;
+                                                    float ratioMid = (tStdMid >= 1e-5f) ? strandRefStdMid / tStdMid : 1f;
+                                                    var composed = Processing.StrandPatternComposer.ComposeBands(
+                                                        currentTex, tBandHigh, tHP8, strandMask,
+                                                        ratioHigh, ratioMid,
+                                                        component.strandPatternSettings!.strengthFine,
+                                                        component.strandPatternSettings!.strengthShade);
+                                                    if (composed != null)
+                                                    {
+                                                        currentTex = composed;
+                                                        generatedTextures.Add(composed);
+                                                    }
+                                                }
+                                                finally
+                                                {
+                                                    Object.DestroyImmediate(tBandHigh);
+                                                    Object.DestroyImmediate(tHP8);
+                                                }
+                                            }
+                                            else
+                                            {
+                                                if (tBandHigh != null) Object.DestroyImmediate(tBandHigh);
+                                                if (tHP8 != null) Object.DestroyImmediate(tHP8);
+                                            }
+                                        }
+                                    }
+
                                     newMat.SetTexture("_MainTex", currentTex);
                                 }
                             }
@@ -904,6 +1054,10 @@ namespace ChimeraHairMaster.Editor.NDMF
                         TransformedTextures = newColorCacheTextures
                     };
                 }
+
+                // 毛束パターン: reference detail を破棄
+                if (strandRefBandHigh != null) Object.DestroyImmediate(strandRefBandHigh);
+                if (strandRefHP8 != null) Object.DestroyImmediate(strandRefHP8);
             }
             catch (Exception ex)
             {
@@ -1073,6 +1227,16 @@ namespace ChimeraHairMaster.Editor.NDMF
                         processedTextureCache = BuildColorTransformCache(component, colorTransformTextures);
                     }
 
+                    // 1.25. 毛束パターン統一: cache 経路の Renderer に strand を適用し、temp material 経路で使うテンプレを抽出
+                    // お手本 Renderer に brightnessOffset/blurSharp/colorMask などがある場合は cache に載らないため
+                    // この経路では strand が適用されない（既知の制約、Phase 1）
+                    Processing.StrandPatternApplier.Result? strandResult = null;
+                    if (component.enableColorTransform && processedTextureCache != null
+                        && component.strandPatternSettings != null && component.strandPatternSettings.enabled)
+                    {
+                        strandResult = Processing.StrandPatternApplier.ApplyToCache(component, processedTextureCache);
+                    }
+
                     // 1.5. 明度オフセットがあるRendererのマテリアルを一時的に差し替え
                     var savedMaterials = new Dictionary<SkinnedMeshRenderer, Material[]>();
                     var tempTextures = new List<Texture>();
@@ -1182,6 +1346,50 @@ namespace ChimeraHairMaster.Editor.NDMF
                                         }
                                     }
 
+                                    // 毛束パターン: MainTex スロットのみ対応（お手本 Renderer 自身はスキップ） approach B
+                                    if (strandResult?.RefBandHigh != null && strandResult.RefHP8 != null
+                                        && slot.propertyName == "_MainTex"
+                                        && r != strandResult.ReferenceRendererIndex)
+                                    {
+                                        var strandMask = Processing.MeshUVRasterizer.Rasterize(renderer, new[] { s }, processed.width, processed.height);
+                                        if (strandMask != null)
+                                        {
+                                            float sigmaHigh = component.strandPatternSettings!.sigma;
+                                            float sigmaLow = sigmaHigh * Processing.StrandPatternApplier.GetLowSigmaRatio();
+                                            var tBandHigh = Processing.StrandPatternExtractor.ExtractHighFrequency(processed, sigmaHigh);
+                                            var tHP8 = tBandHigh != null ? Processing.StrandPatternExtractor.ExtractHighFrequency(processed, sigmaLow) : null;
+                                            if (tBandHigh != null && tHP8 != null)
+                                            {
+                                                try
+                                                {
+                                                    var (tStdHigh, tStdMid) = Processing.StrandPatternComposer.ComputeBandStds(tBandHigh, tHP8, strandMask);
+                                                    float ratioHigh = (tStdHigh >= 1e-5f) ? strandResult.RefStdHigh / tStdHigh : 1f;
+                                                    float ratioMid = (tStdMid >= 1e-5f) ? strandResult.RefStdMid / tStdMid : 1f;
+                                                    var composed = Processing.StrandPatternComposer.ComposeBands(
+                                                        processed, tBandHigh, tHP8, strandMask,
+                                                        ratioHigh, ratioMid,
+                                                        component.strandPatternSettings.strengthFine,
+                                                        component.strandPatternSettings.strengthShade);
+                                                    if (composed != null)
+                                                    {
+                                                        Object.DestroyImmediate(processed);
+                                                        processed = composed;
+                                                    }
+                                                }
+                                                finally
+                                                {
+                                                    Object.DestroyImmediate(tBandHigh);
+                                                    Object.DestroyImmediate(tHP8);
+                                                }
+                                            }
+                                            else
+                                            {
+                                                if (tBandHigh != null) Object.DestroyImmediate(tBandHigh);
+                                                if (tHP8 != null) Object.DestroyImmediate(tHP8);
+                                            }
+                                        }
+                                    }
+
                                     tempMat.SetTexture(slot.propertyName, processed);
                                     tempTextures.Add(processed);
                                 }
@@ -1244,6 +1452,49 @@ namespace ChimeraHairMaster.Editor.NDMF
                                                 }
                                             }
 
+                                            // 毛束パターン: お手本 Renderer 自身はスキップ (approach B)
+                                            if (strandResult?.RefBandHigh != null && strandResult.RefHP8 != null
+                                                && r != strandResult.ReferenceRendererIndex)
+                                            {
+                                                var strandMask = Processing.MeshUVRasterizer.Rasterize(renderer, new[] { s }, processed.width, processed.height);
+                                                if (strandMask != null)
+                                                {
+                                                    float sigmaHigh = component.strandPatternSettings!.sigma;
+                                                    float sigmaLow = sigmaHigh * Processing.StrandPatternApplier.GetLowSigmaRatio();
+                                                    var tBandHigh = Processing.StrandPatternExtractor.ExtractHighFrequency(processed, sigmaHigh);
+                                                    var tHP8 = tBandHigh != null ? Processing.StrandPatternExtractor.ExtractHighFrequency(processed, sigmaLow) : null;
+                                                    if (tBandHigh != null && tHP8 != null)
+                                                    {
+                                                        try
+                                                        {
+                                                            var (tStdHigh, tStdMid) = Processing.StrandPatternComposer.ComputeBandStds(tBandHigh, tHP8, strandMask);
+                                                            float ratioHigh = (tStdHigh >= 1e-5f) ? strandResult.RefStdHigh / tStdHigh : 1f;
+                                                            float ratioMid = (tStdMid >= 1e-5f) ? strandResult.RefStdMid / tStdMid : 1f;
+                                                            var composed = Processing.StrandPatternComposer.ComposeBands(
+                                                                processed, tBandHigh, tHP8, strandMask,
+                                                                ratioHigh, ratioMid,
+                                                                component.strandPatternSettings.strengthFine,
+                                                                component.strandPatternSettings.strengthShade);
+                                                            if (composed != null)
+                                                            {
+                                                                Object.DestroyImmediate(processed);
+                                                                processed = composed;
+                                                            }
+                                                        }
+                                                        finally
+                                                        {
+                                                            Object.DestroyImmediate(tBandHigh);
+                                                            Object.DestroyImmediate(tHP8);
+                                                        }
+                                                    }
+                                                    else
+                                                    {
+                                                        if (tBandHigh != null) Object.DestroyImmediate(tBandHigh);
+                                                        if (tHP8 != null) Object.DestroyImmediate(tHP8);
+                                                    }
+                                                }
+                                            }
+
                                             tempMat.SetTexture("_MainTex", processed);
                                             tempTextures.Add(processed);
                                         }
@@ -1285,6 +1536,17 @@ namespace ChimeraHairMaster.Editor.NDMF
                         foreach (var tex in colorTransformTextures)
                         {
                             if (tex != null) Object.DestroyImmediate(tex);
+                        }
+
+                        // 毛束パターン: reference detail と、cache 経路で生成した合成済みテクスチャを破棄
+                        // （アトラスに焼き込み済みなのでここで安全に解放可能）
+                        if (strandResult != null)
+                        {
+                            Processing.StrandPatternApplier.DisposeResult(strandResult);
+                            foreach (var t in strandResult.CreatedTextures)
+                            {
+                                if (t != null) Object.DestroyImmediate(t);
+                            }
                         }
                     }
 

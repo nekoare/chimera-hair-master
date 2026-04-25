@@ -1,0 +1,80 @@
+// 毛束パターン統一機能 - ハイパスフィルタ
+// セパラブルガウシアン（水平 → 垂直）→ 元 - ぼかし = 高周波成分
+// 結果は中央値 0.5 のオフセットエンコード: encoded = (src - blurred) * 0.5 + 0.5
+//
+// Pipeline:
+//   CSBlurHorizontal -> _Intermediate
+//   CSBlurVertical   -> _Blurred
+//   CSExtractHighFrequency (src, blurred) -> _Target
+
+#pragma kernel CSBlurHorizontal
+#pragma kernel CSBlurVertical
+#pragma kernel CSExtractHighFrequency
+
+RWTexture2D<float4> _Source;
+RWTexture2D<float4> _Intermediate;
+RWTexture2D<float4> _Blurred;
+RWTexture2D<float4> _Target;
+
+int _Width;
+int _Height;
+float _Sigma;
+int _KernelRadius;
+
+float GaussWeight(int offset, float sigma)
+{
+    float x = (float)offset;
+    return exp(-(x * x) / (2.0 * sigma * sigma));
+}
+
+[numthreads(16, 16, 1)]
+void CSBlurHorizontal(uint3 id : SV_DispatchThreadID)
+{
+    if ((int)id.x >= _Width || (int)id.y >= _Height) return;
+
+    float4 sum = float4(0, 0, 0, 0);
+    float weightSum = 0.0;
+    for (int i = -_KernelRadius; i <= _KernelRadius; i++)
+    {
+        int sx = (int)id.x + i;
+        if (sx < 0 || sx >= _Width) continue;
+        float w = GaussWeight(i, _Sigma);
+        sum += _Source[int2(sx, (int)id.y)] * w;
+        weightSum += w;
+    }
+
+    _Intermediate[id.xy] = weightSum > 0.0 ? (sum / weightSum) : _Source[id.xy];
+}
+
+[numthreads(16, 16, 1)]
+void CSBlurVertical(uint3 id : SV_DispatchThreadID)
+{
+    if ((int)id.x >= _Width || (int)id.y >= _Height) return;
+
+    float4 sum = float4(0, 0, 0, 0);
+    float weightSum = 0.0;
+    for (int j = -_KernelRadius; j <= _KernelRadius; j++)
+    {
+        int sy = (int)id.y + j;
+        if (sy < 0 || sy >= _Height) continue;
+        float w = GaussWeight(j, _Sigma);
+        sum += _Intermediate[int2((int)id.x, sy)] * w;
+        weightSum += w;
+    }
+
+    _Blurred[id.xy] = weightSum > 0.0 ? (sum / weightSum) : _Source[id.xy];
+}
+
+// 高周波抽出: encoded = (source - blurred) * 0.5 + 0.5
+// α は 1 固定（後段の合成でのみ使用するため、α 情報は不要）
+[numthreads(16, 16, 1)]
+void CSExtractHighFrequency(uint3 id : SV_DispatchThreadID)
+{
+    if ((int)id.x >= _Width || (int)id.y >= _Height) return;
+
+    float4 src = _Source[id.xy];
+    float4 blurred = _Blurred[id.xy];
+    float3 detail = src.rgb - blurred.rgb;
+
+    _Target[id.xy] = float4(detail * 0.5 + 0.5, 1.0);
+}

@@ -609,6 +609,15 @@ msgstr "Save Mesh"
 msgid "MeshDeformInspector:Export:SaveAndReplace"
 msgstr "Save Mesh and Replace"
 
+msgid "MeshDeformInspector:Export:AsBlendshape"
+msgstr "Output as Blendshape"
+
+msgid "MeshDeformInspector:Export:BlendshapeName"
+msgstr "Blendshape Name"
+
+msgid "MeshDeformInspector:Export:BlendshapeRenamedLog"
+msgstr "[ChimeraHairMaster] Blendshape name \"{0}\" collides with an existing one; renamed to \"{1}\""
+
 msgid "MeshDeformInspector:Export:SaveDialogTitle"
 msgstr "Save Deformed Mesh"
 
@@ -765,10 +774,32 @@ msgstr "RGB Delta mode: adds the difference from the texture's representative co
 
 # ---- Blur / Sharpen ----
 msgid "Inspector:BlurSharpAdjustment"
-msgstr "Adjust paint detail"
+msgstr "Blur / Sharpen"
 
 msgid "Inspector:BlurSharpAdjustmentHelp"
 msgstr "Negative values apply blur, positive values apply sharpen. Applied as preprocessing just before color transform.\nUse this to match the paint feel (crisp vs. soft) across textures."
+
+# ---- Paint Feel Unification ----
+msgid "Inspector:StrandPattern"
+msgstr "Paint Feel Unification"
+
+msgid "Inspector:StrandPatternEnable"
+msgstr "Enable"
+
+msgid "Inspector:StrandPatternReference"
+msgstr "Reference Renderer"
+
+msgid "Inspector:StrandPatternStrengthFine"
+msgstr "Fine line strength"
+
+msgid "Inspector:StrandPatternStrengthShade"
+msgstr "Shading strength"
+
+msgid "Inspector:StrandPatternSigma"
+msgstr "Target scale"
+
+msgid "Inspector:StrandPatternHelp"
+msgstr "Pulls the target's surface character (fine line crispness and shading contrast) toward the reference Renderer.\nFine line strength: how much to match fine details (strand edges, granularity).\nShading strength: how much to match mid-scale variation (shading contrast).\nTarget scale: boundary between fine and mid bands (default 5, ≒ strand width)."
 
 # ---- Texture Export: mesh merge discard warning ----
 msgid "Inspector:MeshMergeDiscardWarning"

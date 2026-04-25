@@ -609,6 +609,15 @@ msgstr "保存Mesh"
 msgid "MeshDeformInspector:Export:SaveAndReplace"
 msgstr "保存Mesh并替换"
 
+msgid "MeshDeformInspector:Export:AsBlendshape"
+msgstr "作为 Blendshape 输出"
+
+msgid "MeshDeformInspector:Export:BlendshapeName"
+msgstr "Blendshape 名称"
+
+msgid "MeshDeformInspector:Export:BlendshapeRenamedLog"
+msgstr "[ChimeraHairMaster] Blendshape 名称 \"{0}\" 与现有冲突,已重命名为 \"{1}\""
+
 msgid "MeshDeformInspector:Export:SaveDialogTitle"
 msgstr "保存变形后的Mesh"
 
@@ -765,10 +774,32 @@ msgstr "RGB差分模式：将贴图代表色到目标色的差分添加到所有
 
 # ---- Blur / Sharpen ----
 msgid "Inspector:BlurSharpAdjustment"
-msgstr "调整涂色细节"
+msgstr "模糊・锐化"
 
 msgid "Inspector:BlurSharpAdjustmentHelp"
 msgstr "负值模糊、正值锐化。在色彩转换之前作为预处理应用。\n用于统一贴图之间的涂色质感（犀利或柔和）。"
+
+# ---- 涂色质感统一 ----
+msgid "Inspector:StrandPattern"
+msgstr "涂色质感统一"
+
+msgid "Inspector:StrandPatternEnable"
+msgstr "启用"
+
+msgid "Inspector:StrandPatternReference"
+msgstr "参考 Renderer"
+
+msgid "Inspector:StrandPatternStrengthFine"
+msgstr "线条细度强度"
+
+msgid "Inspector:StrandPatternStrengthShade"
+msgstr "明暗对比强度"
+
+msgid "Inspector:StrandPatternSigma"
+msgstr "目标尺度"
+
+msgid "Inspector:StrandPatternHelp"
+msgstr "将 target 的表面特征（线条细度、明暗对比）向参考 Renderer 靠拢。\n线条细度强度：细节细度（发束边缘・粒度）的靠拢程度。\n明暗对比强度：中间尺度变化（光影明暗）的靠拢程度。\n目标尺度：两者之间的边界（默认 5，≒ 发束宽度）。"
 
 # ---- Texture Export: mesh merge discard warning ----
 msgid "Inspector:MeshMergeDiscardWarning"

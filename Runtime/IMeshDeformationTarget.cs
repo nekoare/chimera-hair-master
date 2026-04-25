@@ -42,5 +42,18 @@ namespace ChimeraHairMaster
         /// MonoBehaviour が暗黙的に満たす。
         /// </summary>
         GameObject gameObject { get; }
+
+        /// <summary>
+        /// 「メッシュを保存 / 保存して入れ替え」時の出力形式
+        /// false: 頂点位置に焼き込む（既定）
+        /// true: 元メッシュ + Blendshape として追加
+        /// </summary>
+        bool ExportAsBlendshape { get; set; }
+
+        /// <summary>
+        /// Blendshape として出力する際の名前（既定 "CHMDeform"）
+        /// 同名衝突時は自動で unique 化（"CHMDeform_1" 等）
+        /// </summary>
+        string BlendshapeName { get; set; }
     }
 }

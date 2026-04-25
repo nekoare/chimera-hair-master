@@ -59,6 +59,7 @@ namespace ChimeraHairMaster.Editor
         private bool showMeshSettings = false;
         private bool showBrightnessAdjustment = false;
         private bool showBlurSharpAdjustment = false;
+        private bool showStrandPattern = false;
         private bool showColorMaskSettings = false;
         private bool showPhysBoneList = false;
         private Dictionary<int, bool> physBoneFoldouts = new Dictionary<int, bool>();
@@ -640,6 +641,10 @@ namespace ChimeraHairMaster.Editor
                 EditorGUILayout.Space(10);
                 DrawBlurSharpAdjustmentUI();
 
+                // 毛束パターン統一
+                EditorGUILayout.Space(10);
+                DrawStrandPatternUI();
+
                 // 色合わせ無視マスク
                 EditorGUILayout.Space(10);
                 DrawColorMaskUI();
@@ -856,6 +861,118 @@ namespace ChimeraHairMaster.Editor
                     component.rendererBlurSharpAdjustments.RemoveAt(i);
                 }
             }
+        }
+
+        /// <summary>
+        /// 毛束パターン統一 UI
+        /// お手本 Renderer の毛束模様（高周波）を抽出して他 Renderer に転送する
+        /// </summary>
+        private void DrawStrandPatternUI()
+        {
+            var component = (ChimeraHairMaster)target;
+            if (component.targetRenderers == null || component.targetRenderers.Count == 0)
+                return;
+
+            var settings = component.strandPatternSettings;
+            if (settings == null)
+            {
+                // null 防御（古いデータ互換）
+                component.strandPatternSettings = new StrandPatternSettings();
+                settings = component.strandPatternSettings;
+            }
+
+            EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+
+            showStrandPattern = EditorGUILayout.Foldout(showStrandPattern, CHMLocales.Tr("Inspector:StrandPattern"), true);
+
+            if (!showStrandPattern)
+            {
+                EditorGUILayout.EndVertical();
+                return;
+            }
+
+            EditorGUI.indentLevel++;
+
+            EditorGUI.BeginChangeCheck();
+            bool newEnabled = EditorGUILayout.Toggle(CHMLocales.Tr("Inspector:StrandPatternEnable"), settings.enabled);
+            if (EditorGUI.EndChangeCheck())
+            {
+                Undo.RecordObject(component, "Toggle Strand Pattern");
+                settings.enabled = newEnabled;
+                EditorUtility.SetDirty(component);
+            }
+
+            using (new EditorGUI.DisabledScope(!settings.enabled))
+            {
+                // お手本 Renderer ドロップダウン
+                var rendererNames = new string[component.targetRenderers.Count];
+                for (int i = 0; i < component.targetRenderers.Count; i++)
+                {
+                    var r = component.targetRenderers[i];
+                    rendererNames[i] = r != null ? r.name : $"(null #{i})";
+                }
+
+                int currentRefIndex = settings.referenceRendererIndex;
+                if (currentRefIndex < 0 || currentRefIndex >= component.targetRenderers.Count)
+                    currentRefIndex = 0;
+
+                EditorGUI.BeginChangeCheck();
+                int newRefIndex = EditorGUILayout.Popup(
+                    CHMLocales.Tr("Inspector:StrandPatternReference"),
+                    currentRefIndex, rendererNames);
+                if (EditorGUI.EndChangeCheck())
+                {
+                    Undo.RecordObject(component, "Change Strand Pattern Reference");
+                    settings.referenceRendererIndex = newRefIndex;
+                    EditorUtility.SetDirty(component);
+                }
+
+                // 線の細さの強度（B_high バンド rescale）
+                EditorGUI.BeginChangeCheck();
+                float newStrengthFine = EditorGUILayout.Slider(
+                    CHMLocales.Tr("Inspector:StrandPatternStrengthFine"),
+                    settings.strengthFine, 0f, 1f);
+                if (EditorGUI.EndChangeCheck())
+                {
+                    Undo.RecordObject(component, "Adjust Strand Pattern Strength Fine");
+                    settings.strengthFine = newStrengthFine;
+                    EditorUtility.SetDirty(component);
+                }
+
+                // 塗りの濃淡の強度（B_mid バンド rescale）
+                EditorGUI.BeginChangeCheck();
+                float newStrengthShade = EditorGUILayout.Slider(
+                    CHMLocales.Tr("Inspector:StrandPatternStrengthShade"),
+                    settings.strengthShade, 0f, 1f);
+                if (EditorGUI.EndChangeCheck())
+                {
+                    Undo.RecordObject(component, "Adjust Strand Pattern Strength Shade");
+                    settings.strengthShade = newStrengthShade;
+                    EditorUtility.SetDirty(component);
+                }
+
+                // 対象スケール (Gaussian sigma) - バンド分解の境界
+                EditorGUI.BeginChangeCheck();
+                float newSigma = EditorGUILayout.Slider(
+                    CHMLocales.Tr("Inspector:StrandPatternSigma"),
+                    settings.sigma, 1f, 15f);
+                if (EditorGUI.EndChangeCheck())
+                {
+                    Undo.RecordObject(component, "Adjust Strand Pattern Sigma");
+                    settings.sigma = newSigma;
+                    EditorUtility.SetDirty(component);
+                }
+            }
+
+            if (showHelp)
+            {
+                EditorGUILayout.HelpBox(
+                    CHMLocales.Tr("Inspector:StrandPatternHelp"),
+                    MessageType.Info);
+            }
+
+            EditorGUI.indentLevel--;
+            EditorGUILayout.EndVertical();
         }
 
         /// <summary>
@@ -2112,8 +2229,21 @@ namespace ChimeraHairMaster.Editor
                 var renderer = component.targetRenderers[deformation.rendererIndex];
                 if (renderer == null || renderer.sharedMesh == null) continue;
 
-                // 変形済みメッシュを生成
-                var deformedMesh = Processing.MeshDeformer.ExportDeformedMesh(renderer, deformation);
+                // 変形済みメッシュを生成（Blendshape モードか焼き込みかで分岐）
+                bool asBlendshape = component.ExportAsBlendshape;
+                Mesh deformedMesh;
+                string actualBsName = null;
+                if (asBlendshape)
+                {
+                    deformedMesh = Processing.MeshDeformer.ExportDeformedMeshAsBlendshape(
+                        renderer, deformation,
+                        string.IsNullOrEmpty(component.BlendshapeName) ? "CHMDeform" : component.BlendshapeName,
+                        out actualBsName);
+                }
+                else
+                {
+                    deformedMesh = Processing.MeshDeformer.ExportDeformedMesh(renderer, deformation);
+                }
                 if (deformedMesh == null) continue;
 
                 // Renderer名 + 元メッシュのアセット名（fbx名など）で命名
@@ -2122,9 +2252,10 @@ namespace ChimeraHairMaster.Editor
                 var assetName = string.IsNullOrEmpty(originalPath)
                     ? ""
                     : System.IO.Path.GetFileNameWithoutExtension(originalPath);
+                string suffix = asBlendshape ? "_DeformedBS" : "_Deformed";
                 var meshName = string.IsNullOrEmpty(assetName)
-                    ? $"{rendererName}_Deformed"
-                    : $"{assetName}_{rendererName}_Deformed";
+                    ? $"{rendererName}{suffix}"
+                    : $"{assetName}_{rendererName}{suffix}";
                 deformedMesh.name = meshName;
 
                 // 元メッシュと同じフォルダに保存
@@ -2142,6 +2273,16 @@ namespace ChimeraHairMaster.Editor
                 // Rendererに設定
                 Undo.RecordObject(renderer, "Apply Deformed Mesh");
                 renderer.sharedMesh = deformedMesh;
+
+                // Blendshape モードなら weight=100 で見た目維持
+                if (asBlendshape && actualBsName != null)
+                {
+                    int idx = deformedMesh.GetBlendShapeIndex(actualBsName);
+                    if (idx >= 0)
+                    {
+                        renderer.SetBlendShapeWeight(idx, 100f);
+                    }
+                }
 
                 // 変形データをクリア（メッシュに反映済みなので不要）
                 deformation.deltas.Clear();

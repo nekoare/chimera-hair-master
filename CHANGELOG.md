@@ -1,5 +1,52 @@
 # Changelog
 
+## v1.5.0
+
+### 新機能
+
+- **塗り感統一**
+  - お手本 Renderer の質感（線の細さ・塗りの濃淡）を他 Renderer に転送
+  - ラプラシアンピラミッドで 2 バンド（細・中）に分解し、各バンドのコントラスト振幅を独立に rescale
+  - target 自身の毛束位置・密度は維持したまま、メリハリだけ reference に寄せる
+  - Inspector「色合わせ」セクション内に新セクション「塗り感統一」を追加
+    - 有効化トグル、お手本 Renderer、線の細さ強度、塗りの濃淡強度、対象スケール
+  - ビルド・プレビュー両対応（cache 経路 / temp material 経路）
+  - 4 言語対応 (ja-JP / en-US / zh-Hans / ko-KR)
+  - 既知の限界: 周波数帯域内のスペクトルは変えないため、構造変換（細い strand を太くする等）はできない
+- **メッシュ変形を Blendshape として出力**
+  - メッシュ変形 Inspector の保存ボタン上に「Blendshape として出力」トグル + 名前フィールド
+  - 「メッシュを保存」/「メッシュを保存して入れ替え」時に焼き込みではなく Blendshape として末尾追加
+  - 既定 Blendshape 名: `CHMDeform`（同名衝突時は `CHMDeform_1` のように unique 化）
+  - 入れ替え時は `SetBlendShapeWeight(100)` で見た目維持 + deltas クリア
+  - VRChat アニメーション/エクスプレッションから weight を動かして変形 ON/OFF・部分適用可能
+  - エクスポート（一括）・Prefab 出力でも本トグル設定を尊重
+  - 4 言語対応 (ja / en / zh-Hans / ko)
+  - 既知の制約: ビルドパス (NDMF MeshDeformPass) は焼き込み専用。Blendshape 化したい場合はビルド前に手動で「保存して入れ替え」する運用（トグル ON で未入れ替えなら警告ログ）
+
+### 改善
+
+- **「塗りの細かさを調整」→「ぼかし・シャープ調整」にリネーム**
+  - 実装内容（負の値でブラー、正の値でシャープ）を直接表現する名称に変更
+  - 4 言語対応 (ja / en / zh-Hans / ko)
+- **メッシュ変形「メッシュを保存」ダイアログの初期フォルダを元メッシュ隣に**
+  - 元メッシュと同じフォルダがデフォルト保存先になり、クリック数が削減
+- **編集中にメッシュ変形コンポーネントを削除しても Mesh が Missing にならないように**
+  - `ChimeraHairMaster` / `MeshDeformationStandalone` に `[ExecuteAlways]` + `OnDestroy` を追加
+  - 編集中削除時に renderer.sharedMesh を originalMesh に自動復元
+
+### API 変更
+
+- `IMeshDeformationTarget` に `ExportAsBlendshape` / `BlendshapeName` プロパティ追加
+- `MeshDeformer.ExportDeformedMeshAsBlendshape(renderer, deformation, name, out actualName)` 追加
+
+### 内部
+
+- `Runtime/StrandPatternSettings.cs` 新規
+- `Editor/Shader/StrandPatternHighPass.compute`, `StrandPatternCompose.compute` 新規
+- `Editor/Processing/StrandPatternExtractor.cs`, `StrandPatternComposer.cs`, `StrandPatternApplier.cs` 新規
+- `Editor/NDMF/ColorTransformPass.cs`, `ChimeraHairMasterPreview.cs` に塗り感統一適用フックを追加
+- Tests/Editor に `StrandPatternExtractorTests.cs`, `StrandPatternComposerTests.cs` 追加
+
 ## v1.4.4
 
 ### 改善

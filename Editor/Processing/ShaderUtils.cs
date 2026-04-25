@@ -12,6 +12,8 @@ namespace ChimeraHairMaster.Editor.Processing
         private static ComputeShader? _colorTransformShader;
         private static ComputeShader? _blurSharpenShader;
         private static ComputeShader? _dilateTextureShader;
+        private static ComputeShader? _strandPatternHighPassShader;
+        private static ComputeShader? _strandPatternComposeShader;
         private static bool _initialized = false;
 
         /// <summary>
@@ -50,6 +52,30 @@ namespace ChimeraHairMaster.Editor.Processing
             return _dilateTextureShader;
         }
 
+        /// <summary>
+        /// 毛束パターンハイパスフィルタ ComputeShader を取得
+        /// </summary>
+        internal static ComputeShader? GetStrandPatternHighPassShader()
+        {
+            if (!_initialized)
+            {
+                Initialize();
+            }
+            return _strandPatternHighPassShader;
+        }
+
+        /// <summary>
+        /// 毛束パターン合成 ComputeShader を取得
+        /// </summary>
+        internal static ComputeShader? GetStrandPatternComposeShader()
+        {
+            if (!_initialized)
+            {
+                Initialize();
+            }
+            return _strandPatternComposeShader;
+        }
+
         private static void Initialize()
         {
             _initialized = true;
@@ -57,6 +83,8 @@ namespace ChimeraHairMaster.Editor.Processing
             _colorTransformShader = LoadShader("ColorTransform", "ColorTransform.compute");
             _blurSharpenShader = LoadShader("BlurSharpen", "BlurSharpen.compute");
             _dilateTextureShader = LoadShader("DilateTexture", "DilateTexture.compute");
+            _strandPatternHighPassShader = LoadShader("StrandPatternHighPass", "StrandPatternHighPass.compute");
+            _strandPatternComposeShader = LoadShader("StrandPatternCompose", "StrandPatternCompose.compute");
 
             if (_colorTransformShader == null)
                 Debug.LogError("[ChimeraHairMaster] ColorTransform.compute が見つかりません");
@@ -64,6 +92,10 @@ namespace ChimeraHairMaster.Editor.Processing
                 Debug.LogError("[ChimeraHairMaster] BlurSharpen.compute が見つかりません");
             if (_dilateTextureShader == null)
                 Debug.LogError("[ChimeraHairMaster] DilateTexture.compute が見つかりません");
+            if (_strandPatternHighPassShader == null)
+                Debug.LogError("[ChimeraHairMaster] StrandPatternHighPass.compute が見つかりません");
+            if (_strandPatternComposeShader == null)
+                Debug.LogError("[ChimeraHairMaster] StrandPatternCompose.compute が見つかりません");
         }
 
         private static ComputeShader? LoadShader(string searchName, string fileName)

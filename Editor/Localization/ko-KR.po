@@ -609,6 +609,15 @@ msgstr "Mesh 저장"
 msgid "MeshDeformInspector:Export:SaveAndReplace"
 msgstr "Mesh 저장 후 교체"
 
+msgid "MeshDeformInspector:Export:AsBlendshape"
+msgstr "Blendshape 으로 출력"
+
+msgid "MeshDeformInspector:Export:BlendshapeName"
+msgstr "Blendshape 이름"
+
+msgid "MeshDeformInspector:Export:BlendshapeRenamedLog"
+msgstr "[ChimeraHairMaster] Blendshape 이름 \"{0}\" 이 기존과 충돌하여 \"{1}\" 으로 변경했습니다"
+
 msgid "MeshDeformInspector:Export:SaveDialogTitle"
 msgstr "변형 완료 Mesh 저장"
 
@@ -765,10 +774,32 @@ msgstr "RGB 차분 모드: 텍스처 대표색 → target의 차분을 모든 �
 
 # ---- Blur / Sharpen ----
 msgid "Inspector:BlurSharpAdjustment"
-msgstr "도료의 세밀도 조정"
+msgstr "블러・샤프닝"
 
 msgid "Inspector:BlurSharpAdjustmentHelp"
 msgstr "음수 값으로 블러, 양수 값으로 샤프닝. 색 변환 직전의 전처리로 적용됩니다.\n텍스처별 도료 질감(뚜렷함 vs 부드러움)을 맞추고 싶을 때 사용."
+
+# ---- 도료 질감 통일 ----
+msgid "Inspector:StrandPattern"
+msgstr "도료 질감 통일"
+
+msgid "Inspector:StrandPatternEnable"
+msgstr "활성화"
+
+msgid "Inspector:StrandPatternReference"
+msgstr "기준 Renderer"
+
+msgid "Inspector:StrandPatternStrengthFine"
+msgstr "선의 세밀도 강도"
+
+msgid "Inspector:StrandPatternStrengthShade"
+msgstr "명암 대비 강도"
+
+msgid "Inspector:StrandPatternSigma"
+msgstr "대상 스케일"
+
+msgid "Inspector:StrandPatternHelp"
+msgstr "기준 Renderer 의 질감(선의 세밀도・명암 대비)에 target 을 가깝게 합니다.\n「선의 세밀도 강도」는 세부 디테일(모발 윤곽・입자감)의 추종 정도.\n「명암 대비 강도」는 중간 스케일 변동(쉐이딩 콘트라스트)의 추종 정도.\n「대상 스케일」은 두 가지의 경계(기본 5, ≒ 모발 폭)."
 
 # ---- Texture Export: mesh merge discard warning ----
 msgid "Inspector:MeshMergeDiscardWarning"

@@ -1,0 +1,56 @@
+// 毛束パターン統一 - 合成シェーダ (Phase 2 approach B: ラプラシアンピラミッド + 2 バンドゲイン転送)
+//
+// 入力:
+//   _Target: 合成対象テクスチャ (UAV)
+//   _BandHigh: source - blur(σ_h) のオフセットエンコード（細かいディテール）
+//   _BandHP8:  source - blur(σ_l) のオフセットエンコード（細～中ディテール）
+//   _Mask:    UV 使用領域 packed bitmask
+//
+// バンド導出:
+//   B_high = (BandHigh - 0.5) * 2 = source - blur(σ_h)
+//   B_mid  = (BandHP8 - 0.5) * 2 - B_high = blur(σ_h) - blur(σ_l)
+//
+// 合成:
+//   composed = target + B_high * scaleHigh + B_mid * scaleMid
+//     where scaleHigh = (refStdHigh / targetStdHigh - 1) * strengthFine
+//           scaleMid  = (refStdMid  / targetStdMid  - 1) * strengthShade
+//
+// UV mask 外のピクセルは target そのまま保持
+
+#pragma kernel CSCompose
+
+RWTexture2D<float4> _Target;
+Texture2D<float4> _BandHigh;
+Texture2D<float4> _BandHP8;
+RWStructuredBuffer<uint> _Mask;
+
+int _Width;
+int _Height;
+float _ScaleHigh;
+float _ScaleMid;
+
+bool IsInMask(int2 p)
+{
+    if (p.x < 0 || p.x >= _Width || p.y < 0 || p.y >= _Height) return false;
+    uint idx = (uint)p.y * (uint)_Width + (uint)p.x;
+    uint word = _Mask[idx >> 5];
+    return (word & (1u << (idx & 31u))) != 0u;
+}
+
+[numthreads(16, 16, 1)]
+void CSCompose(uint3 id : SV_DispatchThreadID)
+{
+    if ((int)id.x >= _Width || (int)id.y >= _Height) return;
+
+    float4 target = _Target[id.xy];
+    if (!IsInMask(int2(id.xy))) return;
+
+    float4 bhEnc = _BandHigh.Load(int3((int)id.x, (int)id.y, 0));
+    float4 hp8Enc = _BandHP8.Load(int3((int)id.x, (int)id.y, 0));
+    float3 bHigh = (bhEnc.rgb - 0.5) * 2.0;
+    float3 hp8 = (hp8Enc.rgb - 0.5) * 2.0;
+    float3 bMid = hp8 - bHigh;
+
+    float3 composed = target.rgb + bHigh * _ScaleHigh + bMid * _ScaleMid;
+    _Target[id.xy] = float4(saturate(composed), target.a);
+}

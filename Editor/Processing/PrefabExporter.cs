@@ -466,7 +466,15 @@ namespace ChimeraHairMaster.Editor.Processing
                 var tempRenderer = tempRenderers[deformation.rendererIndex];
                 if (tempRenderer == null || tempRenderer.sharedMesh == null) continue;
 
-                var deformedMesh = MeshDeformer.ExportDeformedMesh(tempRenderer, deformation);
+                // Blendshape モードか焼き込みかで分岐
+                bool asBlendshape = component.ExportAsBlendshape;
+                string actualBsName = null;
+                Mesh deformedMesh = asBlendshape
+                    ? MeshDeformer.ExportDeformedMeshAsBlendshape(
+                        tempRenderer, deformation,
+                        string.IsNullOrEmpty(component.BlendshapeName) ? "CHMDeform" : component.BlendshapeName,
+                        out actualBsName)
+                    : MeshDeformer.ExportDeformedMesh(tempRenderer, deformation);
                 if (deformedMesh == null) continue;
 
                 // 元メッシュ同フォルダに連番付きで保存
@@ -488,6 +496,16 @@ namespace ChimeraHairMaster.Editor.Processing
 
                 AssetDatabase.CreateAsset(deformedMesh, savePath);
                 tempRenderer.sharedMesh = deformedMesh;
+
+                // Blendshape モードなら weight=100 を設定して見た目維持
+                if (asBlendshape && actualBsName != null)
+                {
+                    int idx = deformedMesh.GetBlendShapeIndex(actualBsName);
+                    if (idx >= 0)
+                    {
+                        tempRenderer.SetBlendShapeWeight(idx, 100f);
+                    }
+                }
             }
         }
 

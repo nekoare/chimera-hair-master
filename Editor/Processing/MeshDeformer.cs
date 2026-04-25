@@ -68,6 +68,67 @@ namespace ChimeraHairMaster.Editor.Processing
         }
 
         /// <summary>
+        /// 変形を Blendshape として追加した新メッシュをエクスポートする。
+        /// 元の頂点位置は保持し、Blendshape として deltas を末尾に追加する。
+        /// </summary>
+        /// <param name="renderer">対象 Renderer</param>
+        /// <param name="deformation">変形データ</param>
+        /// <param name="requestedName">希望する Blendshape 名</param>
+        /// <param name="actualName">実際に使われた名前（同名衝突時は unique 化される）</param>
+        /// <returns>新メッシュ（Blendshape 追加済み）。失敗時 null</returns>
+        public static Mesh ExportDeformedMeshAsBlendshape(
+            SkinnedMeshRenderer renderer,
+            RendererDeformation deformation,
+            string requestedName,
+            out string actualName)
+        {
+            actualName = requestedName;
+            if (renderer == null || renderer.sharedMesh == null || deformation == null)
+                return null;
+            if (deformation.deltas == null || deformation.deltas.Count == 0)
+                return null;
+            if (string.IsNullOrEmpty(requestedName))
+                requestedName = "CHMDeform";
+
+            var sourceMesh = renderer.sharedMesh;
+            var mesh = Object.Instantiate(sourceMesh);
+            mesh.name = sourceMesh.name + "_DeformedBS";
+
+            // 既存 Blendshape 名と衝突しない名前を作る
+            var existingNames = new HashSet<string>();
+            for (int i = 0; i < mesh.blendShapeCount; i++)
+            {
+                existingNames.Add(mesh.GetBlendShapeName(i));
+            }
+            actualName = MakeUniqueName(requestedName, existingNames);
+
+            // sparse deltas → dense Vector3[] 配列
+            var deltaArray = new Vector3[mesh.vertexCount];
+            foreach (var d in deformation.deltas)
+            {
+                if (d.vertexIndex < 0 || d.vertexIndex >= deltaArray.Length) continue;
+                deltaArray[d.vertexIndex] = d.offset;
+            }
+
+            // 1 frame, weight=100 で末尾に追加
+            // normals/tangents は null（自動再計算なし、視覚的にはほぼ問題なし）
+            mesh.AddBlendShapeFrame(actualName, 100f, deltaArray, null, null);
+
+            return mesh;
+        }
+
+        private static string MakeUniqueName(string baseName, HashSet<string> existing)
+        {
+            if (!existing.Contains(baseName)) return baseName;
+            for (int i = 1; i < 1000; i++)
+            {
+                string candidate = $"{baseName}_{i}";
+                if (!existing.Contains(candidate)) return candidate;
+            }
+            return baseName + "_" + System.Guid.NewGuid().ToString("N").Substring(0, 8);
+        }
+
+        /// <summary>
         /// デルタ一覧をメッシュの頂点に適用する
         /// </summary>
         private static void ApplyDeltas(Mesh mesh, List<VertexDelta> deltas)

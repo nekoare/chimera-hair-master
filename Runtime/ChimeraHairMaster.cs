@@ -12,6 +12,7 @@ namespace ChimeraHairMaster
     [AddComponentMenu("Chimera Hair Master/Chimera Hair Master")]
     [DisallowMultipleComponent]
     [HelpURL("")]
+    [ExecuteAlways]
     public class ChimeraHairMaster : MonoBehaviour, IEditorOnly, IMeshDeformationTarget
     {
         #region 基本設定
@@ -191,6 +192,13 @@ namespace ChimeraHairMaster
         public List<RendererBlurSharpAdjustment> rendererBlurSharpAdjustments = new List<RendererBlurSharpAdjustment>();
 
         /// <summary>
+        /// 毛束パターン統一設定
+        /// お手本 Renderer の毛束模様を他 Renderer に転送して質感を統一
+        /// </summary>
+        [SerializeField]
+        public StrandPatternSettings strandPatternSettings = new StrandPatternSettings();
+
+        /// <summary>
         /// 色合わせ無視マスク一覧
         /// サブメッシュごとにマスクを設定し、黒い部分を色合わせの対象から外す（元の色を維持）
         /// </summary>
@@ -329,6 +337,18 @@ namespace ChimeraHairMaster
         [SerializeField]
         public Mesh deformOriginalMesh;
 
+        /// <summary>
+        /// メッシュ変形を Blendshape として出力するか（既存頂点位置は不変、Blendshape を末尾追加）
+        /// </summary>
+        [SerializeField]
+        public bool exportDeformAsBlendshape = false;
+
+        /// <summary>
+        /// Blendshape として出力する際の名前（既定 "CHMDeform"、同名衝突時は unique 化）
+        /// </summary>
+        [SerializeField]
+        public string deformBlendshapeName = "CHMDeform";
+
         #endregion
 
         #region IMeshDeformationTarget 実装
@@ -349,6 +369,18 @@ namespace ChimeraHairMaster
         }
 
         public UnityEngine.Object UndoTarget => this;
+
+        public bool ExportAsBlendshape
+        {
+            get => exportDeformAsBlendshape;
+            set => exportDeformAsBlendshape = value;
+        }
+
+        public string BlendshapeName
+        {
+            get => deformBlendshapeName;
+            set => deformBlendshapeName = value;
+        }
 
         #endregion
 
@@ -501,6 +533,30 @@ namespace ChimeraHairMaster
         {
             SyncMaterialSelectionsFromRenderers();
         }
+
+#if UNITY_EDITOR
+        /// <summary>
+        /// 編集中にコンポーネント / GameObject が削除された時の保険:
+        /// renderer.sharedMesh が編集中の workingMesh のままになっていたら、保持していた originalMesh で復元する
+        /// （[ExecuteAlways] によりエディタモードでも OnDestroy が呼ばれる）
+        /// </summary>
+        private void OnDestroy()
+        {
+            if (Application.isPlaying) return;
+            if (UnityEditor.EditorApplication.isPlayingOrWillChangePlaymode) return;
+
+            if (deformEditingRendererIndex >= 0 && deformOriginalMesh != null
+                && deformEditingRendererIndex < targetRenderers.Count)
+            {
+                var r = targetRenderers[deformEditingRendererIndex];
+                if (r != null)
+                {
+                    r.sharedMesh = deformOriginalMesh;
+                    UnityEditor.EditorUtility.SetDirty(r);
+                }
+            }
+        }
+#endif
 
         #endregion
 

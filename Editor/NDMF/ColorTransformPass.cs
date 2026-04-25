@@ -91,6 +91,17 @@ namespace ChimeraHairMaster.Editor.NDMF
                 }
 
                 Debug.Log($"[ChimeraHairMaster] 色変換処理完了: {component.gameObject.name}, 処理テクスチャ数: {textureCache.Count}");
+
+                // 塗り感統一を適用（有効な場合のみ）
+                // Phase 2 approach B: ラプラシアンピラミッド + 2 バンドゲイン転送
+                // reference の B_high / B_mid std を測って、target の同バンドを ratio 倍に rescale
+                var strandResult = StrandPatternApplier.ApplyToCache(component, textureCache);
+                if (strandResult != null)
+                {
+                    StrandPatternApplier.UpdateMaterialReferences(component, strandResult);
+                    StrandPatternApplier.DisposeResult(strandResult);
+                    Debug.Log($"[ChimeraHairMaster] 塗り感統一完了: 更新テクスチャ数 {strandResult.OldToNew.Count}");
+                }
             }
             finally
             {

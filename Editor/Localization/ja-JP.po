@@ -609,6 +609,15 @@ msgstr "メッシュを保存"
 msgid "MeshDeformInspector:Export:SaveAndReplace"
 msgstr "メッシュを保存して入れ替え"
 
+msgid "MeshDeformInspector:Export:AsBlendshape"
+msgstr "Blendshape として出力"
+
+msgid "MeshDeformInspector:Export:BlendshapeName"
+msgstr "Blendshape 名"
+
+msgid "MeshDeformInspector:Export:BlendshapeRenamedLog"
+msgstr "[ChimeraHairMaster] Blendshape 名 \"{0}\" は既存と衝突するため \"{1}\" にリネームしました"
+
 msgid "MeshDeformInspector:Export:SaveDialogTitle"
 msgstr "変形済みメッシュを保存"
 
@@ -763,12 +772,34 @@ msgstr "範囲外を端へ漸近させる領域幅（Linear RGB 空間での値�
 msgid "Inspector:RgbDeltaHelp"
 msgstr "RGB差分モード: テクスチャ代表色 → target への差分を全ピクセルに加算します。\n色相を強制せず差を保つため、ハイライト等のニュアンスが残ります。"
 
-# ---- 塗りの細かさを調整 ----
+# ---- ぼかし・シャープ調整 ----
 msgid "Inspector:BlurSharpAdjustment"
-msgstr "塗りの細かさを調整"
+msgstr "ぼかし・シャープ調整"
 
 msgid "Inspector:BlurSharpAdjustmentHelp"
 msgstr "負の値でブラー（ぼかし）、正の値でシャープ化を適用。色変換の直前に前処理として効果を入れます。\nテクスチャ毎の塗り感（カリカリ or 柔らかい）を揃えたいときに使用。"
+
+# ---- 塗り感統一 ----
+msgid "Inspector:StrandPattern"
+msgstr "塗り感統一"
+
+msgid "Inspector:StrandPatternEnable"
+msgstr "有効化"
+
+msgid "Inspector:StrandPatternReference"
+msgstr "お手本 Renderer"
+
+msgid "Inspector:StrandPatternStrengthFine"
+msgstr "線の細さ強度"
+
+msgid "Inspector:StrandPatternStrengthShade"
+msgstr "塗りの濃淡強度"
+
+msgid "Inspector:StrandPatternSigma"
+msgstr "対象スケール"
+
+msgid "Inspector:StrandPatternHelp"
+msgstr "お手本 Renderer の質感（線の細さ・塗りの濃淡）に target を寄せます。\n「線の細さ強度」が細かいディテール（毛束の輪郭・粒度）の寄せ度合い。\n「塗りの濃淡強度」が中間スケールの変動（シェーディングのメリハリ）の寄せ度合い。\n「対象スケール」は両者の境界となる毛束サイズの目安（標準 5）。"
 
 # ---- テクスチャ出力: メッシュ統合有効時の警告 ----
 msgid "Inspector:MeshMergeDiscardWarning"
