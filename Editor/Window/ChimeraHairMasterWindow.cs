@@ -343,30 +343,12 @@ namespace ChimeraHairMaster.Editor
                     ClearUVCache();
                 }
 
-                // アバター表示（read-only、確認用）
-                EditorGUILayout.BeginHorizontal();
-                EditorGUILayout.LabelField(CHMLocales.Tr("Window:TargetSelection:Avatar"), GUILayout.Width(80));
-                using (new EditorGUI.DisabledScope(true))
+                if (targetRenderers.Count > 0 && selectedAvatar == null)
                 {
-                    EditorGUILayout.ObjectField(selectedAvatar, typeof(GameObject), true);
-                }
-                EditorGUILayout.EndHorizontal();
-
-                EditorGUILayout.LabelField(
-                    CHMLocales.Tr("Window:TargetSelection:AvatarAutoDetect"),
-                    EditorStyles.miniLabel
-                );
-
-                if (selectedAvatar != null)
-                {
-                    var descriptor = selectedAvatar.GetComponent<VRC_AvatarDescriptor>();
-                    if (descriptor == null)
-                    {
-                        EditorGUILayout.HelpBox(
-                            CHMLocales.Tr("Window:TargetSelection:NoAvatarDescriptor"),
-                            MessageType.Warning
-                        );
-                    }
+                    EditorGUILayout.HelpBox(
+                        CHMLocales.Tr("Window:TargetSelection:NoAvatarDetected"),
+                        MessageType.Warning
+                    );
                 }
 
                 EditorGUILayout.Space(5);

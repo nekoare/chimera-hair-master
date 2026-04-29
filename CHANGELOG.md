@@ -1,5 +1,14 @@
 # Changelog
 
+## v1.5.1
+
+### 改善
+
+- **対象選択UIの簡素化**
+  - 自動検出されたアバターを表示する read-only フィールド・案内ラベル・到達不能だった `NoAvatarDescriptor` 警告を削除
+  - 髪パーツが配置されているのにアバターが検出できない場合のみ警告 HelpBox を表示
+  - 4 言語対応 (ja / en / zh-Hans / ko) — `Window:TargetSelection:NoAvatarDetected` にリネーム
+
 ## v1.5.0
 
 ### 新機能

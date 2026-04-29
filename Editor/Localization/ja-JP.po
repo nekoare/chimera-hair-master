@@ -12,14 +12,8 @@ msgstr "複数の髪テクスチャの色合わせ・UV統合・マテリアル�
 msgid "Window:TargetSelection:Header"
 msgstr "対象選択"
 
-msgid "Window:TargetSelection:Avatar"
-msgstr "アバター"
-
-msgid "Window:TargetSelection:AvatarAutoDetect"
-msgstr "※アバターは髪パーツから自動選択されます"
-
-msgid "Window:TargetSelection:NoAvatarDescriptor"
-msgstr "選択されたGameObjectにVRC Avatar Descriptorがありません。"
+msgid "Window:TargetSelection:NoAvatarDetected"
+msgstr "アバターが検出できません。髪パーツがVRC Avatar Descriptor配下に配置されているか確認してください。"
 
 msgid "Window:TargetSelection:HairPartsList"
 msgstr "髪パーツ一覧"

@@ -12,14 +12,8 @@ msgstr "Merge multiple hair textures, UVs, and materials while matching their co
 msgid "Window:TargetSelection:Header"
 msgstr "Target Selection"
 
-msgid "Window:TargetSelection:Avatar"
-msgstr "Avatar"
-
-msgid "Window:TargetSelection:AvatarAutoDetect"
-msgstr "* Avatar is detected automatically from the hair parts."
-
-msgid "Window:TargetSelection:NoAvatarDescriptor"
-msgstr "The selected GameObject has no VRC Avatar Descriptor."
+msgid "Window:TargetSelection:NoAvatarDetected"
+msgstr "No avatar detected. Make sure the hair parts are placed under a VRC Avatar Descriptor."
 
 msgid "Window:TargetSelection:HairPartsList"
 msgstr "Hair Parts"

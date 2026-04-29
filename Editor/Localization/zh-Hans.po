@@ -12,14 +12,8 @@ msgstr "对多个头发贴图进行色调统一、UV整合与Material合并。"
 msgid "Window:TargetSelection:Header"
 msgstr "目标选择"
 
-msgid "Window:TargetSelection:Avatar"
-msgstr "模型"
-
-msgid "Window:TargetSelection:AvatarAutoDetect"
-msgstr "※模型将根据头发部件自动选择"
-
-msgid "Window:TargetSelection:NoAvatarDescriptor"
-msgstr "所选GameObject上没有VRC Avatar Descriptor。"
+msgid "Window:TargetSelection:NoAvatarDetected"
+msgstr "未检测到模型。请确认头发部件位于带有VRC Avatar Descriptor的对象之下。"
 
 msgid "Window:TargetSelection:HairPartsList"
 msgstr "头发部件列表"

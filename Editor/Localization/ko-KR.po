@@ -12,14 +12,8 @@ msgstr "여러 헤어 텍스처의 색상 매칭, UV 통합, Material 통합을 
 msgid "Window:TargetSelection:Header"
 msgstr "대상 선택"
 
-msgid "Window:TargetSelection:Avatar"
-msgstr "아바타"
-
-msgid "Window:TargetSelection:AvatarAutoDetect"
-msgstr "※아바타는 헤어 파츠에서 자동으로 선택됩니다"
-
-msgid "Window:TargetSelection:NoAvatarDescriptor"
-msgstr "선택한 GameObject에 VRC Avatar Descriptor가 없습니다."
+msgid "Window:TargetSelection:NoAvatarDetected"
+msgstr "아바타를 감지할 수 없습니다. 헤어 파츠가 VRC Avatar Descriptor 아래에 배치되어 있는지 확인해 주세요."
 
 msgid "Window:TargetSelection:HairPartsList"
 msgstr "헤어 파츠 목록"
