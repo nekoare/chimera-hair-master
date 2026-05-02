@@ -66,6 +66,8 @@ namespace ChimeraHairMaster.Editor.Processing
 
             // Apply 全体で使うピクセル読み込みキャッシュ
             var pixelCache = new MeshUVSampler.PixelCache();
+            // 塗り感統一: お手本 Renderer の参照データを事前計算（PNG 出力経路でも適用するため）
+            StrandPatternApplier.RefData? strandRef = StrandPatternApplier.PrepareRefData(component, settings, pixelCache);
             try
             {
 
@@ -137,6 +139,17 @@ namespace ChimeraHairMaster.Editor.Processing
                         }
                     }
 
+                    // 塗り感統一: お手本 Renderer 以外の _MainTex に inline 適用
+                    if (strandRef != null && strandRef.IsValid && r != strandRef.RefIndex)
+                    {
+                        var composed = StrandPatternApplier.TryComposeStrand(processedTex, renderer, new[] { s }, strandRef);
+                        if (composed != null)
+                        {
+                            Object.DestroyImmediate(processedTex);
+                            processedTex = composed;
+                        }
+                    }
+
                     // PNG保存
                     var savedTexture = SaveTextureAsPng(mainTex, processedTex);
                     Object.DestroyImmediate(processedTex);
@@ -178,6 +191,7 @@ namespace ChimeraHairMaster.Editor.Processing
             }
             finally
             {
+                strandRef?.Dispose();
                 pixelCache.Dispose();
             }
         }

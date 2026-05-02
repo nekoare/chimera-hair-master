@@ -468,7 +468,7 @@ namespace ChimeraHairMaster.Editor.Processing
 
                 // Blendshape モードか焼き込みかで分岐
                 bool asBlendshape = component.ExportAsBlendshape;
-                string actualBsName = null;
+                string? actualBsName = null;
                 Mesh deformedMesh = asBlendshape
                     ? MeshDeformer.ExportDeformedMeshAsBlendshape(
                         tempRenderer, deformation,
