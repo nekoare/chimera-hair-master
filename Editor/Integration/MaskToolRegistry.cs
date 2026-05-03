@@ -11,9 +11,11 @@ namespace ChimeraHairMaster.Editor
     {
         public delegate void OpenMaskToolHandler(MaskToolOpenRequest request);
         public delegate void OpenSubmeshHandler(SkinnedMeshRenderer renderer, int submeshIndex);
+        public delegate void OpenSubmeshWithCallbackHandler(SkinnedMeshRenderer renderer, int submeshIndex, System.Action<Texture2D> onSaved);
 
         private static OpenMaskToolHandler _handler;
         private static OpenSubmeshHandler _submeshHandler;
+        private static OpenSubmeshWithCallbackHandler _submeshCallbackHandler;
 
         /// <summary>
         /// fallbackハンドラが登録されているかどうか
@@ -24,6 +26,11 @@ namespace ChimeraHairMaster.Editor
         /// SubMesh指定対応のハンドラが登録されているか（v1.1+）
         /// </summary>
         public static bool HasSubmeshHandler => _submeshHandler != null;
+
+        /// <summary>
+        /// SubMesh指定 + 保存後コールバック対応のハンドラが登録されているか（v1.3+）
+        /// </summary>
+        public static bool HasSubmeshCallbackHandler => _submeshCallbackHandler != null;
 
         /// <summary>
         /// マスクツールのfallbackハンドラを登録する
@@ -42,12 +49,21 @@ namespace ChimeraHairMaster.Editor
         }
 
         /// <summary>
+        /// SubMesh指定 + 保存後コールバック対応のハンドラを登録する（v1.3+）
+        /// </summary>
+        public static void RegisterSubmeshWithCallback(OpenSubmeshWithCallbackHandler handler)
+        {
+            _submeshCallbackHandler = handler;
+        }
+
+        /// <summary>
         /// 登録を解除する
         /// </summary>
         public static void Unregister()
         {
             _handler = null;
             _submeshHandler = null;
+            _submeshCallbackHandler = null;
         }
 
         /// <summary>
@@ -64,6 +80,14 @@ namespace ChimeraHairMaster.Editor
         public static void OpenForSubmesh(SkinnedMeshRenderer renderer, int submeshIndex)
         {
             _submeshHandler?.Invoke(renderer, submeshIndex);
+        }
+
+        /// <summary>
+        /// SubMesh指定でマスクツールを開く + 保存時にコールバック通知（v1.3+）
+        /// </summary>
+        public static void OpenForSubmesh(SkinnedMeshRenderer renderer, int submeshIndex, System.Action<Texture2D> onSaved)
+        {
+            _submeshCallbackHandler?.Invoke(renderer, submeshIndex, onSaved);
         }
     }
 }

@@ -108,9 +108,22 @@ namespace ChimeraHairMaster.Editor
             SkinnedMeshRenderer renderer,
             int submeshIndex)
         {
+            OpenMaskToolForSubmesh(component, renderer, submeshIndex, null);
+        }
+
+        /// <summary>
+        /// 単一RendererのSubMeshを対象にマスクツールを開く（非アトラスモード）+ 保存後コールバック。
+        /// マスクツール v1.3+ で onSaved が呼ばれる。それ未満では従来通り通知なし。
+        /// </summary>
+        public static void OpenMaskToolForSubmesh(
+            ChimeraHairMaster component,
+            SkinnedMeshRenderer renderer,
+            int submeshIndex,
+            System.Action<Texture2D> onSaved)
+        {
             #if CHM_MASK_TOOL_SUBMESH
             // VPM版 v1.1+ → 直接呼び出し
-            OpenMaskToolForSubmeshInternal(component, renderer, submeshIndex);
+            OpenMaskToolForSubmeshInternal(component, renderer, submeshIndex, onSaved);
             #elif CHM_MASK_CREATION_TOOL
             // VPM版はあるがv1.1未満 → 更新ダイアログ
             EditorUtility.DisplayDialog(
@@ -118,9 +131,15 @@ namespace ChimeraHairMaster.Editor
                 CHMLocales.Tr("MaskTool:Dialog:UpdateVpmV11Body"),
                 "OK");
             #else
-            if (MaskToolRegistry.HasSubmeshHandler)
+            if (MaskToolRegistry.HasSubmeshCallbackHandler)
             {
-                // Assets版 v1.1+（submeshハンドラ登録済み）→ レジストリ経由
+                // Assets版 v1.3+（callback ハンドラ登録済み）→ レジストリ経由
+                MaskToolRegistry.OpenForSubmesh(renderer, submeshIndex, onSaved);
+            }
+            else if (MaskToolRegistry.HasSubmeshHandler)
+            {
+                // Assets版 v1.1+（submeshハンドラ登録済み、callback 非対応）→ レジストリ経由
+                // onSaved は通知されない（古いマスクツールでは従来動作）
                 MaskToolRegistry.OpenForSubmesh(renderer, submeshIndex);
             }
             else if (MaskToolRegistry.HasHandler)
@@ -178,7 +197,8 @@ namespace ChimeraHairMaster.Editor
         private static void OpenMaskToolForSubmeshInternal(
             ChimeraHairMaster component,
             SkinnedMeshRenderer renderer,
-            int submeshIndex)
+            int submeshIndex,
+            System.Action<Texture2D> onSaved)
         {
             var context = new MaskToolExternalContext
             {
@@ -186,6 +206,23 @@ namespace ChimeraHairMaster.Editor
                 targetGameObject = renderer.gameObject,
                 selectedMaterialIndex = submeshIndex
             };
+
+            // 保存後コールバック: マスクツール v1.3+ から savedPath が通知される（旧版では呼ばれず）
+            if (onSaved != null)
+            {
+                context.onMaskApplied = (savedPath, _) =>
+                {
+                    if (string.IsNullOrEmpty(savedPath)) return;
+                    ConfigureTextureImporter(savedPath);
+                    string assetPath = savedPath;
+                    if (savedPath.StartsWith(Application.dataPath))
+                    {
+                        assetPath = "Assets" + savedPath.Substring(Application.dataPath.Length);
+                    }
+                    var tex = AssetDatabase.LoadAssetAtPath<Texture2D>(assetPath);
+                    if (tex != null) onSaved(tex);
+                };
+            }
 
             MaskCreationToolWindow.OpenWithContext(context);
         }

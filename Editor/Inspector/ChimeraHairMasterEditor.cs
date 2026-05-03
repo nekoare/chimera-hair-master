@@ -466,7 +466,26 @@ namespace ChimeraHairMaster.Editor
 
                     if (GUILayout.Button(CHMLocales.Tr("Inspector:CreateMask"), GUILayout.Width(80)))
                     {
-                        OpenMaskToolForSubmesh(component, renderer, s);
+                        int capturedR = r;
+                        int capturedS = s;
+                        OpenMaskToolForSubmesh(component, renderer, s, savedTex =>
+                        {
+                            if (savedTex == null) return;
+                            Undo.RecordObject(component, "CHM Assign Mesh Cut Mask");
+                            var existing = component.materialSelections.Find(
+                                e => e.rendererIndex == capturedR && e.submeshIndex == capturedS);
+                            if (existing != null)
+                            {
+                                existing.meshCutMask = savedTex;
+                            }
+                            else
+                            {
+                                var newEntry = new MaterialSelectionEntry(capturedR, capturedS, true);
+                                newEntry.meshCutMask = savedTex;
+                                component.materialSelections.Add(newEntry);
+                            }
+                            EditorUtility.SetDirty(component);
+                        });
                     }
 
                     EditorGUILayout.EndHorizontal();
@@ -1064,7 +1083,24 @@ namespace ChimeraHairMaster.Editor
 
                     if (GUILayout.Button(CHMLocales.Tr("Inspector:CreateMask"), GUILayout.Width(80)))
                     {
-                        OpenMaskToolForSubmesh(component, renderer, s);
+                        int capturedR = r;
+                        int capturedS = s;
+                        OpenMaskToolForSubmesh(component, renderer, s, savedTex =>
+                        {
+                            if (savedTex == null) return;
+                            Undo.RecordObject(component, "CHM Assign Color Mask");
+                            var existing = component.colorMasks.Find(
+                                e => e.rendererIndex == capturedR && e.submeshIndex == capturedS);
+                            if (existing != null)
+                            {
+                                existing.mask = savedTex;
+                            }
+                            else
+                            {
+                                component.colorMasks.Add(new ColorMaskEntry(capturedR, capturedS) { mask = savedTex });
+                            }
+                            EditorUtility.SetDirty(component);
+                        });
                     }
 
                     EditorGUILayout.EndHorizontal();
@@ -1205,6 +1241,14 @@ namespace ChimeraHairMaster.Editor
         /// </summary>
         private void OpenMaskToolForSubmesh(ChimeraHairMaster component, SkinnedMeshRenderer renderer, int submeshIndex)
         {
+            OpenMaskToolForSubmesh(component, renderer, submeshIndex, null);
+        }
+
+        /// <summary>
+        /// プレビューを停止してマスクツールを開く + 保存後コールバック
+        /// </summary>
+        private void OpenMaskToolForSubmesh(ChimeraHairMaster component, SkinnedMeshRenderer renderer, int submeshIndex, System.Action<Texture2D> onSaved)
+        {
             // プレビューを停止
             if (component.previewEnabled)
             {
@@ -1212,7 +1256,7 @@ namespace ChimeraHairMaster.Editor
                 EditorUtility.SetDirty(component);
             }
 
-            MaskToolLauncher.OpenMaskToolForSubmesh(component, renderer, submeshIndex);
+            MaskToolLauncher.OpenMaskToolForSubmesh(component, renderer, submeshIndex, onSaved);
         }
 
         /// <summary>
