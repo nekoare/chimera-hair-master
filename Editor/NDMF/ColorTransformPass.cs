@@ -295,16 +295,14 @@ namespace ChimeraHairMaster.Editor.NDMF
                     }
 
                     // 色合わせ無視マスクを適用
+                    // 注: useSharedCache=true 時は processedTexture が textureCache 内に登録済みのため、
+                    // 旧 processedTexture を破棄せず参照だけ差し替える（cache に未マスク版が残るのは仕様）
                     if (processedTexture != null)
                     {
-                        var colorMask = component.GetColorMask(rendererIndex, i);
-                        if (colorMask != null)
+                        var masked = Processing.ColorMaskApplier.TryApply(component, rendererIndex, i, texture, processedTexture);
+                        if (masked != null)
                         {
-                            var masked = ColorProcessor.ApplyColorMask(texture, processedTexture, colorMask);
-                            if (masked != null)
-                            {
-                                processedTexture = masked;
-                            }
+                            processedTexture = masked;
                         }
                     }
 

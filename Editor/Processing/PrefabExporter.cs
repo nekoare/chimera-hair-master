@@ -199,6 +199,8 @@ namespace ChimeraHairMaster.Editor.Processing
             var settings = ColorTransformSettings.FromComponent(component, sourceColor);
 
             var pixelCache = new MeshUVSampler.PixelCache();
+            // 塗り感統一: お手本 Renderer の参照データを事前計算
+            StrandPatternApplier.RefData? strandRef = StrandPatternApplier.PrepareRefData(component, settings, pixelCache);
             try
             {
                 for (int r = 0; r < component.targetRenderers.Count; r++)
@@ -258,6 +260,27 @@ namespace ChimeraHairMaster.Editor.Processing
                             processedTex = dilated;
                         }
 
+                        // 色合わせ無視マスクを適用
+                        {
+                            var masked = ColorMaskApplier.TryApply(component, r, s, mainTex, processedTex);
+                            if (masked != null)
+                            {
+                                Object.DestroyImmediate(processedTex);
+                                processedTex = masked;
+                            }
+                        }
+
+                        // 塗り感統一: お手本 Renderer 以外の _MainTex に inline 適用
+                        if (strandRef != null && strandRef.IsValid && r != strandRef.RefIndex)
+                        {
+                            var composed = StrandPatternApplier.TryComposeStrand(processedTex, renderer, new[] { s }, strandRef);
+                            if (composed != null)
+                            {
+                                Object.DestroyImmediate(processedTex);
+                                processedTex = composed;
+                            }
+                        }
+
                         var savedTexture = SaveTextureAsPngUnique(mainTex, processedTex);
                         Object.DestroyImmediate(processedTex);
 
@@ -270,6 +293,7 @@ namespace ChimeraHairMaster.Editor.Processing
             }
             finally
             {
+                strandRef?.Dispose();
                 pixelCache.Dispose();
             }
 

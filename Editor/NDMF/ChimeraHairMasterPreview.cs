@@ -866,9 +866,8 @@ namespace ChimeraHairMaster.Editor.NDMF
                             }
 
                             // 色合わせ無視マスクを適用
-                            if (colorMask != null)
                             {
-                                var masked = Processing.ColorProcessor.ApplyColorMask(tex, currentTex, colorMask);
+                                var masked = Processing.ColorMaskApplier.TryApply(component, rendererIndex, submeshIndex, tex, currentTex);
                                 if (masked != null)
                                 {
                                     currentTex = masked;
@@ -918,9 +917,8 @@ namespace ChimeraHairMaster.Editor.NDMF
                                     }
 
                                     // 色合わせ無視マスクを適用
-                                    if (colorMask != null)
                                     {
-                                        var masked = Processing.ColorProcessor.ApplyColorMask(tex, currentTex, colorMask);
+                                        var masked = Processing.ColorMaskApplier.TryApply(component, rendererIndex, submeshIndex, tex, currentTex);
                                         if (masked != null)
                                         {
                                             currentTex = masked;
@@ -1278,9 +1276,8 @@ namespace ChimeraHairMaster.Editor.NDMF
                                     }
 
                                     // 色合わせ無視マスクを適用
-                                    if (colorMask != null)
                                     {
-                                        var masked = Processing.ColorProcessor.ApplyColorMask(tex, processed, colorMask);
+                                        var masked = Processing.ColorMaskApplier.TryApply(component, r, s, tex, processed);
                                         if (masked != null)
                                         {
                                             Object.DestroyImmediate(processed);
@@ -1354,9 +1351,8 @@ namespace ChimeraHairMaster.Editor.NDMF
                                             }
 
                                             // 色合わせ無視マスクを適用
-                                            if (colorMask != null)
                                             {
-                                                var masked = Processing.ColorProcessor.ApplyColorMask(tex, processed, colorMask);
+                                                var masked = Processing.ColorMaskApplier.TryApply(component, r, s, tex, processed);
                                                 if (masked != null)
                                                 {
                                                     Object.DestroyImmediate(processed);

@@ -139,6 +139,16 @@ namespace ChimeraHairMaster.Editor.Processing
                         }
                     }
 
+                    // 色合わせ無視マスクを適用
+                    {
+                        var masked = ColorMaskApplier.TryApply(component, r, s, mainTex, processedTex);
+                        if (masked != null)
+                        {
+                            Object.DestroyImmediate(processedTex);
+                            processedTex = masked;
+                        }
+                    }
+
                     // 塗り感統一: お手本 Renderer 以外の _MainTex に inline 適用
                     if (strandRef != null && strandRef.IsValid && r != strandRef.RefIndex)
                     {
