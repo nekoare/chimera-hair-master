@@ -19,7 +19,14 @@ namespace ChimeraHairMaster.Editor
             var go = Selection.activeGameObject;
             if (go == null) return;
 
-            var renderer = go.GetComponent<SkinnedMeshRenderer>();
+            // SkinnedMeshRenderer 優先、なければ MeshFilter 付きの MeshRenderer
+            Renderer renderer = go.GetComponent<SkinnedMeshRenderer>();
+            if (renderer == null)
+            {
+                var meshRenderer = go.GetComponent<MeshRenderer>();
+                if (meshRenderer != null && RendererMeshAccess.IsSupported(meshRenderer))
+                    renderer = meshRenderer;
+            }
             if (renderer == null)
             {
                 EditorUtility.DisplayDialog(CHMLocales.Tr("MeshDeformWindow:Title"),
@@ -53,7 +60,7 @@ namespace ChimeraHairMaster.Editor
             window.Show();
         }
 
-        private SkinnedMeshRenderer _targetRenderer;
+        private Renderer _targetRenderer;
 
         private void OnGUI()
         {
@@ -78,8 +85,8 @@ namespace ChimeraHairMaster.Editor
 
         private void DrawRendererField()
         {
-            _targetRenderer = (SkinnedMeshRenderer)EditorGUILayout.ObjectField(
-                CHMLocales.Tr("MeshDeformWindow:TargetRenderer"), _targetRenderer, typeof(SkinnedMeshRenderer), true);
+            _targetRenderer = (Renderer)EditorGUILayout.ObjectField(
+                CHMLocales.Tr("MeshDeformWindow:TargetRenderer"), _targetRenderer, typeof(Renderer), true);
 
             // ドラッグ&ドロップ対応
             HandleDragAndDrop();
@@ -103,18 +110,24 @@ namespace ChimeraHairMaster.Editor
 
                 foreach (var obj in DragAndDrop.objectReferences)
                 {
-                    if (obj is SkinnedMeshRenderer smr)
+                    if (obj is Renderer r && RendererMeshAccess.IsSupported(r))
                     {
-                        _targetRenderer = smr;
+                        _targetRenderer = r;
                         break;
                     }
 
                     if (obj is GameObject go)
                     {
-                        var smrOnGo = go.GetComponent<SkinnedMeshRenderer>();
-                        if (smrOnGo != null)
+                        Renderer found = go.GetComponent<SkinnedMeshRenderer>();
+                        if (found == null)
                         {
-                            _targetRenderer = smrOnGo;
+                            var mr = go.GetComponent<MeshRenderer>();
+                            if (mr != null && RendererMeshAccess.IsSupported(mr))
+                                found = mr;
+                        }
+                        if (found != null)
+                        {
+                            _targetRenderer = found;
                             break;
                         }
                     }
@@ -129,6 +142,12 @@ namespace ChimeraHairMaster.Editor
             if (_targetRenderer == null)
             {
                 EditorGUILayout.HelpBox(CHMLocales.Tr("MeshDeformWindow:RegisterRendererHint"), MessageType.Warning);
+                GUI.enabled = false;
+            }
+            else if (!RendererMeshAccess.IsSupported(_targetRenderer))
+            {
+                // SMR でも MeshFilter 付き MeshRenderer でもない（ParticleSystemRenderer 等）
+                EditorGUILayout.HelpBox(CHMLocales.Tr("MeshDeformWindow:Dialog:NoSMR"), MessageType.Error);
                 GUI.enabled = false;
             }
             else
@@ -154,13 +173,15 @@ namespace ChimeraHairMaster.Editor
         /// 指定Rendererが既に他のコンポーネントで変形対象になっていないかチェック。
         /// 重複がある場合は競合元の名前を返す。なければnull。
         /// </summary>
-        private static string FindConflict(SkinnedMeshRenderer renderer)
+        private static string FindConflict(Renderer renderer)
         {
             // CHMコンポーネントとの重複（CHMの有効/無効に関わらず、登録されていればブロック）
+            // CHM 本体の対象は SkinnedMeshRenderer のみ
             var allCHM = Object.FindObjectsByType<ChimeraHairMaster>(FindObjectsSortMode.None);
             foreach (var chm in allCHM)
             {
-                if (chm.targetRenderers != null && chm.targetRenderers.Contains(renderer))
+                if (renderer is SkinnedMeshRenderer smr
+                    && chm.targetRenderers != null && chm.targetRenderers.Contains(smr))
                     return string.Format(CHMLocales.Tr("MeshDeformWindow:Conflict:CHM"), renderer.name);
             }
 
@@ -175,7 +196,7 @@ namespace ChimeraHairMaster.Editor
             return null;
         }
 
-        private void ExecuteSetup(SkinnedMeshRenderer renderer)
+        private void ExecuteSetup(Renderer renderer)
         {
             var targetObject = renderer.gameObject;
 

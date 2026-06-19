@@ -141,6 +141,15 @@ msgstr "UVが重なっています。UV配置を調整してください。"
 msgid "Window:Setup:CompleteMessage"
 msgstr "セットアップが完了しました。\n生成されたGameObjectで詳細を調整できます。\n\nScene上でプレビューを確認するには「プレビュー有効」をオンにしてください。"
 
+msgid "Window:Setup:OverwriteConfirmMessage"
+msgstr "既存のコンポーネント「{0}」を現在の設定で上書きします。よろしいですか？"
+
+msgid "Window:Setup:OverwriteConfirmOk"
+msgstr "上書き"
+
+msgid "Window:Setup:OverwriteConfirmCancel"
+msgstr "キャンセル"
+
 msgid "Window:ColorTransform:Enabled"
 msgstr "色合わせ\n有効"
 
@@ -172,7 +181,7 @@ msgid "MeshDeformWindow:Action:Setup"
 msgstr "セットアップ"
 
 msgid "MeshDeformWindow:Dialog:NoSMR"
-msgstr "選択したGameObjectにSkinnedMeshRendererがありません。"
+msgstr "選択したGameObjectにSkinnedMeshRendererまたはMeshRenderer（MeshFilter付き）がありません。"
 
 msgid "MeshDeformWindow:Dialog:ConfirmTitle"
 msgstr "確認"

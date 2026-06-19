@@ -54,6 +54,15 @@ namespace ChimeraHairMaster
         public List<SkinnedMeshRenderer> targetRenderers = new List<SkinnedMeshRenderer>();
 
         /// <summary>
+        /// targetRenderers の前回構成（InstanceID 列）のスナップショット。
+        /// Renderer の削除・並べ替え時に rendererIndex ベースの各設定
+        /// （materialSelections / 明度 / ブラー / islandPlacements / rendererDeformations）を
+        /// 追従させるためにエディタが使用する（エディタ専用、ビルドでは無視される）
+        /// </summary>
+        [SerializeField, HideInInspector]
+        public List<int> editorRendererIdsSnapshot = new List<int>();
+
+        /// <summary>
         /// マテリアル選択エントリ一覧
         /// 各Renderer/Submeshを統合対象にするかどうかを記録
         /// </summary>
@@ -353,7 +362,27 @@ namespace ChimeraHairMaster
 
         #region IMeshDeformationTarget 実装
 
-        public List<SkinnedMeshRenderer> DeformTargetRenderers => targetRenderers;
+        // CHM 本体の targetRenderers はアトラス/メッシュ統合がボーン前提のため
+        // SkinnedMeshRenderer のまま。変形機能のインターフェースには
+        // Renderer 基底型のビューとして渡す（毎回再構築するが要素数は小さい）
+        [System.NonSerialized]
+        private List<Renderer> _deformTargetRenderersView;
+
+        public List<Renderer> DeformTargetRenderers
+        {
+            get
+            {
+                _deformTargetRenderersView ??= new List<Renderer>();
+                _deformTargetRenderersView.Clear();
+                if (targetRenderers != null)
+                {
+                    foreach (var r in targetRenderers)
+                        _deformTargetRenderersView.Add(r);
+                }
+                return _deformTargetRenderersView;
+            }
+        }
+
         public List<RendererDeformation> RendererDeformations => rendererDeformations;
 
         public int DeformEditingRendererIndex

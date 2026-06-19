@@ -57,8 +57,14 @@ namespace ChimeraHairMaster.Editor.NDMF
 
                     if (targetRenderers.Count > 0)
                     {
+                        // 明示的な equality を渡す（配列は参照等価だと毎回「変化あり」になり
+                        // プレビューが無駄に再構築されるため、内容で比較する）
                         resultSet.Add(RenderGroup.For(targetRenderers)
-                            .WithData((avatar, components.ToArray())));
+                            .WithData(
+                                (avatar, components.ToArray()),
+                                (a, b) => a.Item1 == b.Item1
+                                          && (ReferenceEquals(a.Item2, b.Item2)
+                                              || (a.Item2 != null && b.Item2 != null && a.Item2.SequenceEqual(b.Item2)))));
                     }
                 }
                 catch (Exception ex)
@@ -98,8 +104,9 @@ namespace ChimeraHairMaster.Editor.NDMF
                         if (deformation.rendererIndex != 0) continue;
 
                         var renderer = component.targetRenderer;
-                        if (renderer == null || renderer.sharedMesh == null) continue;
-                        if (renderer.sharedMesh.vertexCount != deformation.expectedVertexCount) continue;
+                        var sharedMesh = RendererMeshAccess.GetSharedMesh(renderer);
+                        if (renderer == null || sharedMesh == null) continue;
+                        if (sharedMesh.vertexCount != deformation.expectedVertexCount) continue;
 
                         int rendererId = renderer.GetInstanceID();
 
@@ -107,12 +114,13 @@ namespace ChimeraHairMaster.Editor.NDMF
                         if (editingIds.Contains(rendererId)) continue;
 
                         // 既にMeshDeformPassが適用済みの場合スキップ
-                        bool isAsset = AssetDatabase.Contains(renderer.sharedMesh);
-                        if (!isAsset && renderer.sharedMesh.name.EndsWith("_Deformed")) continue;
+                        bool isAsset = AssetDatabase.Contains(sharedMesh);
+                        if (!isAsset && sharedMesh.name.EndsWith("_Deformed")) continue;
 
                         // メッシュをコピーしてデルタを適用
-                        var baseMesh = Object.Instantiate(renderer.sharedMesh);
-                        baseMesh.name = renderer.sharedMesh.name + "_DeformPreview";
+                        var baseMesh = Object.Instantiate(sharedMesh);
+                        baseMesh.name = sharedMesh.name + "_DeformPreview";
+                        baseMesh.hideFlags = HideFlags.HideAndDontSave;
 
                         var vertices = baseMesh.vertices;
                         foreach (var delta in deformation.deltas)
@@ -190,12 +198,14 @@ namespace ChimeraHairMaster.Editor.NDMF
 
             public void OnFrame(Renderer original, Renderer proxy)
             {
-                if (_remappedMeshes == null || proxy is not SkinnedMeshRenderer smr) return;
+                if (_remappedMeshes == null || proxy == null) return;
 
                 int originalId = original.GetInstanceID();
-                if (_remappedMeshes.TryGetValue(originalId, out var mesh) && smr.sharedMesh != mesh)
+                if (_remappedMeshes.TryGetValue(originalId, out var mesh)
+                    && RendererMeshAccess.GetSharedMesh(proxy) != mesh)
                 {
-                    smr.sharedMesh = mesh;
+                    // SMR は sharedMesh、MeshRenderer はプロキシ上の MeshFilter.sharedMesh を差し替える
+                    RendererMeshAccess.SetSharedMesh(proxy, mesh);
                 }
             }
 

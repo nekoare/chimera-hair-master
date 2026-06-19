@@ -27,37 +27,49 @@ namespace ChimeraHairMaster.Editor.Processing
                     continue;
 
                 var renderer = target.DeformTargetRenderers[rendererIndex];
-                if (renderer == null || renderer.sharedMesh == null)
+                var sharedMesh = RendererMeshAccess.GetSharedMesh(renderer);
+                if (renderer == null || sharedMesh == null)
                     continue;
 
                 // 頂点数の検証
-                if (renderer.sharedMesh.vertexCount != deformation.expectedVertexCount)
+                if (sharedMesh.vertexCount != deformation.expectedVertexCount)
                 {
                     Debug.LogWarning(
                         $"[ChimeraHairMaster] メッシュ変形スキップ: {renderer.name} の頂点数が変更されています " +
-                        $"(期待: {deformation.expectedVertexCount}, 実際: {renderer.sharedMesh.vertexCount})");
+                        $"(期待: {deformation.expectedVertexCount}, 実際: {sharedMesh.vertexCount})");
                     continue;
                 }
 
                 // メッシュを複製してデルタを適用
-                var meshCopy = Object.Instantiate(renderer.sharedMesh);
-                meshCopy.name = renderer.sharedMesh.name + "_Deformed";
+                var meshCopy = Object.Instantiate(sharedMesh);
+                meshCopy.name = sharedMesh.name + "_Deformed";
 
                 ApplyDeltas(meshCopy, deformation.deltas);
-                renderer.sharedMesh = meshCopy;
+                RendererMeshAccess.SetSharedMesh(renderer, meshCopy);
             }
         }
 
         /// <summary>
         /// 変形済みメッシュを新規アセットとしてエクスポートする
         /// </summary>
-        public static Mesh ExportDeformedMesh(SkinnedMeshRenderer renderer, RendererDeformation deformation)
+        public static Mesh ExportDeformedMesh(Renderer renderer, RendererDeformation deformation)
         {
-            if (renderer == null || renderer.sharedMesh == null || deformation == null)
+            var sourceMesh = RendererMeshAccess.GetSharedMesh(renderer);
+            if (renderer == null || sourceMesh == null || deformation == null)
                 return null;
 
-            var mesh = Object.Instantiate(renderer.sharedMesh);
-            mesh.name = renderer.sharedMesh.name + "_Deformed";
+            // ビルドパス(ApplyDeformation)と同じ頂点数ガード。
+            // メッシュ差し替え/再インポート後に古いデルタを別頂点へ焼き込む破損を防ぐ
+            if (sourceMesh.vertexCount != deformation.expectedVertexCount)
+            {
+                Debug.LogWarning(
+                    $"[ChimeraHairMaster] メッシュ変形エクスポート中止: {renderer.name} の頂点数が変形時から変わっています " +
+                    $"(期待: {deformation.expectedVertexCount}, 実際: {sourceMesh.vertexCount})");
+                return null;
+            }
+
+            var mesh = Object.Instantiate(sourceMesh);
+            mesh.name = sourceMesh.name + "_Deformed";
 
             if (deformation.deltas != null && deformation.deltas.Count > 0)
             {
@@ -77,20 +89,27 @@ namespace ChimeraHairMaster.Editor.Processing
         /// <param name="actualName">実際に使われた名前（同名衝突時は unique 化される）</param>
         /// <returns>新メッシュ（Blendshape 追加済み）。失敗時 null</returns>
         public static Mesh ExportDeformedMeshAsBlendshape(
-            SkinnedMeshRenderer renderer,
+            Renderer renderer,
             RendererDeformation deformation,
             string requestedName,
             out string actualName)
         {
             actualName = requestedName;
-            if (renderer == null || renderer.sharedMesh == null || deformation == null)
+            var sourceMesh = RendererMeshAccess.GetSharedMesh(renderer);
+            if (renderer == null || sourceMesh == null || deformation == null)
                 return null;
             if (deformation.deltas == null || deformation.deltas.Count == 0)
                 return null;
+            // ビルドパスと同じ頂点数ガード（頂点不一致なら焼き込まず中止）
+            if (sourceMesh.vertexCount != deformation.expectedVertexCount)
+            {
+                Debug.LogWarning(
+                    $"[ChimeraHairMaster] Blendshape 出力中止: {renderer.name} の頂点数が変形時から変わっています " +
+                    $"(期待: {deformation.expectedVertexCount}, 実際: {sourceMesh.vertexCount})");
+                return null;
+            }
             if (string.IsNullOrEmpty(requestedName))
                 requestedName = "CHMDeform";
-
-            var sourceMesh = renderer.sharedMesh;
             var mesh = Object.Instantiate(sourceMesh);
             mesh.name = sourceMesh.name + "_DeformedBS";
 

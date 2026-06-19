@@ -256,7 +256,7 @@ namespace ChimeraHairMaster.Editor.Deformation
             CurrentMode = mode;
 
             var renderer = GetActiveRenderer();
-            if (renderer == null || renderer.sharedMesh == null)
+            if (renderer == null || RendererMeshAccess.GetSharedMesh(renderer) == null)
             {
                 CurrentMode = EditMode.Off;
                 return;
@@ -267,13 +267,16 @@ namespace ChimeraHairMaster.Editor.Deformation
             // コンポーネントに保存された原本メッシュがあればそちらを復元する。
             if (component.DeformOriginalMesh != null)
             {
-                renderer.sharedMesh = component.DeformOriginalMesh;
+                RendererMeshAccess.SetSharedMesh(renderer, component.DeformOriginalMesh);
             }
 
             // 元メッシュを保存し、作業用コピーを作成
-            _originalMesh = renderer.sharedMesh;
+            _originalMesh = RendererMeshAccess.GetSharedMesh(renderer);
             _workingMesh = Object.Instantiate(_originalMesh);
             _workingMesh.name = _originalMesh.name + "_Editing";
+            // 編集中にシーンを保存しても非アセットの作業メッシュがシーンファイルへ
+            // シリアライズされないようにする（sharedMesh は EndEdit / ガードで復元される）
+            _workingMesh.hideFlags = HideFlags.DontSave;
             _baseVertices = _originalMesh.vertices;
 
             // 既存のデルタをDictionaryに展開
@@ -281,7 +284,7 @@ namespace ChimeraHairMaster.Editor.Deformation
 
             // 作業用メッシュにデルタを適用
             ApplyDeltasToWorkingMesh();
-            renderer.sharedMesh = _workingMesh;
+            RendererMeshAccess.SetSharedMesh(renderer, _workingMesh);
 
             // NDMFプレビューの二重適用を防止:
             // 1. staticセットに登録（Instantiateでのデルタ二重適用防止）
@@ -404,7 +407,7 @@ namespace ChimeraHairMaster.Editor.Deformation
             // 元のメッシュに戻す（NDMFプレビューが非編集中のRendererにデルタを再適用する）
             if (renderer != null && _originalMesh != null)
             {
-                renderer.sharedMesh = _originalMesh;
+                RendererMeshAccess.SetSharedMesh(renderer, _originalMesh);
             }
 
             // クリーンアップ
@@ -419,6 +422,10 @@ namespace ChimeraHairMaster.Editor.Deformation
             _activeDeltaMap.Clear();
             _bakedVerticesWorld = null;
             if (_bakeTempMesh != null) { Object.DestroyImmediate(_bakeTempMesh); _bakeTempMesh = null; }
+            _cachedWorkingNormals = null;
+            _cachedNormalsVersion = -1;
+            _cachedWorkingTriangles = null;
+            _latticeDragging = false;
             _selectedVertices.Clear();
             _cachedIslands = null;
             _selectedIslandIndex = -1;
@@ -1468,13 +1475,31 @@ namespace ChimeraHairMaster.Editor.Deformation
 
         #region Scene View 描画
 
+        // 描画用キャッシュ（毎イベントの managed 配列コピーを避ける）
+        // _workingMesh.normals は変形のたびに変わるためバージョンで無効化、
+        // triangles はトポロジ不変のためセッション中は固定
+        private int _workingMeshVersion;
+        private int _cachedNormalsVersion = -1;
+        private Vector3[] _cachedWorkingNormals;
+        private int[] _cachedWorkingTriangles;
+
         private void DrawVertexVisualization()
         {
             var renderer = GetActiveRenderer();
             if (renderer == null || _workingMesh == null) return;
 
-            // Bone変形後の頂点位置を更新（表示・選択に使用）
-            UpdateBakedVertices(renderer);
+            bool isRepaint = Event.current.type == EventType.Repaint;
+
+            // Bone変形後の頂点位置を更新（表示・選択に使用）。
+            // BakeMesh はコストが高いため Repaint 時のみ更新する
+            // （ヒットテストは直前の Repaint 時点のキャッシュを使う。
+            // SceneView は操作中ほぼ毎フレーム Repaint されるため実用上の差はない）
+            if (isRepaint || _bakedVerticesWorld == null)
+                UpdateBakedVertices(renderer);
+
+            // GL/ドット描画は Repaint イベントのみ
+            // （Layout/MouseMove 等で GPU 描画とフル走査を行うのは無駄が大きい）
+            if (!isRepaint) return;
 
             // 頂点モードのみワイヤーフレームを描画
             if (CurrentMode == EditMode.Vertex)
@@ -1484,7 +1509,12 @@ namespace ChimeraHairMaster.Editor.Deformation
 
             if (_bakedVerticesWorld == null) return;
 
-            var bakedNormals = _workingMesh != null ? _workingMesh.normals : null;
+            if (_cachedNormalsVersion != _workingMeshVersion || _cachedWorkingNormals == null)
+            {
+                _cachedWorkingNormals = _workingMesh.normals;
+                _cachedNormalsVersion = _workingMeshVersion;
+            }
+            var bakedNormals = _cachedWorkingNormals;
             var meshTransform = renderer.transform;
             var camera = UnityEditor.SceneView.currentDrawingSceneView?.camera;
             if (camera == null) return;
@@ -1712,27 +1742,53 @@ namespace ChimeraHairMaster.Editor.Deformation
         /// </summary>
         private Mesh _bakeTempMesh;
 
-        private void UpdateBakedVertices(SkinnedMeshRenderer renderer)
+        private void UpdateBakedVertices(Renderer renderer)
         {
-            if (_bakeTempMesh == null)
-                _bakeTempMesh = new Mesh();
+            if (renderer is SkinnedMeshRenderer smr)
+            {
+                if (_bakeTempMesh == null)
+                {
+                    _bakeTempMesh = new Mesh();
+                    _bakeTempMesh.hideFlags = HideFlags.HideAndDontSave;
+                }
 
-            // BakeMesh(useScale=false) は位置・回転を除去しスケールを残した空間で頂点を返す。
-            // 位置と回転だけを適用してワールド座標に変換する。
-            renderer.BakeMesh(_bakeTempMesh, false);
-            var bakedLocal = _bakeTempMesh.vertices;
+                // BakeMesh(useScale=false) は位置・回転を除去しスケールを残した空間で頂点を返す。
+                // 位置と回転だけを適用してワールド座標に変換する。
+                smr.BakeMesh(_bakeTempMesh, false);
+                var bakedLocal = _bakeTempMesh.vertices;
 
-            if (_bakedVerticesWorld == null || _bakedVerticesWorld.Length != bakedLocal.Length)
-                _bakedVerticesWorld = new Vector3[bakedLocal.Length];
+                if (_bakedVerticesWorld == null || _bakedVerticesWorld.Length != bakedLocal.Length)
+                    _bakedVerticesWorld = new Vector3[bakedLocal.Length];
 
-            var t = renderer.transform;
-            var tPos = t.position;
-            var tRot = t.rotation;
-            for (int i = 0; i < bakedLocal.Length; i++)
-                _bakedVerticesWorld[i] = tPos + tRot * bakedLocal[i];
+                var t = renderer.transform;
+                var tPos = t.position;
+                var tRot = t.rotation;
+                for (int i = 0; i < bakedLocal.Length; i++)
+                    _bakedVerticesWorld[i] = tPos + tRot * bakedLocal[i];
 
-            // ラティス表示用: メッシュローカル → ベイクワールドの剛体変換を計算
-            UpdateLocalToBakedTransform(bakedLocal);
+                // ラティス表示用: メッシュローカル → ベイクワールドの剛体変換を計算
+                _useTransformMatrix = false;
+                UpdateLocalToBakedTransform(bakedLocal);
+            }
+            else
+            {
+                // MeshRenderer: スキニングが無いため localToWorldMatrix で厳密に変換できる
+                var mesh = RendererMeshAccess.GetSharedMesh(renderer);
+                if (mesh == null) return;
+
+                var localVerts = mesh.vertices;
+                if (_bakedVerticesWorld == null || _bakedVerticesWorld.Length != localVerts.Length)
+                    _bakedVerticesWorld = new Vector3[localVerts.Length];
+
+                var l2w = renderer.transform.localToWorldMatrix;
+                for (int i = 0; i < localVerts.Length; i++)
+                    _bakedVerticesWorld[i] = l2w.MultiplyPoint3x4(localVerts[i]);
+
+                // ラティス表示用: 剛体フィット近似は不要で、transform 行列そのもので変換する
+                _useTransformMatrix = true;
+                _displayLocalToWorld = l2w;
+                _displayWorldToLocal = renderer.transform.worldToLocalMatrix;
+            }
         }
 
         /// <summary>
@@ -1798,12 +1854,20 @@ namespace ChimeraHairMaster.Editor.Deformation
             _localToBakedRotation = bakedFrame * Quaternion.Inverse(localFrame);
         }
 
+        // MeshRenderer 用: 剛体フィット近似の代わりに transform 行列で厳密に変換する
+        private bool _useTransformMatrix;
+        private Matrix4x4 _displayLocalToWorld = Matrix4x4.identity;
+        private Matrix4x4 _displayWorldToLocal = Matrix4x4.identity;
+
         /// <summary>
         /// メッシュローカル座標をベイクワールド座標に変換する（ラティス表示用）。
-        /// 頂点対応から計算した剛体変換（回転+平行移動）を使う。
+        /// SMR は頂点対応から計算した剛体変換（回転+平行移動）の近似、
+        /// MeshRenderer は transform 行列による厳密変換。
         /// </summary>
         private Vector3 LocalToDisplayWorld(Vector3 localPos)
         {
+            if (_useTransformMatrix)
+                return _displayLocalToWorld.MultiplyPoint3x4(localPos);
             return _bakedCentroid + _localToBakedRotation * (localPos - _localCentroid);
         }
 
@@ -1812,6 +1876,8 @@ namespace ChimeraHairMaster.Editor.Deformation
         /// </summary>
         private Vector3 DisplayWorldDeltaToLocal(Vector3 worldDelta)
         {
+            if (_useTransformMatrix)
+                return _displayWorldToLocal.MultiplyVector(worldDelta);
             return Quaternion.Inverse(_localToBakedRotation) * worldDelta;
         }
 
@@ -1820,6 +1886,8 @@ namespace ChimeraHairMaster.Editor.Deformation
         /// </summary>
         private Vector3 DisplayWorldToLocal(Vector3 worldPos)
         {
+            if (_useTransformMatrix)
+                return _displayWorldToLocal.MultiplyPoint3x4(worldPos);
             return _localCentroid + Quaternion.Inverse(_localToBakedRotation) * (worldPos - _bakedCentroid);
         }
 
@@ -1833,10 +1901,12 @@ namespace ChimeraHairMaster.Editor.Deformation
             return _glMaterial;
         }
 
-        private void DrawMeshWireframe(SkinnedMeshRenderer renderer)
+        private void DrawMeshWireframe(Renderer renderer)
         {
             if (_bakedVerticesWorld == null) return;
-            var triangles = _workingMesh.triangles;
+            // トポロジは編集中に変化しないためキャッシュする（triangles は毎回コピーを返す）
+            _cachedWorkingTriangles ??= _workingMesh.triangles;
+            var triangles = _cachedWorkingTriangles;
             var camForward = Camera.current != null ? Camera.current.transform.forward : Vector3.forward;
 
             var mat = GetGLMaterial();
@@ -1915,6 +1985,7 @@ namespace ChimeraHairMaster.Editor.Deformation
             _workingMesh.vertices = vertices;
             _workingMesh.RecalculateNormals();
             _workingMesh.RecalculateBounds();
+            _workingMeshVersion++;
         }
 
         private void CacheIslands()
@@ -1976,7 +2047,8 @@ namespace ChimeraHairMaster.Editor.Deformation
             if (!IsTargetAlive || ActiveRendererIndex < 0) return null;
 
             var renderer = GetActiveRenderer();
-            if (renderer == null || renderer.sharedMesh == null) return null;
+            var sharedMesh = RendererMeshAccess.GetSharedMesh(renderer);
+            if (renderer == null || sharedMesh == null) return null;
 
             var existing = TargetComponent.RendererDeformations.Find(
                 d => d.rendererIndex == ActiveRendererIndex);
@@ -1985,7 +2057,7 @@ namespace ChimeraHairMaster.Editor.Deformation
 
             var newDeformation = new RendererDeformation(
                 ActiveRendererIndex,
-                _originalMesh != null ? _originalMesh.vertexCount : renderer.sharedMesh.vertexCount);
+                _originalMesh != null ? _originalMesh.vertexCount : sharedMesh.vertexCount);
 
             TargetComponent.RendererDeformations.Add(newDeformation);
             return newDeformation;
@@ -2120,7 +2192,7 @@ namespace ChimeraHairMaster.Editor.Deformation
 
         #region ユーティリティ
 
-        private SkinnedMeshRenderer GetActiveRenderer()
+        private Renderer GetActiveRenderer()
         {
             if (!IsTargetAlive || ActiveRendererIndex < 0) return null;
             if (ActiveRendererIndex >= TargetComponent.DeformTargetRenderers.Count) return null;
@@ -2510,6 +2582,10 @@ namespace ChimeraHairMaster.Editor.Deformation
             // ベイク座標のバウンディングボックスを更新（ラティス表示のマッピングに必要）
             UpdateBakedVertices(renderer);
 
+            // ギズモ移動パスと同じ方式でドラッグ終了を検出する
+            // （Handles が MouseUp を消費するため hotControl の非ゼロ→ゼロ遷移で判定）
+            int latticeHotBefore = GUIUtility.hotControl;
+
             var transform = renderer.transform;
             var e = Event.current;
             bool isShift = e.shift;
@@ -2577,6 +2653,12 @@ namespace ChimeraHairMaster.Editor.Deformation
                 }
             }
 
+            // ドラッグ終了: デルタ保存と Undo グループの折り畳みを1回だけ行う
+            if (_latticeDragging && latticeHotBefore != 0 && GUIUtility.hotControl == 0)
+            {
+                EndLatticeDrag();
+            }
+
             // ワイヤーフレーム描画
             DrawLatticeWireframe(transform);
         }
@@ -2584,11 +2666,24 @@ namespace ChimeraHairMaster.Editor.Deformation
         /// <summary>
         /// 選択中の全制御点をワールド空間のデルタ分だけ移動する
         /// </summary>
+        // ラティスドラッグの Undo グループ管理（ギズモ移動パスの BeginDrag/EndDrag と同じパターン）
+        private bool _latticeDragging;
+        private int _latticeUndoGroupId;
+
         private void ApplyLatticeControlPointsMove(Vector3 worldDelta, Transform transform)
         {
-            Undo.RegisterCompleteObjectUndo(TargetComponent.UndoTarget, "メッシュ変形: ラティス制御点移動");
-            if (_latticeUndoState != null)
-                Undo.RegisterCompleteObjectUndo(_latticeUndoState, "メッシュ変形: ラティス制御点移動");
+            // ドラッグ開始時のみ Undo 登録（MouseDrag イベントごとに登録すると
+            // 1ドラッグで数十個の Undo エントリが積まれてしまう）
+            if (!_latticeDragging)
+            {
+                _latticeDragging = true;
+                Undo.IncrementCurrentGroup();
+                Undo.SetCurrentGroupName("メッシュ変形: ラティス制御点移動");
+                _latticeUndoGroupId = Undo.GetCurrentGroup();
+                Undo.RegisterCompleteObjectUndo(TargetComponent.UndoTarget, "メッシュ変形: ラティス制御点移動");
+                if (_latticeUndoState != null)
+                    Undo.RegisterCompleteObjectUndo(_latticeUndoState, "メッシュ変形: ラティス制御点移動");
+            }
 
             var localDelta = DisplayWorldDeltaToLocal(worldDelta);
             foreach (int idx in _selectedControlPoints)
@@ -2602,11 +2697,23 @@ namespace ChimeraHairMaster.Editor.Deformation
                 ApplySymmetricLatticeMove(localDelta);
             }
 
+            // ライブプレビューのため変形再計算は毎イベント行う
+            // （コンポーネントへの保存は EndLatticeDrag で1回だけ）
             RecalculateLatticeDeformation();
+        }
+
+        /// <summary>
+        /// ラティスドラッグ終了処理。デルタ保存・Undo状態更新・グループ折り畳みを行う
+        /// </summary>
+        private void EndLatticeDrag()
+        {
+            _latticeDragging = false;
             SaveDeltasToComponent();
 
-            if (_latticeUndoState != null)
+            if (_latticeUndoState != null && _lattice != null)
                 _latticeUndoState.controlPoints = (Vector3[])_lattice.ControlPoints.Clone();
+
+            Undo.CollapseUndoOperations(_latticeUndoGroupId);
         }
 
         /// <summary>
@@ -2797,7 +2904,7 @@ namespace ChimeraHairMaster.Editor.Deformation
                         var renderer = target.DeformTargetRenderers[target.DeformEditingRendererIndex];
                         if (renderer != null)
                         {
-                            renderer.sharedMesh = target.DeformOriginalMesh;
+                            RendererMeshAccess.SetSharedMesh(renderer, target.DeformOriginalMesh);
                         }
                     }
                     target.DeformOriginalMesh = null;

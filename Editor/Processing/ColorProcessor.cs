@@ -336,14 +336,15 @@ namespace ChimeraHairMaster.Editor.Processing
                 }
             }
 
-            if (validCount == 0) return Color.white;
-
-            colorSum /= validCount;
-
+            // early return より先に readable コピーを破棄する（リーク防止）
             if (readableTexture != texture)
             {
                 Object.DestroyImmediate(readableTexture);
             }
+
+            if (validCount == 0) return Color.white;
+
+            colorSum /= validCount;
 
             return new Color(colorSum.x, colorSum.y, colorSum.z, 1f);
         }

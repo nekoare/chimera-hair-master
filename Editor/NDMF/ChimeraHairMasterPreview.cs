@@ -35,6 +35,33 @@ namespace ChimeraHairMaster.Editor.NDMF
             public Dictionary<string, Texture2D> AtlasTextures = new();
             public Dictionary<int, Mesh> RemappedMeshes = new();
 
+            /// <summary>
+            /// メッシュが破棄されずに残っているか（破棄済み参照の再利用防止）
+            /// </summary>
+            public bool MeshesAlive
+            {
+                get
+                {
+                    foreach (var mesh in RemappedMeshes.Values)
+                        if (mesh == null) return false;
+                    return true;
+                }
+            }
+
+            /// <summary>
+            /// テクスチャ・メッシュが破棄されずに残っているか
+            /// </summary>
+            public bool IsAlive
+            {
+                get
+                {
+                    if (!MeshesAlive) return false;
+                    foreach (var tex in AtlasTextures.Values)
+                        if (tex == null) return false;
+                    return true;
+                }
+            }
+
             public void DisposeTextures()
             {
                 foreach (var tex in AtlasTextures.Values)
@@ -278,6 +305,11 @@ namespace ChimeraHairMaster.Editor.NDMF
             ClearAllAtlasCache();
             ClearAllColorTransformCache();
 
+            // リロード後は dict が空になり上記クリアは生成済みリソースを破棄できないため、
+            // リロード前（参照がまだ生きている時点）にも破棄する
+            AssemblyReloadEvents.beforeAssemblyReload -= OnBeforeAssemblyReload;
+            AssemblyReloadEvents.beforeAssemblyReload += OnBeforeAssemblyReload;
+
             // シーン切替時にもキャッシュをクリア（InstanceIDが変わるため）
             UnityEditor.SceneManagement.EditorSceneManager.sceneOpened -= OnSceneOpened;
             UnityEditor.SceneManagement.EditorSceneManager.sceneOpened += OnSceneOpened;
@@ -285,16 +317,25 @@ namespace ChimeraHairMaster.Editor.NDMF
             UnityEditor.SceneManagement.EditorSceneManager.sceneClosing += OnSceneClosing;
         }
 
+        private static void OnBeforeAssemblyReload()
+        {
+            ClearAllAtlasCache();
+            ClearAllColorTransformCache();
+            ClearDominantColorCache();
+        }
+
         private static void OnSceneOpened(UnityEngine.SceneManagement.Scene scene, UnityEditor.SceneManagement.OpenSceneMode mode)
         {
             ClearAllAtlasCache();
             ClearAllColorTransformCache();
+            ClearDominantColorCache();
         }
 
         private static void OnSceneClosing(UnityEngine.SceneManagement.Scene scene, bool removingScene)
         {
             ClearAllAtlasCache();
             ClearAllColorTransformCache();
+            ClearDominantColorCache();
         }
 
         private static void ClearAllAtlasCache()
@@ -323,6 +364,19 @@ namespace ChimeraHairMaster.Editor.NDMF
             /// キャッシュが所有し、PreviewNodeのDispose対象外
             /// </summary>
             public Dictionary<Texture2D, Texture2D> TransformedTextures = new();
+
+            /// <summary>
+            /// テクスチャが破棄されずに残っているか（破棄済み参照の再利用防止）
+            /// </summary>
+            public bool IsAlive
+            {
+                get
+                {
+                    foreach (var tex in TransformedTextures.Values)
+                        if (tex == null) return false;
+                    return true;
+                }
+            }
 
             public void Dispose()
             {
@@ -462,9 +516,11 @@ namespace ChimeraHairMaster.Editor.NDMF
                             // enableColorTransformの変更も監視（プレビュー更新のため）
                             context.Observe(c, x => x.enableColorTransform);
                             // 明度調整リストの変更も監視
-                            context.Observe(c, x => x.rendererBrightnessAdjustments);
+                            // （List 参照をそのまま返すと参照等価で「変化なし」になり
+                            // in-place の Add/Remove/値変更を検知できないため、内容ハッシュで比較）
+                            context.Observe(c, x => ComputeBrightnessAdjustmentsHash(x));
                             // ブラー／シャープ調整リストの変更も監視
-                            context.Observe(c, x => x.rendererBlurSharpAdjustments);
+                            context.Observe(c, x => ComputeBlurSharpAdjustmentsHash(x));
                             // プレビュー解像度の変更も監視
                             context.Observe(c, x => x.previewResolution);
                             return c;
@@ -481,7 +537,13 @@ namespace ChimeraHairMaster.Editor.NDMF
                         // deformEditingRendererIndexを監視して編集開始/終了でリビルドをトリガー
                         context.Observe(component, c => c.deformEditingRendererIndex);
 
-                        var renderers = context.Observe(component, c => c.targetRenderers);
+                        // List 参照は参照等価で比較されるため、in-place の Add/Remove では
+                        // invalidate されず RenderGroup 構成が更新されない。
+                        // コピーを返してシーケンス比較することで内容変更を検知させる
+                        var renderers = context.Observe(component,
+                            c => c.targetRenderers?.ToList(),
+                            (a, b) => ReferenceEquals(a, b)
+                                      || (a != null && b != null && a.SequenceEqual(b)));
                         if (renderers == null) continue;
 
                         foreach (var renderer in renderers)
@@ -495,7 +557,13 @@ namespace ChimeraHairMaster.Editor.NDMF
 
                     if (targetRenderers.Count > 0)
                     {
-                        resultSet.Add(RenderGroup.For(targetRenderers).WithData((avatar, enabledComponents)));
+                        // 明示的な equality を渡す（配列は参照等価だと毎回「変化あり」になり
+                        // プレビューが無駄に再構築されるため、内容で比較する）
+                        resultSet.Add(RenderGroup.For(targetRenderers).WithData(
+                            (avatar, enabledComponents),
+                            (a, b) => a.Item1 == b.Item1
+                                      && (ReferenceEquals(a.Item2, b.Item2)
+                                          || (a.Item2 != null && b.Item2 != null && a.Item2.SequenceEqual(b.Item2)))));
                     }
                 }
                 catch (Exception ex)
@@ -538,6 +606,9 @@ namespace ChimeraHairMaster.Editor.NDMF
                 var generatedTextures = new List<Texture>();
                 var processedMaterials = new Dictionary<Material, Material>();
                 Dictionary<int, Mesh>? remappedMeshes = null;
+                // このノードが所有する（Disposeで破棄すべき）メッシュ
+                // アトラスキャッシュ所有のメッシュは含めない
+                List<Mesh>? ownedMeshes = null;
 
                 // 各コンポーネントを処理
                 foreach (var component in enabledComponents)
@@ -610,6 +681,7 @@ namespace ChimeraHairMaster.Editor.NDMF
                             baseMesh = Object.Instantiate(renderer.sharedMesh);
                             baseMesh.name = renderer.sharedMesh.name + "_DeformPreview";
                         }
+                        baseMesh.hideFlags = HideFlags.HideAndDontSave;
 
                         var vertices = baseMesh.vertices;
                         foreach (var delta in deformation.deltas)
@@ -622,6 +694,10 @@ namespace ChimeraHairMaster.Editor.NDMF
                         baseMesh.RecalculateBounds();
 
                         remappedMeshes[rendererId] = baseMesh;
+                        // 変形用に Instantiate したメッシュはキャッシュ所有ではないため、
+                        // このノードの破棄対象として記録する
+                        ownedMeshes ??= new List<Mesh>();
+                        ownedMeshes.Add(baseMesh);
                     }
                 }
 
@@ -637,8 +713,8 @@ namespace ChimeraHairMaster.Editor.NDMF
                 }
 
                 // アトラスモードのメッシュはキャッシュが所有するため、PreviewNodeでは破棄しない
-                bool ownsMeshes = remappedMeshes == null;
-                return Task.FromResult<IRenderFilterNode>(new PreviewNode(processedMaterials, generatedTextures, remappedMeshes, ownsMeshes));
+                // 変形用に Instantiate したメッシュ（ownedMeshes）のみ PreviewNode が破棄する
+                return Task.FromResult<IRenderFilterNode>(new PreviewNode(processedMaterials, generatedTextures, remappedMeshes, ownedMeshes));
             }
             catch (Exception ex)
             {
@@ -654,11 +730,18 @@ namespace ChimeraHairMaster.Editor.NDMF
         {
             if (component.targetRenderers == null || component.targetRenderers.Count == 0) return;
 
+            // try 内で生成し finally で解放するリソース
+            Material? baseMaterialForPreview = null;
+            bool autoBaseMaterial = false;
+            Dictionary<Texture2D, Texture2D>? newColorCacheTextures = null;
+            bool colorCacheSaved = false;
+            Processing.StrandPatternApplier.RefData? strandRef = null;
+
             try
             {
                 // previewMaterialがある場合は、それをベースにして色変換テクスチャを適用
                 // previewMaterialがなく、baseMaterialがある場合は自動生成
-                Material? baseMaterialForPreview = component.previewMaterial;
+                baseMaterialForPreview = component.previewMaterial;
 
                 if (baseMaterialForPreview == null && component.baseMaterial != null)
                 {
@@ -666,8 +749,9 @@ namespace ChimeraHairMaster.Editor.NDMF
                     baseMaterialForPreview = CreateMaterialWithoutTextures(component.baseMaterial);
                     baseMaterialForPreview.name = component.baseMaterial.name + "_CHM_Preview_Auto";
                     CopyMatCapTextures(component.baseMaterial, baseMaterialForPreview);
+                    autoBaseMaterial = true;
 
-                    Debug.Log($"[ChimeraHairMaster] {component.name}: プレビュー用マテリアルを自動生成しました。");
+                    CHMLog.Verbose($"[ChimeraHairMaster] {component.name}: プレビュー用マテリアルを自動生成しました。");
                 }
 
                 // baseMaterialもpreviewMaterialもない場合
@@ -689,7 +773,6 @@ namespace ChimeraHairMaster.Editor.NDMF
                 int colorHash = enableColorTransform ? ComputeColorHash(component) : 0;
                 bool colorCacheHit = false;
                 Dictionary<Texture2D, Texture2D>? cachedColorTransforms = null;
-                Dictionary<Texture2D, Texture2D>? newColorCacheTextures = null;
 
                 // 色変換設定を取得（色合わせが有効な場合のみ使用）
                 Processing.ColorTransformSettings? settings = null;
@@ -698,18 +781,19 @@ namespace ChimeraHairMaster.Editor.NDMF
                 {
                     // キャッシュチェック
                     colorCacheHit = _colorTransformCache.TryGetValue(componentId, out var colorCache)
-                                    && colorCache != null && colorCache.ColorHash == colorHash;
+                                    && colorCache != null && colorCache.ColorHash == colorHash
+                                    && colorCache.IsAlive;
 
                     if (colorCacheHit)
                     {
                         // キャッシュヒット: 色変換済みテクスチャを再利用（GPU処理スキップ）
                         cachedColorTransforms = colorCache!.TransformedTextures;
-                        Debug.Log($"[ChimeraHairMaster] {component.name}: 色変換キャッシュヒット（GPU処理スキップ）");
+                        CHMLog.Verbose($"[ChimeraHairMaster] {component.name}: 色変換キャッシュヒット（GPU処理スキップ）");
                     }
                     else
                     {
                         // キャッシュミス: 色変換設定を準備
-                        Debug.Log($"[ChimeraHairMaster] {component.name}: 色変換キャッシュミス（色変換実行）");
+                        CHMLog.Verbose($"[ChimeraHairMaster] {component.name}: 色変換キャッシュミス（色変換実行）");
 
                         Color sourceColor = Color.white;
                         if (component.targetRenderers.Count > 0 && component.targetRenderers[0] != null)
@@ -720,9 +804,12 @@ namespace ChimeraHairMaster.Editor.NDMF
                         settings = Processing.ColorTransformSettings.FromComponent(component, sourceColor);
 
                         // 旧キャッシュを破棄
+                        // Dispose だけして dict に残すと、新エントリ保存前に例外が出た場合に
+                        // 「旧ハッシュ + 破棄済みテクスチャ」のエントリが偽キャッシュヒットするため、必ず Remove する
                         if (_colorTransformCache.TryGetValue(componentId, out var oldCache))
                         {
                             oldCache.Dispose();
+                            _colorTransformCache.Remove(componentId);
                         }
 
                         newColorCacheTextures = new Dictionary<Texture2D, Texture2D>();
@@ -732,7 +819,6 @@ namespace ChimeraHairMaster.Editor.NDMF
                 // 毛束パターン: お手本 Renderer の参照データを事前計算
                 // 色変換キャッシュ (cachedColorTransforms = 直前 repaint の cache hit) を渡せば、
                 // お手本に blur/sharp がない場合は color transform の再実行を省略できる
-                Processing.StrandPatternApplier.RefData? strandRef = null;
                 if (enableColorTransform)
                 {
                     // settings が null の cache hit ケースでは PrepareRefData 用に再構築
@@ -784,6 +870,7 @@ namespace ChimeraHairMaster.Editor.NDMF
                         {
                             // メッシュ統合なし: 元マテリアルコピー（テクスチャ全保持）+ 数値設定のみ上書き
                             newMat = new Material(mat);
+                            newMat.hideFlags = HideFlags.HideAndDontSave;
                             newMat.name = mat.name + "_CHM_Preview";
                             if (baseMaterialForPreview != null)
                             {
@@ -804,6 +891,7 @@ namespace ChimeraHairMaster.Editor.NDMF
                             // 色変換処理が後続で対象スロットを上書きする
                             if (baseMaterialForPreview == null) continue;
                             newMat = new Material(baseMaterialForPreview);
+                            newMat.hideFlags = HideFlags.HideAndDontSave;
                             newMat.name = baseMaterialForPreview.name + "_Preview";
                         }
 
@@ -956,14 +1044,28 @@ namespace ChimeraHairMaster.Editor.NDMF
                         ColorHash = colorHash,
                         TransformedTextures = newColorCacheTextures
                     };
+                    colorCacheSaved = true;
                 }
-
-                // 毛束パターン: reference detail を破棄
-                strandRef?.Dispose();
             }
             catch (Exception ex)
             {
                 Debug.LogError($"[ChimeraHairMaster] Failed to process component: {ex}");
+            }
+            finally
+            {
+                // 毛束パターン: reference detail を破棄（例外時も含めて必ず解放）
+                strandRef?.Dispose();
+
+                // キャッシュ保存に到達しなかった場合、構築途中の色変換テクスチャを破棄
+                if (!colorCacheSaved && newColorCacheTextures != null)
+                {
+                    foreach (var tex in newColorCacheTextures.Values)
+                        if (tex != null) Object.DestroyImmediate(tex);
+                }
+
+                // 自動生成したプレビュー用ベースマテリアルはテンプレートとしてのみ使用するため破棄
+                if (autoBaseMaterial && baseMaterialForPreview != null)
+                    Object.DestroyImmediate(baseMaterialForPreview);
             }
         }
 
@@ -1062,15 +1164,19 @@ namespace ChimeraHairMaster.Editor.NDMF
         {
             if (component.targetRenderers == null || component.targetRenderers.Count == 0) return;
 
+            Material? baseMaterialForPreview = null;
+            bool autoBaseMaterial = false;
+
             try
             {
-                Material? baseMaterialForPreview = component.previewMaterial;
+                baseMaterialForPreview = component.previewMaterial;
 
                 if (baseMaterialForPreview == null && component.baseMaterial != null)
                 {
                     baseMaterialForPreview = CreateMaterialWithoutTextures(component.baseMaterial);
                     baseMaterialForPreview.name = component.baseMaterial.name + "_CHM_Preview_Auto";
                     CopyMatCapTextures(component.baseMaterial, baseMaterialForPreview);
+                    autoBaseMaterial = true;
                 }
 
                 if (baseMaterialForPreview == null)
@@ -1085,9 +1191,10 @@ namespace ChimeraHairMaster.Editor.NDMF
                 int inputHash = ComputeAtlasInputHash(component, resolution);
 
                 // 3段階キャッシュチェック
+                // ハッシュ一致でもテクスチャ/メッシュが破棄済み（UnloadUnusedAssets等）の場合はヒット扱いにしない
                 bool hasCache = _atlasCache.TryGetValue(componentId, out var cachedEntry) && cachedEntry != null;
-                bool fullCacheHit = hasCache && cachedEntry!.InputHash == inputHash;
-                bool layoutCacheHit = hasCache && !fullCacheHit && cachedEntry!.LayoutHash == layoutHash;
+                bool fullCacheHit = hasCache && cachedEntry!.InputHash == inputHash && cachedEntry.IsAlive;
+                bool layoutCacheHit = hasCache && !fullCacheHit && cachedEntry!.LayoutHash == layoutHash && cachedEntry.MeshesAlive;
 
                 Dictionary<string, Texture2D> atlasTextures;
                 Dictionary<int, Mesh> cachedMeshes;
@@ -1095,7 +1202,7 @@ namespace ChimeraHairMaster.Editor.NDMF
                 if (fullCacheHit)
                 {
                     // 完全キャッシュヒット: アトラス生成と UV リマップをスキップ
-                    Debug.Log($"[ChimeraHairMaster] {component.name}: アトラスキャッシュヒット（マテリアル再作成のみ）");
+                    CHMLog.Verbose($"[ChimeraHairMaster] {component.name}: アトラスキャッシュヒット（マテリアル再作成のみ）");
                     atlasTextures = cachedEntry!.AtlasTextures;
                     cachedMeshes = cachedEntry.RemappedMeshes;
                 }
@@ -1106,13 +1213,13 @@ namespace ChimeraHairMaster.Editor.NDMF
 
                     if (layoutCacheHit)
                     {
-                        Debug.Log($"[ChimeraHairMaster] {component.name}: レイアウトキャッシュヒット（テクスチャのみ再生成、UVリマップスキップ）");
+                        CHMLog.Verbose($"[ChimeraHairMaster] {component.name}: レイアウトキャッシュヒット（テクスチャのみ再生成、UVリマップスキップ）");
                         // テクスチャのみ破棄（メッシュは再利用）
                         cachedEntry!.DisposeTextures();
                     }
                     else
                     {
-                        Debug.Log($"[ChimeraHairMaster] {component.name}: アトラスキャッシュミス（フル生成）");
+                        CHMLog.Verbose($"[ChimeraHairMaster] {component.name}: アトラスキャッシュミス（フル生成）");
                         // 旧キャッシュを完全破棄
                         if (hasCache)
                         {
@@ -1424,8 +1531,22 @@ namespace ChimeraHairMaster.Editor.NDMF
                     if (atlasResult.AtlasTextures.Count == 0)
                     {
                         Debug.LogWarning($"[ChimeraHairMaster] {component.name}: アトラステクスチャが生成されませんでした。従来モードにフォールバックします。");
+                        // layoutCacheHit 経路では DisposeTextures 済みのため、
+                        // エントリを残すと後で破棄済みテクスチャが偽キャッシュヒットする。必ず除去する
+                        if (hasCache && _atlasCache.ContainsKey(componentId))
+                        {
+                            cachedEntry!.Dispose();
+                            _atlasCache.Remove(componentId);
+                        }
                         ProcessComponent(component, processedMaterials, generatedTextures);
                         return;
+                    }
+
+                    // キャッシュ所有テクスチャが UnloadUnusedAssets で回収されないよう保護し、
+                    // シーン保存対象からも除外する
+                    foreach (var tex in atlasResult.AtlasTextures.Values)
+                    {
+                        if (tex != null) tex.hideFlags = HideFlags.HideAndDontSave;
                     }
 
                     if (needUVRemap)
@@ -1461,6 +1582,7 @@ namespace ChimeraHairMaster.Editor.NDMF
 
                             if (remapped != null)
                             {
+                                remapped.hideFlags = HideFlags.HideAndDontSave;
                                 newMeshes[renderer.GetInstanceID()] = remapped;
                             }
                         }
@@ -1478,7 +1600,7 @@ namespace ChimeraHairMaster.Editor.NDMF
                         atlasTextures = newCacheEntry.AtlasTextures;
                         cachedMeshes = newCacheEntry.RemappedMeshes;
 
-                        Debug.Log($"[ChimeraHairMaster] {component.name}: アトラスプレビュー生成完了 " +
+                        CHMLog.Verbose($"[ChimeraHairMaster] {component.name}: アトラスプレビュー生成完了 " +
                                   $"(アトラス数: {atlasTextures.Count}, リマップメッシュ数: {cachedMeshes.Count})");
                     }
                     else
@@ -1490,7 +1612,7 @@ namespace ChimeraHairMaster.Editor.NDMF
                         atlasTextures = cachedEntry.AtlasTextures;
                         cachedMeshes = cachedEntry.RemappedMeshes;
 
-                        Debug.Log($"[ChimeraHairMaster] {component.name}: テクスチャ再生成完了（メッシュ再利用、アトラス数: {atlasTextures.Count}）");
+                        CHMLog.Verbose($"[ChimeraHairMaster] {component.name}: テクスチャ再生成完了（メッシュ再利用、アトラス数: {atlasTextures.Count}）");
                     }
                 }
 
@@ -1504,6 +1626,7 @@ namespace ChimeraHairMaster.Editor.NDMF
 
                 // アトラスマテリアルを作成（baseMaterialForPreview の完全コピー + アトラステクスチャ上書き）
                 var atlasMat = new Material(baseMaterialForPreview);
+                atlasMat.hideFlags = HideFlags.HideAndDontSave;
                 atlasMat.name = baseMaterialForPreview.name + "_Preview_Atlas";
 
                 foreach (var kvp in atlasTextures)
@@ -1531,6 +1654,7 @@ namespace ChimeraHairMaster.Editor.NDMF
                         if (!processedMaterials.ContainsKey(mat))
                         {
                             var matCopy = new Material(atlasMat);
+                            matCopy.hideFlags = HideFlags.HideAndDontSave;
                             matCopy.name = atlasMat.name;
                             processedMaterials[mat] = matCopy;
                         }
@@ -1543,6 +1667,20 @@ namespace ChimeraHairMaster.Editor.NDMF
             catch (Exception ex)
             {
                 Debug.LogError($"[ChimeraHairMaster] Failed to process atlas component: {ex}");
+
+                // 例外時はキャッシュエントリが中途半端な状態（破棄済みテクスチャ等）の可能性があるため除去
+                int failedComponentId = component.GetInstanceID();
+                if (_atlasCache.TryGetValue(failedComponentId, out var brokenEntry))
+                {
+                    brokenEntry?.Dispose();
+                    _atlasCache.Remove(failedComponentId);
+                }
+            }
+            finally
+            {
+                // 自動生成したプレビュー用ベースマテリアルはテンプレートとしてのみ使用するため破棄
+                if (autoBaseMaterial && baseMaterialForPreview != null)
+                    Object.DestroyImmediate(baseMaterialForPreview);
             }
         }
 
@@ -1668,6 +1806,56 @@ namespace ChimeraHairMaster.Editor.NDMF
         }
 
         /// <summary>
+        /// 明度調整リストの内容ハッシュ（Observe 用。List 参照の等価比較を避ける）
+        /// </summary>
+        private static int ComputeBrightnessAdjustmentsHash(ChimeraHairMaster component)
+        {
+            unchecked
+            {
+                int hash = 17;
+                if (component.rendererBrightnessAdjustments == null) return hash;
+                foreach (var adj in component.rendererBrightnessAdjustments)
+                {
+                    if (adj == null) continue;
+                    hash = hash * 31 + adj.rendererIndex;
+                    hash = hash * 31 + adj.brightnessOffset.GetHashCode();
+                }
+                return hash;
+            }
+        }
+
+        /// <summary>
+        /// ブラー／シャープ調整リストの内容ハッシュ（Observe 用）
+        /// </summary>
+        private static int ComputeBlurSharpAdjustmentsHash(ChimeraHairMaster component)
+        {
+            unchecked
+            {
+                int hash = 17;
+                if (component.rendererBlurSharpAdjustments == null) return hash;
+                foreach (var adj in component.rendererBlurSharpAdjustments)
+                {
+                    if (adj == null) continue;
+                    hash = hash * 31 + adj.rendererIndex;
+                    hash = hash * 31 + adj.blurSharp.GetHashCode();
+                }
+                return hash;
+            }
+        }
+
+        /// <summary>
+        /// ExtractDominantColor（フル GetPixels の CPU 走査）の結果キャッシュ。
+        /// 同一テクスチャ・同一内容なら結果は不変。
+        /// imageContentsHash で再インポート/ペイントによる内容変更を検知する
+        /// </summary>
+        private static readonly Dictionary<(int instanceId, Hash128 contentsHash), Color> _dominantColorCache = new();
+
+        private static void ClearDominantColorCache()
+        {
+            _dominantColorCache.Clear();
+        }
+
+        /// <summary>
         /// Rendererから支配的な色を取得
         /// </summary>
         private Color GetDominantColorFromRenderer(SkinnedMeshRenderer renderer)
@@ -1685,7 +1873,13 @@ namespace ChimeraHairMaster.Editor.NDMF
                     var tex = mat.GetTexture("_MainTex") as Texture2D;
                     if (tex != null)
                     {
-                        return Processing.ColorProcessor.ExtractDominantColor(tex);
+                        var key = (tex.GetInstanceID(), tex.imageContentsHash);
+                        if (!_dominantColorCache.TryGetValue(key, out var dominant))
+                        {
+                            dominant = Processing.ColorProcessor.ExtractDominantColor(tex);
+                            _dominantColorCache[key] = dominant;
+                        }
+                        return dominant;
                     }
                 }
 
@@ -1712,6 +1906,7 @@ namespace ChimeraHairMaster.Editor.NDMF
 
             // 同じシェーダーで新規マテリアルを作成
             var newMat = new Material(source.shader);
+            newMat.hideFlags = HideFlags.HideAndDontSave;
             
             // レンダーキューをコピー
             newMat.renderQueue = source.renderQueue;
@@ -1843,8 +2038,9 @@ namespace ChimeraHairMaster.Editor.NDMF
             // アトラスモードの場合は Mesh も変更対象
             private readonly bool _isAtlasMode;
 
-            // メッシュの所有権フラグ（false = キャッシュが所有、Disposeで破棄しない）
-            private readonly bool _ownsMeshes;
+            // このノードが所有する（Disposeで破棄する）メッシュ
+            // アトラスキャッシュ所有のメッシュは含まれない
+            private readonly List<Mesh>? _ownedMeshes;
 
             public RenderAspects WhatChanged => _isAtlasMode
                 ? RenderAspects.Texture | RenderAspects.Material | RenderAspects.Mesh
@@ -1854,14 +2050,17 @@ namespace ChimeraHairMaster.Editor.NDMF
                 Dictionary<Material, Material>? processedMaterials,
                 List<Texture>? generatedTextures,
                 Dictionary<int, Mesh>? remappedMeshes = null,
-                bool ownsMeshes = true)
+                List<Mesh>? ownedMeshes = null)
             {
                 _processedMaterials = processedMaterials;
                 _generatedTextures = generatedTextures;
                 _remappedMeshes = remappedMeshes;
                 _isAtlasMode = remappedMeshes != null && remappedMeshes.Count > 0;
-                _ownsMeshes = ownsMeshes;
+                _ownedMeshes = ownedMeshes;
             }
+
+            // OnFrame 用の非アロケートバッファ（メインスレッド専用）
+            private static readonly List<Material> _onFrameMaterialBuffer = new();
 
             public void OnFrame(Renderer original, Renderer proxy)
             {
@@ -1871,25 +2070,29 @@ namespace ChimeraHairMaster.Editor.NDMF
                         return;
 
                     // マテリアルを置換
+                    // sharedMaterials の get/set は毎回配列を複製するため、
+                    // 非アロケートで読み取り、置換が必要なスロットがある場合のみ書き戻す
+                    // （置換済みのフレームでは何も起きない）
                     if (_processedMaterials != null && _processedMaterials.Count > 0)
                     {
-                        var materials = proxy.sharedMaterials;
-                        var newMaterials = new Material?[materials.Length];
+                        var buffer = _onFrameMaterialBuffer;
+                        proxy.GetSharedMaterials(buffer);
 
-                        for (int i = 0; i < materials.Length; i++)
+                        bool changed = false;
+                        for (int i = 0; i < buffer.Count; i++)
                         {
-                            var mat = materials[i];
+                            var mat = buffer[i];
                             if (mat != null && _processedMaterials.TryGetValue(mat, out var processedMat))
                             {
-                                newMaterials[i] = processedMat;
-                            }
-                            else
-                            {
-                                newMaterials[i] = mat;
+                                buffer[i] = processedMat;
+                                changed = true;
                             }
                         }
 
-                        proxy.sharedMaterials = newMaterials!;
+                        if (changed)
+                        {
+                            proxy.sharedMaterials = buffer.ToArray();
+                        }
                     }
 
                     // アトラスモード: メッシュ UV をアトラス座標に置換
@@ -2015,31 +2218,30 @@ namespace ChimeraHairMaster.Editor.NDMF
             }
 
             /// <summary>
-            /// 保存済みの_Main2nd関連プロパティを全て復元
+            /// 保存済みの_Main2nd関連プロパティを全て復元。
+            /// SetMaskVisualization の対象には「置換されなかったスロットの元マテリアル資産」も
+            /// 含まれるため、_processedMaterials ではなく保存記録（InstanceID）を起点に復元する。
+            /// _processedMaterials だけを走査すると、元マテリアル直接変更分が永久に復元されない。
             /// </summary>
             private void RestoreAllMaskSlotStates()
             {
-                if (_activeMaskSlot == null || _processedMaterials == null)
+                if (_savedMaskSlotStates == null || _savedMaskSlotStates.Count == 0)
                     return;
 
-                if (_savedMaskSlotStates != null)
+                foreach (var kvp in _savedMaskSlotStates)
                 {
-                    foreach (var mat in _processedMaterials.Values)
-                    {
-                        if (mat == null) continue;
-                        int matId = mat.GetInstanceID();
-                        if (!_savedMaskSlotStates.TryGetValue(matId, out var saved))
-                            continue;
+                    var mat = EditorUtility.InstanceIDToObject(kvp.Key) as Material;
+                    if (mat == null) continue;
+                    var saved = kvp.Value;
 
-                        if (mat.HasProperty("_UseMain2ndTex")) mat.SetFloat("_UseMain2ndTex", saved.useTexValue);
-                        if (mat.HasProperty("_Main2ndTex")) mat.SetTexture("_Main2ndTex", saved.texture);
-                        if (mat.HasProperty("_Main2ndBlendMask")) mat.SetTexture("_Main2ndBlendMask", saved.blendMask);
-                        if (mat.HasProperty("_Color2nd")) mat.SetColor("_Color2nd", saved.color);
-                        if (mat.HasProperty("_Main2ndTexBlendMode")) mat.SetFloat("_Main2ndTexBlendMode", saved.blendMode);
-                    }
-
-                    _savedMaskSlotStates.Clear();
+                    if (mat.HasProperty("_UseMain2ndTex")) mat.SetFloat("_UseMain2ndTex", saved.useTexValue);
+                    if (mat.HasProperty("_Main2ndTex")) mat.SetTexture("_Main2ndTex", saved.texture);
+                    if (mat.HasProperty("_Main2ndBlendMask")) mat.SetTexture("_Main2ndBlendMask", saved.blendMask);
+                    if (mat.HasProperty("_Color2nd")) mat.SetColor("_Color2nd", saved.color);
+                    if (mat.HasProperty("_Main2ndTexBlendMode")) mat.SetFloat("_Main2ndTexBlendMode", saved.blendMode);
                 }
+
+                _savedMaskSlotStates.Clear();
             }
 
             /// <summary>
@@ -2052,7 +2254,11 @@ namespace ChimeraHairMaster.Editor.NDMF
                     foreach (var rt in _compositedMasks.Values)
                     {
                         if (rt != null)
+                        {
+                            // Release は GPU メモリのみ解放するため、オブジェクト本体も破棄する
                             rt.Release();
+                            Object.DestroyImmediate(rt);
+                        }
                     }
                     _compositedMasks.Clear();
                 }
@@ -2076,9 +2282,13 @@ namespace ChimeraHairMaster.Editor.NDMF
                     || composited.height != atlasMask.height)
                 {
                     if (composited != null)
+                    {
                         composited.Release();
+                        Object.DestroyImmediate(composited);
+                    }
 
                     composited = new RenderTexture(atlasMask.width, atlasMask.height, 0, RenderTextureFormat.ARGB32);
+                    composited.hideFlags = HideFlags.HideAndDontSave;
                     composited.filterMode = FilterMode.Bilinear;
                     composited.Create();
                     _compositedMasks[rendererInstanceId] = composited;
@@ -2088,6 +2298,7 @@ namespace ChimeraHairMaster.Editor.NDMF
                 if (_blitMaterial == null)
                 {
                     _blitMaterial = new Material(Shader.Find("Hidden/Internal-GUITexture"));
+                    _blitMaterial.hideFlags = HideFlags.HideAndDontSave;
                 }
 
                 // 白でクリア（Multiply用: 白=変化なし）
@@ -2131,15 +2342,20 @@ namespace ChimeraHairMaster.Editor.NDMF
 
             public void Dispose()
             {
-                // リマップ済みメッシュの破棄（キャッシュ所有の場合はスキップ）
-                if (_ownsMeshes && _remappedMeshes != null)
+                // マスク可視化で元マテリアル資産を直接変更している場合があるため、
+                // ノード破棄時にも必ず復元する（未変更なら no-op）
+                RestoreAllMaskSlotStates();
+
+                // このノードが所有するメッシュのみ破棄（アトラスキャッシュ所有のメッシュは破棄しない）
+                if (_ownedMeshes != null)
                 {
-                    foreach (var mesh in _remappedMeshes.Values)
+                    foreach (var mesh in _ownedMeshes)
                     {
                         if (mesh != null) Object.DestroyImmediate(mesh);
                     }
-                    _remappedMeshes.Clear();
+                    _ownedMeshes.Clear();
                 }
+                _remappedMeshes?.Clear();
 
                 // マスク関連リソースの破棄
                 CleanupCompositedMasks();

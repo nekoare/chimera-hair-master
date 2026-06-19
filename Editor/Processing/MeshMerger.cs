@@ -248,6 +248,8 @@ namespace ChimeraHairMaster.Editor.Processing
 
             var mergedMesh = new Mesh();
             mergedMesh.name = "CHM_MergedMesh";
+            // 統合で合計頂点数が 65535 を超えても破損しないよう 32bit インデックスにする
+            mergedMesh.indexFormat = UnityEngine.Rendering.IndexFormat.UInt32;
 
             // 統合データ用リスト
             var allVertices = new List<Vector3>();
@@ -391,6 +393,8 @@ namespace ChimeraHairMaster.Editor.Processing
 
                 var newMesh = new Mesh();
                 newMesh.name = srcMesh.name + "_CHM_Remaining";
+                // 元メッシュが 32bit インデックスでも破損しないよう引き継ぐ
+                newMesh.indexFormat = srcMesh.indexFormat;
 
                 // コピー可能なバッファを複製
                 newMesh.vertices = srcMesh.vertices;

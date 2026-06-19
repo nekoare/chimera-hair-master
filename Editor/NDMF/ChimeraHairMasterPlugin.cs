@@ -24,7 +24,9 @@ namespace ChimeraHairMaster.Editor.NDMF
                 .Then.Run(ColorTransformPass.Instance)
                 .PreviewingWith(new ChimeraHairMasterPreview())
                 .Then.Run(TextureAtlasPass.Instance)
-                .Then.Run(MeshMergePass.Instance);
+                .Then.Run(MeshMergePass.Instance)
+                // パス間共有の static キャッシュを解放（生成テクスチャの回収を妨げないため）
+                .Then.Run(CacheCleanupPass.Instance);
 
             // Optimizing Phase: コンポーネント削除（AAOより前に実行し、未知コンポーネント警告を回避）
             InPhase(BuildPhase.Optimizing)

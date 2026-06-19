@@ -44,6 +44,16 @@ namespace ChimeraHairMaster.Editor
         /// </summary>
         public void Draw(IMeshDeformationTarget component)
         {
+            // 編集セッションは static で生存するが _selectedRendererIndex は
+            // Inspector 再生成で 0 に戻るため、編集中はセッション側に同期する
+            // （ズレたままだとリセット/エクスポートが別 Renderer を対象にしてしまう）
+            if (SceneEditor.CurrentMode != MeshDeformationSceneEditor.EditMode.Off
+                && ReferenceEquals(SceneEditor.TargetComponent, component)
+                && SceneEditor.ActiveRendererIndex >= 0)
+            {
+                _selectedRendererIndex = SceneEditor.ActiveRendererIndex;
+            }
+
             EditorGUILayout.BeginVertical(EditorStyles.helpBox);
             EditorGUI.indentLevel++;
 
@@ -427,19 +437,29 @@ namespace ChimeraHairMaster.Editor
             if (deformation == null || deformation.deltas.Count == 0)
                 return;
 
+            // MeshRenderer は Blendshape を評価できないため、対象が SMR の場合のみ有効
+            var exportTargetRenderer = (_selectedRendererIndex >= 0
+                && _selectedRendererIndex < component.DeformTargetRenderers.Count)
+                ? component.DeformTargetRenderers[_selectedRendererIndex]
+                : null;
+            bool supportsBlendshape = RendererMeshAccess.SupportsBlendshapes(exportTargetRenderer);
+
             // 出力設定: Blendshape として出力するかのトグル + 名前
-            EditorGUI.BeginChangeCheck();
-            bool newToggle = EditorGUILayout.Toggle(
-                CHMLocales.Tr("MeshDeformInspector:Export:AsBlendshape"),
-                component.ExportAsBlendshape);
-            if (EditorGUI.EndChangeCheck())
+            using (new EditorGUI.DisabledScope(!supportsBlendshape))
             {
-                Undo.RecordObject(component.UndoTarget, "Toggle Export As Blendshape");
-                component.ExportAsBlendshape = newToggle;
-                EditorUtility.SetDirty(component.UndoTarget);
+                EditorGUI.BeginChangeCheck();
+                bool newToggle = EditorGUILayout.Toggle(
+                    CHMLocales.Tr("MeshDeformInspector:Export:AsBlendshape"),
+                    component.ExportAsBlendshape && supportsBlendshape);
+                if (EditorGUI.EndChangeCheck())
+                {
+                    Undo.RecordObject(component.UndoTarget, "Toggle Export As Blendshape");
+                    component.ExportAsBlendshape = newToggle;
+                    EditorUtility.SetDirty(component.UndoTarget);
+                }
             }
 
-            if (component.ExportAsBlendshape)
+            if (component.ExportAsBlendshape && supportsBlendshape)
             {
                 EditorGUI.indentLevel++;
                 EditorGUI.BeginChangeCheck();
@@ -476,10 +496,22 @@ namespace ChimeraHairMaster.Editor
                 return;
 
             var renderer = component.DeformTargetRenderers[_selectedRendererIndex];
-            if (renderer == null || renderer.sharedMesh == null) return;
+            if (renderer == null || RendererMeshAccess.GetSharedMesh(renderer) == null) return;
+
+            // 編集セッション中は sharedMesh がデルタ適用済みの作業メッシュを指しており、
+            // そのままエクスポートするとデルタが二重適用される。
+            // また「保存して置き換え」後に EndEdit() すると sharedMesh が元メッシュへ
+            // 巻き戻されてしまうため、必ず先にセッションを終了してからエクスポートする
+            if (SceneEditor.CurrentMode != MeshDeformationSceneEditor.EditMode.Off
+                && SceneEditor.ActiveRendererIndex == _selectedRendererIndex)
+            {
+                SceneEditor.EndEdit();
+            }
 
             // Blendshape モード or 焼き込みモード
-            bool asBlendshape = component.ExportAsBlendshape;
+            // （MeshRenderer は Blendshape を評価できないため常に焼き込み）
+            bool asBlendshape = component.ExportAsBlendshape
+                && RendererMeshAccess.SupportsBlendshapes(renderer);
             string actualBsName = null;
             Mesh exportedMesh;
             if (asBlendshape)
@@ -498,14 +530,14 @@ namespace ChimeraHairMaster.Editor
             string suffix = asBlendshape ? "_DeformedBS" : "_Deformed";
 
             // 元メッシュと同じフォルダを初期保存先にする
-            string originalAssetPath = AssetDatabase.GetAssetPath(renderer.sharedMesh);
+            string originalAssetPath = AssetDatabase.GetAssetPath(RendererMeshAccess.GetSharedMesh(renderer));
             string defaultFolder = string.IsNullOrEmpty(originalAssetPath)
                 ? "Assets"
                 : System.IO.Path.GetDirectoryName(originalAssetPath);
 
             var path = EditorUtility.SaveFilePanelInProject(
                 CHMLocales.Tr("MeshDeformInspector:Export:SaveDialogTitle"),
-                renderer.sharedMesh.name + suffix,
+                RendererMeshAccess.GetSharedMesh(renderer).name + suffix,
                 "asset",
                 CHMLocales.Tr("MeshDeformInspector:Export:SaveDialogMessage"),
                 defaultFolder);
@@ -534,26 +566,28 @@ namespace ChimeraHairMaster.Editor
                     CHMLocales.Tr("MeshDeformInspector:Export:ReplaceConfirmOk"), CHMLocales.Tr("MeshDeformInspector:Export:Cancel")))
                 {
                     Undo.RegisterCompleteObjectUndo(component.UndoTarget, "Replace Mesh with Deformed");
-                    Undo.RecordObject(renderer, "Replace Mesh with Deformed");
-                    renderer.sharedMesh = exportedMesh;
+                    // MeshRenderer では sharedMesh を保持するのは MeshFilter のため、
+                    // Undo の記録対象もそちらにする
+                    var meshHolder = RendererMeshAccess.GetMeshHolder(renderer);
+                    if (meshHolder != null)
+                        Undo.RecordObject(meshHolder, "Replace Mesh with Deformed");
+                    RendererMeshAccess.SetSharedMesh(renderer, exportedMesh);
 
                     // Blendshape モードでは weight=100 を設定して見た目を維持
-                    if (asBlendshape && actualBsName != null)
+                    // （MeshRenderer は Blendshape を評価できないため SMR のみ）
+                    if (asBlendshape && actualBsName != null && renderer is SkinnedMeshRenderer smr)
                     {
                         int idx = exportedMesh.GetBlendShapeIndex(actualBsName);
                         if (idx >= 0)
                         {
-                            renderer.SetBlendShapeWeight(idx, 100f);
+                            smr.SetBlendShapeWeight(idx, 100f);
                         }
                     }
 
+                    // 編集セッションはエクスポート前に終了済み（メソッド冒頭）のため、
+                    // ここでのデルタクリアが EndEdit() の SaveDeltasToComponent で
+                    // 上書きされることはない
                     deformation.deltas.Clear();
-
-                    if (SceneEditor.CurrentMode != MeshDeformationSceneEditor.EditMode.Off
-                        && SceneEditor.ActiveRendererIndex == _selectedRendererIndex)
-                    {
-                        SceneEditor.EndEdit();
-                    }
 
                     Debug.Log($"[ChimeraHairMaster] メッシュを入れ替え（デルタクリア済み）: {renderer.name}");
                 }
@@ -597,8 +631,10 @@ namespace ChimeraHairMaster.Editor
                                 var renderer = component.DeformTargetRenderers[_selectedRendererIndex];
                                 if (renderer != null)
                                 {
-                                    Undo.RecordObject(renderer, "Reset Mesh Deformation");
-                                    renderer.sharedMesh = component.DeformOriginalMesh;
+                                    var holder = RendererMeshAccess.GetMeshHolder(renderer);
+                                    if (holder != null)
+                                        Undo.RecordObject(holder, "Reset Mesh Deformation");
+                                    RendererMeshAccess.SetSharedMesh(renderer, component.DeformOriginalMesh);
                                 }
                             }
                             component.DeformOriginalMesh = null;

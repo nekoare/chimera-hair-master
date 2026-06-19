@@ -379,7 +379,7 @@ namespace ChimeraHairMaster.Editor.Processing
 
         /// <summary>
         /// 元マテリアルから clone マテリアルアセットを作成する。
-        /// shader / 数値設定は sourceMaterial（previewMaterial）からコピー。
+        /// 数値設定は sourceMaterial（previewMaterial）からコピー（シェーダー本体は元マテリアルを維持）。
         /// _MainTex は newTexture に差し替え。
         /// </summary>
         private static Material? CreateCloneMaterial(Material original, Material sourceMaterial, Texture2D? newTexture, bool unifyMatCap, bool unifyMaterialSettings)
@@ -400,7 +400,7 @@ namespace ChimeraHairMaster.Editor.Processing
             var clone = Object.Instantiate(original);
             clone.name = Path.GetFileNameWithoutExtension(outputPath);
 
-            // shader / 数値設定を sourceMaterial から反映（統一オン時のみ）
+            // 数値設定を sourceMaterial から反映（統一オン時のみ、シェーダーは維持）
             if (unifyMaterialSettings)
             {
                 NDMF.TextureAtlasPass.ApplyShaderSettings(

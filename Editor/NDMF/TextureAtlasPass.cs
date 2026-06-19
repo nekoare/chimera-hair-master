@@ -362,19 +362,12 @@ namespace ChimeraHairMaster.Editor.NDMF
         /// テクスチャスロットはスキップし、元のマテリアルのテクスチャをそのまま保持する
         /// excludeOverlayAndEmission が true の場合、メインカラー2nd/3rd・発光設定もスキップする
         ///
-        /// 冒頭で to.shader = from.shader; を行うので、
-        /// lilToon の輪郭線 ON/OFF（lts ↔ ltso など）のようなシェーダー自体の入れ替えにも対応する。
-        /// Unity は shader 変更時に同名プロパティの値を保持するため、色変換済みのテクスチャ等は残る。
+        /// シェーダー本体は差し替えない。lilToon は描画モード（不透明/カットアウト/半透明）が
+        /// 別シェーダーになっており、from に合わせると描画モードの異なる対象（例: 不透明の耳に
+        /// 半透明の基準マテ）がアルファ評価で不可視になるため、対象側のシェーダーを維持する。
         /// </summary>
         internal static void ApplyShaderSettings(Material from, Material to, bool excludeOverlayAndEmission = false, bool excludeMatCap = false)
         {
-            // シェーダー自体を from に合わせる（lilToon 輪郭線トグル等に対応）
-            // 同名プロパティの値は Unity が自動で引き継ぐので、色変換済みテクスチャ等は保持される
-            if (from.shader != null && to.shader != from.shader)
-            {
-                to.shader = from.shader;
-            }
-
             to.renderQueue = from.renderQueue;
             to.shaderKeywords = from.shaderKeywords;
 

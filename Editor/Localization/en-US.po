@@ -141,6 +141,15 @@ msgstr "UV islands overlap. Please adjust the UV layout."
 msgid "Window:Setup:CompleteMessage"
 msgstr "Setup complete.\nYou can fine-tune the result on the generated GameObject.\n\nTurn on \"Preview\" to see the result in the Scene view."
 
+msgid "Window:Setup:OverwriteConfirmMessage"
+msgstr "Overwrite the existing component \"{0}\" with the current settings?"
+
+msgid "Window:Setup:OverwriteConfirmOk"
+msgstr "Overwrite"
+
+msgid "Window:Setup:OverwriteConfirmCancel"
+msgstr "Cancel"
+
 msgid "Window:ColorTransform:Enabled"
 msgstr "Color Matching\nEnabled"
 
@@ -172,7 +181,7 @@ msgid "MeshDeformWindow:Action:Setup"
 msgstr "Set Up"
 
 msgid "MeshDeformWindow:Dialog:NoSMR"
-msgstr "The selected GameObject has no SkinnedMeshRenderer."
+msgstr "The selected GameObject has no SkinnedMeshRenderer or MeshRenderer (with MeshFilter)."
 
 msgid "MeshDeformWindow:Dialog:ConfirmTitle"
 msgstr "Confirm"

@@ -15,8 +15,10 @@ namespace ChimeraHairMaster
     [ExecuteAlways]
     public class MeshDeformationStandalone : MonoBehaviour, IEditorOnly, IMeshDeformationTarget
     {
+        // SkinnedMeshRenderer または MeshFilter を持つ MeshRenderer。
+        // 旧バージョン（SkinnedMeshRenderer 型）からの参照は Object 参照のためそのまま読める
         [SerializeField]
-        public SkinnedMeshRenderer targetRenderer;
+        public Renderer targetRenderer;
 
         [SerializeField]
         public List<RendererDeformation> rendererDeformations = new List<RendererDeformation>();
@@ -36,13 +38,13 @@ namespace ChimeraHairMaster
         // IMeshDeformationTarget 実装
         // SceneEditor はインデックス0で単一Rendererにアクセスする
         [System.NonSerialized]
-        private List<SkinnedMeshRenderer> _targetRenderersList;
+        private List<Renderer> _targetRenderersList;
 
-        public List<SkinnedMeshRenderer> DeformTargetRenderers
+        public List<Renderer> DeformTargetRenderers
         {
             get
             {
-                _targetRenderersList ??= new List<SkinnedMeshRenderer>(1);
+                _targetRenderersList ??= new List<Renderer>(1);
                 if (_targetRenderersList.Count == 0)
                     _targetRenderersList.Add(targetRenderer);
                 else
@@ -92,8 +94,10 @@ namespace ChimeraHairMaster
 
             if (deformEditingRendererIndex >= 0 && deformOriginalMesh != null && targetRenderer != null)
             {
-                targetRenderer.sharedMesh = deformOriginalMesh;
-                UnityEditor.EditorUtility.SetDirty(targetRenderer);
+                RendererMeshAccess.SetSharedMesh(targetRenderer, deformOriginalMesh);
+                var holder = RendererMeshAccess.GetMeshHolder(targetRenderer);
+                if (holder != null)
+                    UnityEditor.EditorUtility.SetDirty(holder);
             }
         }
 #endif

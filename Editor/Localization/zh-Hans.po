@@ -141,6 +141,15 @@ msgstr "UV存在重叠，请调整UV布局。"
 msgid "Window:Setup:CompleteMessage"
 msgstr "配置已完成。\n可在生成的GameObject上进一步调整。\n\n若要在Scene中查看效果，请打开\"启用预览\"。"
 
+msgid "Window:Setup:OverwriteConfirmMessage"
+msgstr "将使用当前设置覆盖现有组件“{0}”。确定吗？"
+
+msgid "Window:Setup:OverwriteConfirmOk"
+msgstr "覆盖"
+
+msgid "Window:Setup:OverwriteConfirmCancel"
+msgstr "取消"
+
 msgid "Window:ColorTransform:Enabled"
 msgstr "色调统一\n已启用"
 
@@ -172,7 +181,7 @@ msgid "MeshDeformWindow:Action:Setup"
 msgstr "一键配置"
 
 msgid "MeshDeformWindow:Dialog:NoSMR"
-msgstr "所选GameObject上没有SkinnedMeshRenderer。"
+msgstr "所选GameObject上没有SkinnedMeshRenderer或MeshRenderer（带MeshFilter）。"
 
 msgid "MeshDeformWindow:Dialog:ConfirmTitle"
 msgstr "确认"

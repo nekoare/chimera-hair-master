@@ -223,6 +223,7 @@ namespace ChimeraHairMaster.Editor.Processing
                 OklabHueRetain = baseSettings.OklabHueRetain,
                 OklabSaturationToTarget = baseSettings.OklabSaturationToTarget,
                 OklabLToTarget = baseSettings.OklabLToTarget,
+                OklabLDarkEndRatio = baseSettings.OklabLDarkEndRatio,
                 RgbDeltaIntensity = baseSettings.RgbDeltaIntensity,
                 RgbDeltaSoftClipZone = baseSettings.RgbDeltaSoftClipZone,
             };

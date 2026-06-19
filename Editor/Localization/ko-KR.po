@@ -141,6 +141,15 @@ msgstr "UV가 겹쳐 있습니다. UV 배치를 조정해 주세요."
 msgid "Window:Setup:CompleteMessage"
 msgstr "셋업이 완료되었습니다.\n생성된 GameObject에서 세부 설정을 조정할 수 있습니다.\n\nScene에서 미리보기를 확인하려면 \"미리보기 활성화\"를 켜 주세요."
 
+msgid "Window:Setup:OverwriteConfirmMessage"
+msgstr "기존 컴포넌트 \"{0}\" 을(를) 현재 설정으로 덮어씁니다. 계속할까요?"
+
+msgid "Window:Setup:OverwriteConfirmOk"
+msgstr "덮어쓰기"
+
+msgid "Window:Setup:OverwriteConfirmCancel"
+msgstr "취소"
+
 msgid "Window:ColorTransform:Enabled"
 msgstr "색상 매칭\n활성화"
 
@@ -172,7 +181,7 @@ msgid "MeshDeformWindow:Action:Setup"
 msgstr "셋업"
 
 msgid "MeshDeformWindow:Dialog:NoSMR"
-msgstr "선택한 GameObject에 SkinnedMeshRenderer가 없습니다."
+msgstr "선택한 GameObject에 SkinnedMeshRenderer 또는 MeshRenderer(MeshFilter 포함)가 없습니다."
 
 msgid "MeshDeformWindow:Dialog:ConfirmTitle"
 msgstr "확인"

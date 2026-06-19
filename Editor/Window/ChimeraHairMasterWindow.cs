@@ -14,33 +14,36 @@ namespace ChimeraHairMaster.Editor
     {
         #region Window State
 
-        private GameObject selectedAvatar;
-        private List<SkinnedMeshRenderer> targetRenderers = new List<SkinnedMeshRenderer>();
-        private List<MaterialSelectionEntry> materialSelections = new List<MaterialSelectionEntry>();
+        // ユーザーの作業内容（UV配置・色設定等）はドメインリロード
+        // （スクリプトコンパイル / Play遷移）で消えないよう [SerializeField] を付与する。
+        // EditorWindow は標準のホットリロード機構でシリアライズ可能フィールドを復元する
+        [SerializeField] private GameObject selectedAvatar;
+        [SerializeField] private List<SkinnedMeshRenderer> targetRenderers = new List<SkinnedMeshRenderer>();
+        [SerializeField] private List<MaterialSelectionEntry> materialSelections = new List<MaterialSelectionEntry>();
 
         // 色合わせ設定
-        private bool enableColorTransform = true;
-        private Color targetColor = Color.white;
-        private ColorTransformMode colorTransformMode = ColorTransformMode.HueShift;
-        private Gradient gradientCurve = new Gradient();
-        private float saturationPreserve = 0f;
-        private float valuePreserve = 1.0f;
-        private HueShiftAlgorithm hueShiftAlgorithm = HueShiftAlgorithm.Oklab;
-        private float oklabHueRetain = 0f;
-        private float oklabSaturationToTarget = 1.0f;
-        private float oklabLToTarget = 1.0f;
-        private float oklabLDarkEndRatio = 0.5f;
-        private float rgbDeltaIntensity = 1.0f;
-        private float rgbDeltaSoftClipZone = 0.05f;
+        [SerializeField] private bool enableColorTransform = true;
+        [SerializeField] private Color targetColor = Color.white;
+        [SerializeField] private ColorTransformMode colorTransformMode = ColorTransformMode.HueShift;
+        [SerializeField] private Gradient gradientCurve = new Gradient();
+        [SerializeField] private float saturationPreserve = 0f;
+        [SerializeField] private float valuePreserve = 1.0f;
+        [SerializeField] private HueShiftAlgorithm hueShiftAlgorithm = HueShiftAlgorithm.Oklab;
+        [SerializeField] private float oklabHueRetain = 0f;
+        [SerializeField] private float oklabSaturationToTarget = 1.0f;
+        [SerializeField] private float oklabLToTarget = 1.0f;
+        [SerializeField] private float oklabLDarkEndRatio = 0.5f;
+        [SerializeField] private float rgbDeltaIntensity = 1.0f;
+        [SerializeField] private float rgbDeltaSoftClipZone = 0.05f;
 
         // テクスチャ設定
-        private TextureResolution textureResolution = TextureResolution._2048;
+        [SerializeField] private TextureResolution textureResolution = TextureResolution._2048;
 
         // マテリアル設定
-        private Material baseMaterial;
-        private MeshMergeMode meshMergeMode = MeshMergeMode.Independent;
-        private bool enableMeshMerge = false;
-        private bool unifyMatCap = false;
+        [SerializeField] private Material baseMaterial;
+        [SerializeField] private MeshMergeMode meshMergeMode = MeshMergeMode.Independent;
+        [SerializeField] private bool enableMeshMerge = false;
+        [SerializeField] private bool unifyMatCap = false;
 
         // UI状態
         private Vector2 scrollPosition;
@@ -69,7 +72,7 @@ namespace ChimeraHairMaster.Editor
         private float gradientColorKeyPosition = 0.5f; // 追加するキーの位置
 
         // UV配置（アイランド毎）
-        private List<IslandPlacementData> islandPlacements = new List<IslandPlacementData>();
+        [SerializeField] private List<IslandPlacementData> islandPlacements = new List<IslandPlacementData>();
         private int selectedIslandIndex = -1; // フラットなアイランドインデックス
         private bool isDraggingUV = false;
         private bool isResizingUV = false;
@@ -79,12 +82,16 @@ namespace ChimeraHairMaster.Editor
         private Vector2 resizeStartPos;
         private Rect uvPreviewRect;
 
+        // ShowWindowWithComponent で開いた場合の読み込み元（上書き保存用）
+        [SerializeField] private ChimeraHairMaster loadedComponent;
+
         private const float RESIZE_HANDLE_SIZE = 8f;
         private const float RESIZE_HANDLE_HITBOX_SIZE = 16f; // 判定範囲（表示より大きく）
 
         /// <summary>
         /// 個別アイランドの配置情報
         /// </summary>
+        [System.Serializable]
         private class IslandPlacementData
         {
             public int rendererIndex;
@@ -154,12 +161,32 @@ namespace ChimeraHairMaster.Editor
         {
             if (component == null) return;
 
+            // 読み込み元を記録（セットアップ実行時に新規作成ではなく上書き更新する）
+            loadedComponent = component;
+
             // アバター設定
             var avatarDescriptor = component.GetComponentInParent<VRC.SDK3.Avatars.Components.VRCAvatarDescriptor>();
             selectedAvatar = avatarDescriptor != null ? avatarDescriptor.gameObject : null;
 
             // 対象Renderer
             targetRenderers = new List<SkinnedMeshRenderer>(component.targetRenderers);
+
+            // マテリアル選択（統合対象フラグ・カットマスク）をディープコピーで読み込む。
+            // 読み込まないと前回セッションの内容が残留し、別の Renderer 構成に
+            // 誤った rendererIndex のまま適用されてしまう
+            materialSelections = new List<MaterialSelectionEntry>();
+            if (component.materialSelections != null)
+            {
+                foreach (var entry in component.materialSelections)
+                {
+                    if (entry == null) continue;
+                    materialSelections.Add(new MaterialSelectionEntry(
+                        entry.rendererIndex, entry.submeshIndex, entry.isIncluded)
+                    {
+                        meshCutMask = entry.meshCutMask
+                    });
+                }
+            }
 
             // 色合わせ設定
             enableColorTransform = component.enableColorTransform;
@@ -192,7 +219,39 @@ namespace ChimeraHairMaster.Editor
             UpdateIslandPlacements();
 
             // コンポーネントのUV配置情報を反映
-            if (component.uvPlacements != null && component.uvPlacements.Count > 0)
+            // アイランド単位の配置（islandPlacements）があればそちらを優先して復元する。
+            // 保存時の変換: atlasPosition = bounds.xy * scale + position,
+            //               atlasScale   = bounds.size * scale
+            // の逆変換で position/scale を求める
+            bool restoredIslandPlacements = false;
+            if (component.islandPlacements != null && component.islandPlacements.Count > 0)
+            {
+                foreach (var saved in component.islandPlacements)
+                {
+                    if (saved == null) continue;
+
+                    foreach (var island in islandPlacements)
+                    {
+                        if (island.rendererIndex != saved.rendererIndex) continue;
+                        if (island.submeshIndex != saved.submeshIndex) continue;
+                        if (island.localIslandIndex != saved.localIslandIndex) continue;
+
+                        var bounds = island.originalBounds;
+                        float scaleX = bounds.width > 1e-6f ? saved.atlasScale.x / bounds.width : 1f;
+                        float scaleY = bounds.height > 1e-6f ? saved.atlasScale.y / bounds.height : 1f;
+                        island.scale = new Vector2(scaleX, scaleY);
+                        island.position = new Vector2(
+                            saved.atlasPosition.x - bounds.x * scaleX,
+                            saved.atlasPosition.y - bounds.y * scaleY);
+                        restoredIslandPlacements = true;
+                        break;
+                    }
+                }
+            }
+
+            // 旧形式（Renderer単位の uvPlacements）からのフォールバック復元
+            if (!restoredIslandPlacements
+                && component.uvPlacements != null && component.uvPlacements.Count > 0)
             {
                 foreach (var compPlacement in component.uvPlacements)
                 {
@@ -224,19 +283,24 @@ namespace ChimeraHairMaster.Editor
 
         private void OnEnable()
         {
-            gradientCurve = new Gradient();
-            gradientCurve.SetKeys(
-                new GradientColorKey[]
-                {
-                    new GradientColorKey(Color.black, 0f),
-                    new GradientColorKey(Color.white, 1f)
-                },
-                new GradientAlphaKey[]
-                {
-                    new GradientAlphaKey(1f, 0f),
-                    new GradientAlphaKey(1f, 1f)
-                }
-            );
+            // ドメインリロードで復元されたグラデーションを初期値で上書きしない
+            // （colorKeys が空 = 未初期化の場合のみデフォルトを設定する）
+            if (gradientCurve == null || gradientCurve.colorKeys == null || gradientCurve.colorKeys.Length == 0)
+            {
+                gradientCurve = new Gradient();
+                gradientCurve.SetKeys(
+                    new GradientColorKey[]
+                    {
+                        new GradientColorKey(Color.black, 0f),
+                        new GradientColorKey(Color.white, 1f)
+                    },
+                    new GradientAlphaKey[]
+                    {
+                        new GradientAlphaKey(1f, 0f),
+                        new GradientAlphaKey(1f, 1f)
+                    }
+                );
+            }
         }
 
         private void OnDisable()
@@ -394,9 +458,12 @@ namespace ChimeraHairMaster.Editor
                         if (GUILayout.Button("×", GUILayout.Width(25)))
                         {
                             targetRenderers.RemoveAt(i);
-                            UpdateUVPlacements();
-                            SyncMaterialSelections();
+                            // 削除した index に紐づく設定を除去し、後続 index を 1 つ詰める
+                            // （これをしないと meshCutMask・除外・UV配置が後続 Renderer にズレる）
+                            RemapEntriesForRendererRemoval(i);
                             ClearUVCache();
+                            SyncMaterialSelections();
+                            UpdateUVPlacements();
                             i--;
                         }
 
@@ -1279,12 +1346,28 @@ namespace ChimeraHairMaster.Editor
         {
             if (glLineMaterial != null) return;
             var shader = Shader.Find("Hidden/Internal-Colored");
+            if (shader == null) return;
+
+            // HideAndDontSave の static Material はドメインリロードで参照だけ消えて
+            // ネイティブオブジェクトが残るため、リロード前に破棄する
+            UnityEditor.AssemblyReloadEvents.beforeAssemblyReload -= DestroyGLLineMaterial;
+            UnityEditor.AssemblyReloadEvents.beforeAssemblyReload += DestroyGLLineMaterial;
+
             glLineMaterial = new Material(shader);
             glLineMaterial.hideFlags = HideFlags.HideAndDontSave;
             glLineMaterial.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
             glLineMaterial.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
             glLineMaterial.SetInt("_Cull", (int)UnityEngine.Rendering.CullMode.Off);
             glLineMaterial.SetInt("_ZWrite", 0);
+        }
+
+        private static void DestroyGLLineMaterial()
+        {
+            if (glLineMaterial != null)
+            {
+                Object.DestroyImmediate(glLineMaterial);
+                glLineMaterial = null;
+            }
         }
 
         /// <summary>
@@ -1319,6 +1402,7 @@ namespace ChimeraHairMaster.Editor
             if (allUVs == null || allUVs.Count == 0) return;
 
             EnsureGLLineMaterial();
+            if (glLineMaterial == null) return;
             glLineMaterial.SetPass(0);
 
             GL.PushMatrix();
@@ -1481,8 +1565,12 @@ namespace ChimeraHairMaster.Editor
                 string warningMessage = CHMLocales.Tr("Window:UVSettings:OverlapWarningHeader") + "\n";
                 foreach (var pair in overlappingPairs)
                 {
-                    string name1 = targetRenderers[pair.Item1]?.name ?? $"Renderer {pair.Item1}";
-                    string name2 = targetRenderers[pair.Item2]?.name ?? $"Renderer {pair.Item2}";
+                    // ?. は UnityEngine.Object の破棄済み（fake null）を検出できないため、
+                    // Unity の == 演算子で判定する（破棄済み Renderer で MissingReferenceException になる）
+                    var r1 = targetRenderers[pair.Item1];
+                    var r2 = targetRenderers[pair.Item2];
+                    string name1 = r1 != null ? r1.name : $"Renderer {pair.Item1}";
+                    string name2 = r2 != null ? r2.name : $"Renderer {pair.Item2}";
                     warningMessage += string.Format(CHMLocales.Tr("Window:UVSettings:OverlapWarningLine"), name1, name2) + "\n";
                 }
                 cachedOverlapMessage = warningMessage.TrimEnd('\n');
@@ -2328,6 +2416,23 @@ namespace ChimeraHairMaster.Editor
         }
 
         /// <summary>
+        /// targetRenderers から index を削除した際に、rendererIndex で対象を参照する
+        /// 各リスト（materialSelections / islandPlacements）の index を詰める。
+        /// 削除された Renderer のエントリは除去し、それより後ろの rendererIndex は -1 する。
+        /// これを行わないと、削除位置より後ろの Renderer に設定（除外・メッシュカットマスク・
+        /// UV配置）がズレて適用され、最後尾の設定が失われる。
+        /// </summary>
+        private void RemapEntriesForRendererRemoval(int removedIndex)
+        {
+            RendererIndexRemap.RemoveRenderer(
+                materialSelections, removedIndex,
+                e => e.rendererIndex, (e, i) => e.rendererIndex = i);
+            RendererIndexRemap.RemoveRenderer(
+                islandPlacements, removedIndex,
+                p => p.rendererIndex, (p, i) => p.rendererIndex = i);
+        }
+
+        /// <summary>
         /// 指定したRenderer/Submeshが統合対象かどうかを取得（読み取り専用）
         /// </summary>
         private bool GetMaterialIncluded(int rendererIndex, int submeshIndex)
@@ -2670,7 +2775,32 @@ namespace ChimeraHairMaster.Editor
                 return;
             }
 
-            var chimeraComponent = CreateChimeraHairMasterObject();
+            ChimeraHairMaster chimeraComponent;
+            if (loadedComponent != null)
+            {
+                // 既存コンポーネントの編集として開いた場合は、新規オブジェクトを作らず
+                // 確認の上で読み込み元を上書き更新する（従来は常に新規作成され重複していた）
+                if (!EditorUtility.DisplayDialog(
+                    CHMLocales.Tr("Window:Title"),
+                    string.Format(CHMLocales.Tr("Window:Setup:OverwriteConfirmMessage"), loadedComponent.gameObject.name),
+                    CHMLocales.Tr("Window:Setup:OverwriteConfirmOk"),
+                    CHMLocales.Tr("Window:Setup:OverwriteConfirmCancel")))
+                {
+                    return;
+                }
+
+                Undo.RegisterCompleteObjectUndo(loadedComponent, "Update Chimera Hair Master");
+                ApplySettingsToComponent(loadedComponent);
+                // Renderer 構成スナップショットを取り直す（index 再マップの誤発火防止）
+                loadedComponent.editorRendererIdsSnapshot?.Clear();
+                EditorUtility.SetDirty(loadedComponent);
+                Selection.activeGameObject = loadedComponent.gameObject;
+                chimeraComponent = loadedComponent;
+            }
+            else
+            {
+                chimeraComponent = CreateChimeraHairMasterObject();
+            }
 
             if (chimeraComponent != null)
             {
@@ -2683,22 +2813,35 @@ namespace ChimeraHairMaster.Editor
             }
         }
 
-        private ChimeraHairMaster CreateChimeraHairMasterObject()
+        /// <summary>
+        /// ウィンドウの現在の設定をコンポーネントへ書き込む（新規作成・上書き共通）
+        /// </summary>
+        private void ApplySettingsToComponent(ChimeraHairMaster component)
         {
-            GameObject chimeraObject = new GameObject("Chimera Hair Master");
-            chimeraObject.transform.SetParent(selectedAvatar.transform);
-            chimeraObject.transform.localPosition = Vector3.zero;
-            chimeraObject.transform.localRotation = Quaternion.identity;
-            chimeraObject.transform.localScale = Vector3.one;
-
-            var component = chimeraObject.AddComponent<ChimeraHairMaster>();
-
             component.targetRenderers = new List<SkinnedMeshRenderer>(targetRenderers);
-            component.materialSelections = new List<MaterialSelectionEntry>(materialSelections);
+
+            // エントリの参照共有を避けるためディープコピー
+            component.materialSelections = new List<MaterialSelectionEntry>();
+            foreach (var entry in materialSelections)
+            {
+                if (entry == null) continue;
+                component.materialSelections.Add(new MaterialSelectionEntry(
+                    entry.rendererIndex, entry.submeshIndex, entry.isIncluded)
+                {
+                    meshCutMask = entry.meshCutMask
+                });
+            }
+
             component.enableColorTransform = enableColorTransform;
             component.targetColor = targetColor;
             component.colorTransformMode = colorTransformMode;
-            component.gradientCurve = gradientCurve;
+            // Gradient はクラス参照のためコピーして渡す
+            // （ウィンドウ側インスタンスを共有すると、以後のウィンドウ操作が
+            // Undo/SetDirty なしでコンポーネントを書き換えてしまう）
+            var gradientCopy = new Gradient();
+            if (gradientCurve != null)
+                gradientCopy.SetKeys(gradientCurve.colorKeys, gradientCurve.alphaKeys);
+            component.gradientCurve = gradientCopy;
             component.saturationPreserve = saturationPreserve;
             component.valuePreserve = valuePreserve;
             component.hueShiftAlgorithm = hueShiftAlgorithm;
@@ -2744,6 +2887,19 @@ namespace ChimeraHairMaster.Editor
                 if (renderer == null) continue;
                 component.uvPlacements.Add(new UVIslandPlacement(renderer));
             }
+        }
+
+        private ChimeraHairMaster CreateChimeraHairMasterObject()
+        {
+            GameObject chimeraObject = new GameObject("Chimera Hair Master");
+            chimeraObject.transform.SetParent(selectedAvatar.transform);
+            chimeraObject.transform.localPosition = Vector3.zero;
+            chimeraObject.transform.localRotation = Quaternion.identity;
+            chimeraObject.transform.localScale = Vector3.one;
+
+            var component = chimeraObject.AddComponent<ChimeraHairMaster>();
+
+            ApplySettingsToComponent(component);
 
             // Hipsボーンを自動検出してProbe AnchorとRoot Boneに設定
             var hips = FindAvatarHips(selectedAvatar);

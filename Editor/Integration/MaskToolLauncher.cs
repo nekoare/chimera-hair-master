@@ -304,6 +304,11 @@ namespace ChimeraHairMaster.Editor
                     ActiveMaskTexture = null;
                     ActiveMaskSlotName = null;
                     ActiveMaskIslandMappings = null;
+
+                    // CHM が生成した一時アトラスメッシュはツール側では破棄されないため、
+                    // クローズ時にこちらで破棄する
+                    if (atlasMesh != null)
+                        Object.DestroyImmediate(atlasMesh);
                 },
                 onMaskApplied = (savedPath, slotName) =>
                 {
@@ -394,6 +399,11 @@ namespace ChimeraHairMaster.Editor
                     ActiveMaskTexture = null;
                     ActiveMaskSlotName = null;
                     ActiveMaskIslandMappings = null;
+
+                    // CHM が生成した一時アトラスメッシュはツール側では破棄されないため、
+                    // クローズ時にこちらで破棄する
+                    if (atlasMesh != null)
+                        Object.DestroyImmediate(atlasMesh);
                 },
                 onMaskApplied = (savedPath, slotName) =>
                 {
@@ -490,6 +500,10 @@ namespace ChimeraHairMaster.Editor
                 return null;
 
             var mesh = new Mesh();
+            // デフォルトの UInt16 では 65,535 頂点までしか扱えず、
+            // 複数 Renderer の結合では容易に超過して壊れたメッシュになる
+            mesh.indexFormat = UnityEngine.Rendering.IndexFormat.UInt32;
+            mesh.hideFlags = HideFlags.HideAndDontSave;
             mesh.SetVertices(allVertices);
             mesh.SetUVs(0, allUVs);
             mesh.SetTriangles(allTriangles, 0);

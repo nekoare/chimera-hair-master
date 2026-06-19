@@ -12,8 +12,10 @@ namespace ChimeraHairMaster
     {
         /// <summary>
         /// 変形対象のRenderer一覧
+        /// （SkinnedMeshRenderer または MeshFilter を持つ MeshRenderer。
+        /// メッシュアクセスは RendererMeshAccess 経由で行うこと）
         /// </summary>
-        List<SkinnedMeshRenderer> DeformTargetRenderers { get; }
+        List<Renderer> DeformTargetRenderers { get; }
 
         /// <summary>
         /// Renderer毎の変形データ（スパースなデルタ）

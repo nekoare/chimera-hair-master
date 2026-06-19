@@ -150,6 +150,9 @@ namespace ChimeraHairMaster.Editor
             var component = target as ChimeraHairMaster;
             lastBaseMaterial = component?.baseMaterial;
 
+            // Renderer 構成スナップショットを初期化（index 再マップの差分起点）
+            RendererIndexSynchronizer.InitializeSnapshot(component);
+
             if (component != null)
             {
                 // 既存のインメモリ previewMaterial をアセットに変換（マイグレーション）
@@ -204,29 +207,39 @@ namespace ChimeraHairMaster.Editor
             cachedPreviewMaterial = null;
         }
 
+        // ハッシュ計算（マテリアル全プロパティ走査）を毎 tick 実行しないためのスロットリング
+        private double _nextMaterialHashCheckTime;
+        private const double MaterialHashCheckInterval = 0.3;
+
         /// <summary>
         /// エディタ更新時にマテリアルハッシュをチェック
         /// </summary>
         private void OnEditorUpdate()
         {
             if (target == null) return;
-            
+
             var component = target as ChimeraHairMaster;
             if (component == null) return;
             if (!component.previewEnabled) return;
             if (component.previewMaterial == null) return;
 
+            // ComputeHash は SerializedObject 生成 + 全プロパティ走査で重いためスロットリング
+            if (EditorApplication.timeSinceStartup < _nextMaterialHashCheckTime) return;
+            _nextMaterialHashCheckTime = EditorApplication.timeSinceStartup + MaterialHashCheckInterval;
+
             // マテリアルのハッシュを計算
             int currentHash = MaterialHasher.ComputeHash(component.previewMaterial);
-            
+
             // ハッシュが変わっていたらコンポーネントを更新
             if (component.previewMaterialHash != currentHash)
             {
-                Debug.Log($"[ChimeraHairMaster] Material hash changed: {component.previewMaterialHash} -> {currentHash}");
-                Undo.RecordObject(component, "Update Preview Material Hash");
+                // ハッシュは派生キャッシュのため Undo 対象にしない
+                // （Undo.RecordObject すると、マテリアル編集のたびにユーザーの Undo 履歴が
+                // 「ハッシュ更新の取り消し」で埋まる。Undo でマテリアル側が戻れば
+                // 次のチェックでハッシュも自動的に追従する）
                 component.previewMaterialHash = currentHash;
                 EditorUtility.SetDirty(component);
-                
+
                 // シーンビューを強制的に再描画
                 UnityEditor.SceneView.RepaintAll();
             }
@@ -274,6 +287,10 @@ namespace ChimeraHairMaster.Editor
             DrawMaterialEditorSection();
 
             serializedObject.ApplyModifiedProperties();
+
+            // Renderer リストの削除・並べ替えに rendererIndex ベースの各設定を追従させる
+            // （変更が無ければ何もしない）
+            RendererIndexSynchronizer.SyncAfterRendererListChange(target as ChimeraHairMaster);
         }
 
         private void DrawComponentHeader()
@@ -386,6 +403,13 @@ namespace ChimeraHairMaster.Editor
                 // baseMaterialが変更された場合はpreviewMaterialを再生成
                 if (currentBaseMaterial != lastBaseMaterial)
                 {
+                    // PropertyField の変更はまだ serializedObject の保留バッファにしかなく、
+                    // CreatePreviewMaterial は component.baseMaterial（実値）を読む。
+                    // 先に Apply しないと旧マテリアル基準でプレビューが生成され、
+                    // さらに CreatePreviewMaterial 末尾の serializedObject.Update() が
+                    // 保留中の baseMaterial 変更を破棄してしまう（A→Bの変更が巻き戻る）
+                    serializedObject.ApplyModifiedProperties();
+
                     if (currentBaseMaterial != null)
                     {
                         CreatePreviewMaterial();
@@ -395,6 +419,9 @@ namespace ChimeraHairMaster.Editor
                 // baseMaterialが設定されてpreviewMaterialがない場合も自動生成
                 else if (currentBaseMaterial != null && previewMaterialProp.objectReferenceValue == null)
                 {
+                    // CreatePreviewMaterial 内の serializedObject.Update() が
+                    // 同フレームの保留中プロパティ変更を破棄しないよう先に確定する
+                    serializedObject.ApplyModifiedProperties();
                     CreatePreviewMaterial();
                 }
 
