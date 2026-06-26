@@ -57,14 +57,8 @@ namespace ChimeraHairMaster.Editor.NDMF
 
                     if (targetRenderers.Count > 0)
                     {
-                        // 明示的な equality を渡す（配列は参照等価だと毎回「変化あり」になり
-                        // プレビューが無駄に再構築されるため、内容で比較する）
                         resultSet.Add(RenderGroup.For(targetRenderers)
-                            .WithData(
-                                (avatar, components.ToArray()),
-                                (a, b) => a.Item1 == b.Item1
-                                          && (ReferenceEquals(a.Item2, b.Item2)
-                                              || (a.Item2 != null && b.Item2 != null && a.Item2.SequenceEqual(b.Item2)))));
+                            .WithData((avatar, components.ToArray())));
                     }
                 }
                 catch (Exception ex)

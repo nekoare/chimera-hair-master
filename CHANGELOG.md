@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.5.7
+
+### 修正
+
+- **NDMF 1.12.0 以下の環境でコンパイルに失敗する問題を修正**
+  - v1.5.6 で NDMF 1.13.0 以降の `RenderGroup.WithData(data, equality)` を使用していたため、依存解決で古い NDMF が入っている環境では `CS1501: No overload for method 'WithData' takes 2 arguments` が発生していた
+  - NDMF 1.12.0 以下にも存在する `WithData(data)` 呼び出しに戻し、`package.json` の `nadena.dev.ndmf >=1.7.0` と実装の互換性を合わせた
+
 ## v1.5.6
 
 ### 機能追加
