@@ -20,7 +20,7 @@ namespace ChimeraHairMaster.Editor.Processing
         /// <param name="settings">色変換設定</param>
         /// <param name="preferGPU">GPU処理を優先するか</param>
         /// <returns>変換後のテクスチャ</returns>
-        public static Texture2D? ProcessTexture(Texture2D sourceTexture, ColorTransformSettings settings, bool preferGPU = true)
+        public static Texture2D? ProcessTexture(Texture2D sourceTexture, ColorTransformSettings settings, bool preferGPU = true, bool compressResult = true)
         {
             if (sourceTexture == null)
             {
@@ -53,7 +53,7 @@ namespace ChimeraHairMaster.Editor.Processing
                 }
 
                 // 元テクスチャと同じ圧縮形式を適用
-                if (result != null)
+                if (result != null && compressResult)
                 {
                     CompressToMatch(result, sourceTexture.format);
                 }
@@ -447,13 +447,13 @@ namespace ChimeraHairMaster.Editor.Processing
 
         #endregion
 
-        #region Private Methods
+        #region Internal / Private Methods
 
         /// <summary>
         /// 元テクスチャと同じ圧縮形式を適用する
         /// 非圧縮フォーマットの場合は何もしない
         /// </summary>
-        private static void CompressToMatch(Texture2D texture, TextureFormat sourceFormat)
+        internal static void CompressToMatch(Texture2D texture, TextureFormat sourceFormat)
         {
             // 圧縮フォーマットへのマッピング
             // EditorUtility.CompressTextureがサポートする形式のみ対応
@@ -754,7 +754,7 @@ namespace ChimeraHairMaster.Editor.Processing
         /// <param name="texture">元テクスチャ</param>
         /// <param name="brightnessOffset">明度オフセット（-1.0 ~ 1.0）</param>
         /// <returns>明度調整後のテクスチャ</returns>
-        public static Texture2D ApplyBrightnessOffset(Texture2D texture, float brightnessOffset)
+        public static Texture2D ApplyBrightnessOffset(Texture2D texture, float brightnessOffset, bool compressResult = true)
         {
 #pragma warning disable CS8603
             if (texture == null) return null;
@@ -763,7 +763,7 @@ namespace ChimeraHairMaster.Editor.Processing
             // オフセットが0の場合はコピーを返す
             if (Mathf.Abs(brightnessOffset) < 0.001f)
             {
-                return CopyTexture(texture);
+                return CopyTexture(texture, compressResult);
             }
 
             var readable = GetReadableTexture(texture);
@@ -795,7 +795,10 @@ namespace ChimeraHairMaster.Editor.Processing
             result.SetPixels(pixels);
             result.Apply(true);
 
-            CompressToMatch(result, texture.format);
+            if (compressResult)
+            {
+                CompressToMatch(result, texture.format);
+            }
             ShaderUtils.EnableMipStreaming(result);
 
             if (readable != texture)
@@ -818,31 +821,31 @@ namespace ChimeraHairMaster.Editor.Processing
         /// <param name="usageMask">UV 使用領域マスク（true=使用、false=未使用）。長さは source.width * source.height</param>
         /// <param name="iterations">拡張ピクセル数（1イテレーションで1ピクセル拡張）</param>
         /// <returns>dilation 適用後の新しい Texture2D</returns>
-        public static Texture2D? DilateTexture(Texture2D source, bool[] usageMask, int iterations)
+        public static Texture2D? DilateTexture(Texture2D source, bool[] usageMask, int iterations, bool compressResult = true)
         {
             if (source == null) return null;
-            if (usageMask == null) return CopyTexture(source);
-            if (iterations <= 0) return CopyTexture(source);
+            if (usageMask == null) return CopyTexture(source, compressResult);
+            if (iterations <= 0) return CopyTexture(source, compressResult);
 
             int width = source.width;
             int height = source.height;
-            if (usageMask.Length != width * height) return CopyTexture(source);
+            if (usageMask.Length != width * height) return CopyTexture(source, compressResult);
 
             // GPU 版が使えれば優先
             if (ShaderUtils.IsGPUSupported() && ShaderUtils.GetDilateTextureShader() != null)
             {
-                var gpuResult = DilateTextureGPU(source, usageMask, iterations, width, height);
+                var gpuResult = DilateTextureGPU(source, usageMask, iterations, width, height, compressResult);
                 if (gpuResult != null) return gpuResult;
             }
 
             // CPU フォールバック（GPU 非対応環境）
-            return DilateTextureCPU(source, usageMask, iterations, width, height);
+            return DilateTextureCPU(source, usageMask, iterations, width, height, compressResult);
         }
 
         /// <summary>
         /// Dilation の GPU 実装（ping-pong で iterations 回 Dispatch）
         /// </summary>
-        private static Texture2D? DilateTextureGPU(Texture2D source, bool[] usageMask, int iterations, int width, int height)
+        private static Texture2D? DilateTextureGPU(Texture2D source, bool[] usageMask, int iterations, int width, int height, bool compressResult)
         {
             var shader = ShaderUtils.GetDilateTextureShader();
             if (shader == null) return null;
@@ -903,7 +906,10 @@ namespace ChimeraHairMaster.Editor.Processing
                 output.Apply(true);
                 RenderTexture.active = prev;
 
-                CompressToMatch(output, source.format);
+                if (compressResult)
+                {
+                    CompressToMatch(output, source.format);
+                }
                 ShaderUtils.EnableMipStreaming(output);
                 return output;
             }
@@ -937,7 +943,7 @@ namespace ChimeraHairMaster.Editor.Processing
         /// <summary>
         /// Dilation の CPU 実装（GPU 非対応時のフォールバック）
         /// </summary>
-        private static Texture2D? DilateTextureCPU(Texture2D source, bool[] usageMask, int iterations, int width, int height)
+        private static Texture2D? DilateTextureCPU(Texture2D source, bool[] usageMask, int iterations, int width, int height, bool compressResult)
         {
             var readable = GetReadableTexture(source);
             Color[] pixels = readable.GetPixels();
@@ -997,7 +1003,10 @@ namespace ChimeraHairMaster.Editor.Processing
             output.SetPixels(pixels);
             output.Apply(true);
 
-            CompressToMatch(output, source.format);
+            if (compressResult)
+            {
+                CompressToMatch(output, source.format);
+            }
             ShaderUtils.EnableMipStreaming(output);
 
             if (readable != source)
@@ -1016,7 +1025,7 @@ namespace ChimeraHairMaster.Editor.Processing
         /// <param name="transformedTexture">色変換済みテクスチャ</param>
         /// <param name="mask">マスクテクスチャ（黒=元の色を維持、白=色変換を適用）</param>
         /// <returns>マスク適用後のテクスチャ</returns>
-        public static Texture2D? ApplyColorMask(Texture2D originalTexture, Texture2D transformedTexture, Texture2D mask)
+        public static Texture2D? ApplyColorMask(Texture2D originalTexture, Texture2D transformedTexture, Texture2D mask, bool compressResult = true)
         {
             if (originalTexture == null || transformedTexture == null || mask == null)
                 return null;
@@ -1073,7 +1082,10 @@ namespace ChimeraHairMaster.Editor.Processing
             output.SetPixels(outputPixels);
             output.Apply(true);
 
-            CompressToMatch(output, originalTexture.format);
+            if (compressResult)
+            {
+                CompressToMatch(output, originalTexture.format);
+            }
             ShaderUtils.EnableMipStreaming(output);
 
             // 一時テクスチャをクリーンアップ
@@ -1087,14 +1099,17 @@ namespace ChimeraHairMaster.Editor.Processing
         /// <summary>
         /// テクスチャをコピー
         /// </summary>
-        private static Texture2D CopyTexture(Texture2D source)
+        private static Texture2D CopyTexture(Texture2D source, bool compressResult = true)
         {
             var readable = GetReadableTexture(source);
             var copy = new Texture2D(readable.width, readable.height, TextureFormat.RGBA32, true);
             copy.SetPixels(readable.GetPixels());
             copy.Apply(true);
 
-            CompressToMatch(copy, source.format);
+            if (compressResult)
+            {
+                CompressToMatch(copy, source.format);
+            }
             ShaderUtils.EnableMipStreaming(copy);
 
             if (readable != source)

@@ -102,6 +102,9 @@ namespace ChimeraHairMaster.Editor.Processing
                     bool[] uvMask = MeshUVRasterizer.Rasterize(
                         renderer, new[] { s }, mainTex.width, mainTex.height);
 
+                    bool applyStrand = strandRef != null && strandRef.IsValid && r != strandRef.RefIndex;
+                    bool compressIntermediate = !applyStrand;
+
                     // 色変換の入力（ブラー/シャープ前処理）
                     Texture2D colorTransformInput = mainTex;
                     Texture2D? preprocessed = null;
@@ -112,7 +115,7 @@ namespace ChimeraHairMaster.Editor.Processing
                     }
 
                     // 色変換実行
-                    var processedTex = ColorProcessor.ProcessTexture(colorTransformInput, perTextureSettings);
+                    var processedTex = ColorProcessor.ProcessTexture(colorTransformInput, perTextureSettings, compressResult: compressIntermediate);
 
                     if (preprocessed != null) Object.DestroyImmediate(preprocessed);
 
@@ -121,7 +124,7 @@ namespace ChimeraHairMaster.Editor.Processing
                     // 明度オフセット適用
                     if (Mathf.Abs(brightnessOffset) > 0.001f)
                     {
-                        var offsetApplied = ColorProcessor.ApplyBrightnessOffset(processedTex, brightnessOffset);
+                        var offsetApplied = ColorProcessor.ApplyBrightnessOffset(processedTex, brightnessOffset, compressResult: compressIntermediate);
                         if (offsetApplied != null)
                         {
                             Object.DestroyImmediate(processedTex);
@@ -131,7 +134,7 @@ namespace ChimeraHairMaster.Editor.Processing
 
                     // UV 使用領域外を edge dilation で塗り足し
                     {
-                        var dilated = ColorProcessor.DilateTexture(processedTex, uvMask, 8);
+                        var dilated = ColorProcessor.DilateTexture(processedTex, uvMask, 8, compressResult: compressIntermediate);
                         if (dilated != null)
                         {
                             Object.DestroyImmediate(processedTex);
@@ -141,7 +144,7 @@ namespace ChimeraHairMaster.Editor.Processing
 
                     // 色合わせ無視マスクを適用
                     {
-                        var masked = ColorMaskApplier.TryApply(component, r, s, mainTex, processedTex);
+                        var masked = ColorMaskApplier.TryApply(component, r, s, mainTex, processedTex, compressResult: compressIntermediate);
                         if (masked != null)
                         {
                             Object.DestroyImmediate(processedTex);
@@ -150,9 +153,9 @@ namespace ChimeraHairMaster.Editor.Processing
                     }
 
                     // 塗り感統一: お手本 Renderer 以外の _MainTex に inline 適用
-                    if (strandRef != null && strandRef.IsValid && r != strandRef.RefIndex)
+                    if (applyStrand)
                     {
-                        var composed = StrandPatternApplier.TryComposeStrand(processedTex, renderer, new[] { s }, strandRef);
+                        var composed = StrandPatternApplier.TryComposeStrand(processedTex, renderer, new[] { s }, strandRef, compressResult: false);
                         if (composed != null)
                         {
                             Object.DestroyImmediate(processedTex);

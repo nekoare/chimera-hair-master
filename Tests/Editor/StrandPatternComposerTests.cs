@@ -1,5 +1,6 @@
 using ChimeraHairMaster.Editor.Processing;
 using NUnit.Framework;
+using UnityEditor;
 using UnityEngine;
 
 namespace ChimeraHairMaster.Tests
@@ -75,7 +76,12 @@ namespace ChimeraHairMaster.Tests
             try
             {
                 Assert.That(result, Is.Not.Null);
-                Assert.That(result.GetPixel(32, 32).a, Is.EqualTo(0.73f).Within(PixelEps));
+                var p = result.GetPixel(32, 32);
+                var t = target.GetPixel(32, 32);
+                Assert.That(p.r, Is.EqualTo(t.r).Within(PixelEps));
+                Assert.That(p.g, Is.EqualTo(t.g).Within(PixelEps));
+                Assert.That(p.b, Is.EqualTo(t.b).Within(PixelEps));
+                Assert.That(p.a, Is.EqualTo(0.73f).Within(PixelEps));
             }
             finally
             {
@@ -87,16 +93,50 @@ namespace ChimeraHairMaster.Tests
         }
 
         [Test]
+        public void ComposeBands_CompressesResultToRequestedFormat()
+        {
+            var target = MakeFlat(64, 64, new Color(0.5f, 0.3f, 0.2f, 1f), linear: false);
+            var bandHigh = MakeFlat(64, 64, new Color(0.5f, 0.5f, 0.5f, 1f), linear: true);
+            var hp8 = MakeFlat(64, 64, new Color(0.5f, 0.5f, 0.5f, 1f), linear: true);
+            var compressionProbe = MakeFlat(64, 64, Color.white, linear: false);
+            var uvMask = MakeFullMask(64, 64);
+            Texture2D result = null;
+            try
+            {
+                EditorUtility.CompressTexture(compressionProbe, TextureFormat.DXT5, TextureCompressionQuality.Normal);
+                Assume.That(compressionProbe.format, Is.EqualTo(TextureFormat.DXT5), "DXT5 compression is not available in this editor environment.");
+
+                result = StrandPatternComposer.ComposeBands(target, bandHigh, hp8, uvMask, ratioHigh: 2f, ratioMid: 1f, strengthFine: 1f, strengthShade: 0f, compressionFormat: TextureFormat.DXT5);
+                Assert.That(result, Is.Not.Null);
+                Assert.That(result.format, Is.EqualTo(TextureFormat.DXT5));
+            }
+            finally
+            {
+                Object.DestroyImmediate(target);
+                Object.DestroyImmediate(bandHigh);
+                Object.DestroyImmediate(hp8);
+                Object.DestroyImmediate(compressionProbe);
+                if (result != null) Object.DestroyImmediate(result);
+            }
+        }
+
+        [Test]
         public void ComputeBandStds_NeutralBands_ReturnsZero()
         {
             var bandHigh = MakeFlat(64, 64, new Color(0.5f, 0.5f, 0.5f, 1f), linear: true);
             var hp8 = MakeFlat(64, 64, new Color(0.5f, 0.5f, 0.5f, 1f), linear: true);
             var mask = MakeFullMask(64, 64);
-            var (sh, sm) = StrandPatternComposer.ComputeBandStds(bandHigh, hp8, mask);
-            Assert.That(sh, Is.EqualTo(0f).Within(0.001f));
-            Assert.That(sm, Is.EqualTo(0f).Within(0.001f));
-            Object.DestroyImmediate(bandHigh);
-            Object.DestroyImmediate(hp8);
+            try
+            {
+                var (sh, sm) = StrandPatternComposer.ComputeBandStds(bandHigh, hp8, mask);
+                Assert.That(sh, Is.EqualTo(0f).Within(0.001f));
+                Assert.That(sm, Is.EqualTo(0f).Within(0.001f));
+            }
+            finally
+            {
+                Object.DestroyImmediate(bandHigh);
+                Object.DestroyImmediate(hp8);
+            }
         }
 
         [Test]

@@ -194,7 +194,9 @@ namespace ChimeraHairMaster.Editor.Processing
             Texture2D currentTex,
             SkinnedMeshRenderer renderer,
             IReadOnlyCollection<int> submeshIndices,
-            RefData refData)
+            RefData refData,
+            TextureFormat? compressionFormat = null,
+            bool compressResult = true)
         {
             if (currentTex == null || renderer == null || refData == null || !refData.IsValid) return null;
 
@@ -220,7 +222,8 @@ namespace ChimeraHairMaster.Editor.Processing
                 return StrandPatternComposer.ComposeBands(
                     currentTex, tBandHigh, tHP8, strandMask,
                     ratioHigh, ratioMid,
-                    refData.StrengthFine, refData.StrengthShade);
+                    refData.StrengthFine, refData.StrengthShade,
+                    compressionFormat, compressResult);
             }
             finally
             {

@@ -7,8 +7,8 @@
 //   _Mask:    UV 使用領域 packed bitmask
 //
 // バンド導出:
-//   B_high = (BandHigh - 0.5) * 2 = source - blur(σ_h)
-//   B_mid  = (BandHP8 - 0.5) * 2 - B_high = blur(σ_h) - blur(σ_l)
+//   B_high = (BandHigh - 128/255) * 2 = source - blur(σ_h)
+//   B_mid  = (BandHP8 - 128/255) * 2 - B_high = blur(σ_h) - blur(σ_l)
 //
 // 合成:
 //   composed = target + B_high * scaleHigh + B_mid * scaleMid
@@ -28,6 +28,7 @@ int _Width;
 int _Height;
 float _ScaleHigh;
 float _ScaleMid;
+static const float ENCODED_NEUTRAL = 128.0 / 255.0;
 
 bool IsInMask(int2 p)
 {
@@ -47,8 +48,8 @@ void CSCompose(uint3 id : SV_DispatchThreadID)
 
     float4 bhEnc = _BandHigh.Load(int3((int)id.x, (int)id.y, 0));
     float4 hp8Enc = _BandHP8.Load(int3((int)id.x, (int)id.y, 0));
-    float3 bHigh = (bhEnc.rgb - 0.5) * 2.0;
-    float3 hp8 = (hp8Enc.rgb - 0.5) * 2.0;
+    float3 bHigh = (bhEnc.rgb - ENCODED_NEUTRAL) * 2.0;
+    float3 hp8 = (hp8Enc.rgb - ENCODED_NEUTRAL) * 2.0;
     float3 bMid = hp8 - bHigh;
 
     float3 composed = target.rgb + bHigh * _ScaleHigh + bMid * _ScaleMid;

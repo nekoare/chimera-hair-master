@@ -82,7 +82,7 @@ namespace ChimeraHairMaster.Editor.Processing
                 shader.Dispatch(kE, groupsX, groupsY, 1);
 
                 // linear=true でマーク: Composer の SRV 読み込み時に sRGB 自動変換を回避する
-                // （シェーダ内でバイト 128 = 0.5 として扱うため、gamma decode されると中央値が 0.21 になって detail が負バイアス）
+                // （中立値 128/255 が gamma decode されると約 0.216 になって detail が負バイアス）
                 var output = new Texture2D(width, height, TextureFormat.RGBA32, false, /*linear*/ true);
                 output.name = source.name + "_HighPass";
                 var prev = RenderTexture.active;

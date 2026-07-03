@@ -22,12 +22,13 @@ namespace ChimeraHairMaster.Editor.Processing
             int rendererIndex,
             int submeshIndex,
             Texture2D originalTex,
-            Texture2D processedTex)
+            Texture2D processedTex,
+            bool compressResult = true)
         {
             if (component == null || originalTex == null || processedTex == null) return null;
             var colorMask = component.GetColorMask(rendererIndex, submeshIndex);
             if (colorMask == null) return null;
-            return ColorProcessor.ApplyColorMask(originalTex, processedTex, colorMask);
+            return ColorProcessor.ApplyColorMask(originalTex, processedTex, colorMask, compressResult);
         }
     }
 }

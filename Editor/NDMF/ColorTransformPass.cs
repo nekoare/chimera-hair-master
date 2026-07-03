@@ -225,6 +225,7 @@ namespace ChimeraHairMaster.Editor.NDMF
                         && slot.propertyName == "_MainTex"
                         && rendererIndex != strandRef.RefIndex;
                     bool useSharedCache = !hasOffset && !hasBlurSharp && !applyStrand;
+                    bool compressIntermediate = !applyStrand;
 
                     // テクスチャ毎に Oklab/RGBDelta 用の事前計算を行った settings を構築
                     // ※ 代表色抽出は元テクスチャから（ブラー/シャープの影響を受けない）
@@ -258,7 +259,7 @@ namespace ChimeraHairMaster.Editor.NDMF
                         }
 
                         // 色変換を実行
-                        processedTexture = ColorProcessor.ProcessTexture(colorTransformInput, settings);
+                        processedTexture = ColorProcessor.ProcessTexture(colorTransformInput, settings, compressResult: compressIntermediate);
 
                         // 前処理用の中間テクスチャを破棄
                         if (preprocessed != null)
@@ -269,7 +270,7 @@ namespace ChimeraHairMaster.Editor.NDMF
                         // 明度オフセットを適用
                         if (processedTexture != null && hasOffset)
                         {
-                            var offsetApplied = ColorProcessor.ApplyBrightnessOffset(processedTexture, brightnessOffset);
+                            var offsetApplied = ColorProcessor.ApplyBrightnessOffset(processedTexture, brightnessOffset, compressResult: compressIntermediate);
                             if (offsetApplied != null)
                             {
                                 Object.DestroyImmediate(processedTexture);
@@ -280,7 +281,7 @@ namespace ChimeraHairMaster.Editor.NDMF
                         // UV 使用領域外を edge dilation で塗り足し
                         if (processedTexture != null)
                         {
-                            var dilated = ColorProcessor.DilateTexture(processedTexture, uvMask, 8);
+                            var dilated = ColorProcessor.DilateTexture(processedTexture, uvMask, 8, compressResult: compressIntermediate);
                             if (dilated != null)
                             {
                                 Object.DestroyImmediate(processedTexture);
@@ -299,7 +300,7 @@ namespace ChimeraHairMaster.Editor.NDMF
                     // 旧 processedTexture を破棄せず参照だけ差し替える（cache に未マスク版が残るのは仕様）
                     if (processedTexture != null)
                     {
-                        var masked = Processing.ColorMaskApplier.TryApply(component, rendererIndex, i, texture, processedTexture);
+                        var masked = Processing.ColorMaskApplier.TryApply(component, rendererIndex, i, texture, processedTexture, compressResult: compressIntermediate);
                         if (masked != null)
                         {
                             processedTexture = masked;
@@ -310,7 +311,13 @@ namespace ChimeraHairMaster.Editor.NDMF
                     // useSharedCache を false に強制しているので processedTexture は per-renderer 固有のインスタンス
                     if (applyStrand && processedTexture != null)
                     {
-                        var composed = StrandPatternApplier.TryComposeStrand(processedTexture, renderer, submeshIndices, strandRef);
+                        var composed = StrandPatternApplier.TryComposeStrand(
+                            processedTexture,
+                            renderer,
+                            submeshIndices,
+                            strandRef,
+                            texture.format,
+                            compressResult: !component.enableMeshMerge);
                         if (composed != null && composed != processedTexture)
                         {
                             Object.DestroyImmediate(processedTexture);

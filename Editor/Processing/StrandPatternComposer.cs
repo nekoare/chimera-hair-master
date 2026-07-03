@@ -9,6 +9,8 @@ namespace ChimeraHairMaster.Editor.Processing
     /// </summary>
     public static class StrandPatternComposer
     {
+        private const float EncodedNeutral = 128f / 255f;
+
         /// <summary>
         /// σ_h と σ_l による 2 バンド分解: B_high = source - blur(σ_h), B_mid = blur(σ_h) - blur(σ_l)
         /// 派生時は target の bandHigh と hp8 の 2 つの highpass テクスチャを渡す
@@ -21,7 +23,9 @@ namespace ChimeraHairMaster.Editor.Processing
             float ratioHigh,
             float ratioMid,
             float strengthFine,
-            float strengthShade)
+            float strengthShade,
+            TextureFormat? compressionFormat = null,
+            bool compressResult = true)
         {
             if (target == null || bandHigh == null || hp8 == null || uvMask == null) return null;
             if (uvMask.Length != target.width * target.height) return null;
@@ -43,7 +47,7 @@ namespace ChimeraHairMaster.Editor.Processing
             // 両 scale が実効ゼロなら target そのまま
             if (Mathf.Abs(scaleHigh) < 1e-4f && Mathf.Abs(scaleMid) < 1e-4f)
             {
-                return CopyTexture(target);
+                return CopyTexture(target, compressionFormat, compressResult);
             }
 
             int wordCount = Mathf.Max(1, (width * height + 31) / 32);
@@ -89,6 +93,11 @@ namespace ChimeraHairMaster.Editor.Processing
                 output.Apply(true);
                 RenderTexture.active = prev;
 
+                // 色変換・dilation と同じく、生成物を入力テクスチャの圧縮形式に戻す。
+                if (compressResult)
+                {
+                    ColorProcessor.CompressToMatch(output, compressionFormat ?? target.format);
+                }
                 ShaderUtils.EnableMipStreaming(output);
                 return output;
             }
@@ -125,13 +134,13 @@ namespace ChimeraHairMaster.Editor.Processing
             for (int i = 0; i < bhPixels.Length; i++)
             {
                 if (!uvMask[i]) continue;
-                // decode signed
-                double bh_r = (bhPixels[i].r - 0.5) * 2.0;
-                double bh_g = (bhPixels[i].g - 0.5) * 2.0;
-                double bh_b = (bhPixels[i].b - 0.5) * 2.0;
-                double hp_r = (hpPixels[i].r - 0.5) * 2.0;
-                double hp_g = (hpPixels[i].g - 0.5) * 2.0;
-                double hp_b = (hpPixels[i].b - 0.5) * 2.0;
+                // decode signed. RGBA32 の中立値は 8bit 量子化後の 128/255。
+                double bh_r = (bhPixels[i].r - EncodedNeutral) * 2.0;
+                double bh_g = (bhPixels[i].g - EncodedNeutral) * 2.0;
+                double bh_b = (bhPixels[i].b - EncodedNeutral) * 2.0;
+                double hp_r = (hpPixels[i].r - EncodedNeutral) * 2.0;
+                double hp_g = (hpPixels[i].g - EncodedNeutral) * 2.0;
+                double hp_b = (hpPixels[i].b - EncodedNeutral) * 2.0;
                 // luma weighted
                 double lumaHigh = 0.299 * bh_r + 0.587 * bh_g + 0.114 * bh_b;
                 double lumaMid = 0.299 * (hp_r - bh_r) + 0.587 * (hp_g - bh_g) + 0.114 * (hp_b - bh_b);
@@ -156,13 +165,17 @@ namespace ChimeraHairMaster.Editor.Processing
             return rt;
         }
 
-        private static Texture2D CopyTexture(Texture2D source)
+        private static Texture2D CopyTexture(Texture2D source, TextureFormat? compressionFormat = null, bool compressResult = true)
         {
             var readable = ColorProcessor.GetReadableTexture(source);
             var copy = new Texture2D(readable.width, readable.height, TextureFormat.RGBA32, true);
             copy.name = source.name + "_Copy";
             copy.SetPixels(readable.GetPixels());
             copy.Apply(true);
+            if (compressResult)
+            {
+                ColorProcessor.CompressToMatch(copy, compressionFormat ?? source.format);
+            }
             ShaderUtils.EnableMipStreaming(copy);
             if (readable != source) Object.DestroyImmediate(readable);
             return copy;
