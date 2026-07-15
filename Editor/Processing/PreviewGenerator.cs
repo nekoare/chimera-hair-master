@@ -152,7 +152,7 @@ namespace ChimeraHairMaster.Editor.Processing
                         };
 
                         // 色変換を実行
-                        var processedTex = ColorProcessor.ProcessTexture(tex, settings);
+                        var processedTex = ColorProcessor.ProcessTexture(tex, settings, compressResult: false);
                         if (processedTex != null)
                         {
                             cache[tex] = processedTex;

@@ -666,6 +666,22 @@ namespace ChimeraHairMaster
         }
 
         /// <summary>
+        /// 指定プロパティが colorChangeTargets に登録され、かつ applyColorChange が明示的に false かを返す。
+        /// NDMFビルドはこの OFF を尊重してスキップするため、プレビュー/Apply/Prefab のフォールバック処理も
+        /// これを見て一致させる（設定画面の結果とビルド結果を揃える目的）。
+        /// </summary>
+        public bool IsColorChangeExplicitlyDisabled(string propertyName)
+        {
+            if (colorChangeTargets == null) return false;
+            foreach (var slot in colorChangeTargets)
+            {
+                if (slot != null && slot.propertyName == propertyName)
+                    return !slot.applyColorChange;
+            }
+            return false;
+        }
+
+        /// <summary>
         /// 統合対象として選択されているすべてのサブメッシュを取得します。
         /// </summary>
         /// <returns>統合対象の(rendererIndex, submeshIndex)ペア一覧</returns>

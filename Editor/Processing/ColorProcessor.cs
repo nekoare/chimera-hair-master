@@ -67,6 +67,11 @@ namespace ChimeraHairMaster.Editor.Processing
                 }
             }
 
+            // 元テクスチャのサンプラー設定を最終結果へ継承する。
+            // ※ 圧縮ソース時は入力が LoadUncompressed の既定設定コピーになるため、
+            //   内部段の継承だけでは aniso 等が失われる。ここで元 sourceTexture から確実に継承する。
+            if (result != null) CopyTextureSettings(sourceTexture, result);
+
             return result;
         }
 
@@ -187,6 +192,7 @@ namespace ChimeraHairMaster.Editor.Processing
                 RenderTexture.active = previous;
 
                 // VRChat向けにミップストリーミングを有効化
+                CopyTextureSettings(sourceTexture, outputTexture);
                 ShaderUtils.EnableMipStreaming(outputTexture);
 
                 return outputTexture;
@@ -285,6 +291,7 @@ namespace ChimeraHairMaster.Editor.Processing
             outputTexture.Apply(true);
 
             // VRChat向けにミップストリーミングを有効化
+            CopyTextureSettings(sourceTexture, outputTexture);
             ShaderUtils.EnableMipStreaming(outputTexture);
 
             // 一時テクスチャをクリーンアップ
@@ -453,24 +460,72 @@ namespace ChimeraHairMaster.Editor.Processing
         /// 元テクスチャと同じ圧縮形式を適用する
         /// 非圧縮フォーマットの場合は何もしない
         /// </summary>
-        internal static void CompressToMatch(Texture2D texture, TextureFormat sourceFormat)
+        /// <summary>
+        /// UV使用領域から算出される設定（代表色 SourceColor / Oklab source stats）の署名を返す。
+        /// 同じテクスチャでも Renderer/サブメッシュの UV 領域が異なれば代表色が変わるため、
+        /// 色変換キャッシュの共有可否をこの署名で判定し、別領域の結果を取り違えないようにする。
+        /// </summary>
+        internal static int ComputeUvStatSignature(ColorTransformSettings s)
+        {
+            if (s == null) return 0;
+            unchecked
+            {
+                int h = 17;
+                h = h * 31 + s.SourceColor.GetHashCode();
+                h = h * 31 + s.OklabSourceLP95.GetHashCode();
+                h = h * 31 + s.OklabSourceLP05.GetHashCode();
+                h = h * 31 + s.OklabSourceHDominant.GetHashCode();
+                return h;
+            }
+        }
+
+        /// <summary>
+        /// 元テクスチャのサンプラー設定（filterMode / anisoLevel / wrapMode）を生成テクスチャへ継承する。
+        /// new Texture2D は既定(Bilinear/aniso1/Repeat)になるため、これを呼ばないと
+        /// 元が aniso 高設定等でも生成後にボケる（ビルド出力にも影響）。
+        /// </summary>
+        internal static void CopyTextureSettings(Texture src, Texture2D dst)
+        {
+            if (src == null || dst == null) return;
+            dst.filterMode = src.filterMode;
+            dst.anisoLevel = src.anisoLevel;
+            dst.wrapMode = src.wrapMode;
+        }
+
+        internal static void CompressToMatch(Texture2D texture, TextureFormat sourceFormat,
+            TextureCompressionQuality quality = TextureCompressionQuality.Best)
         {
             // 圧縮フォーマットへのマッピング
             // EditorUtility.CompressTextureがサポートする形式のみ対応
+            // Android/Quest では元テクスチャが ASTC / ETC2 のため、それらを非圧縮(RGBA32)に
+            // 落とさず同形式へ圧縮する（RGBA32 のままだと Avatar validation failed になる）。
             TextureFormat? compressedFormat = sourceFormat switch
             {
+                // Desktop (DXT/BC 系)
                 TextureFormat.DXT1 or TextureFormat.DXT1Crunched => TextureFormat.DXT1,
                 TextureFormat.DXT5 or TextureFormat.DXT5Crunched => TextureFormat.DXT5,
                 TextureFormat.BC5 => TextureFormat.BC5,
                 TextureFormat.BC7 => TextureFormat.BC7,
                 TextureFormat.BC4 => TextureFormat.BC4,
                 TextureFormat.BC6H => TextureFormat.BC6H,
+                // Android/Quest (ASTC 系) — ブロックサイズは元テクスチャに合わせる
+                TextureFormat.ASTC_4x4 => TextureFormat.ASTC_4x4,
+                TextureFormat.ASTC_5x5 => TextureFormat.ASTC_5x5,
+                TextureFormat.ASTC_6x6 => TextureFormat.ASTC_6x6,
+                TextureFormat.ASTC_8x8 => TextureFormat.ASTC_8x8,
+                TextureFormat.ASTC_10x10 => TextureFormat.ASTC_10x10,
+                TextureFormat.ASTC_12x12 => TextureFormat.ASTC_12x12,
+                // Android/Quest (ETC 系)
+                TextureFormat.ETC2_RGBA8 or TextureFormat.ETC2_RGBA8Crunched => TextureFormat.ETC2_RGBA8,
+                TextureFormat.ETC2_RGB => TextureFormat.ETC2_RGB,
+                TextureFormat.ETC2_RGBA1 => TextureFormat.ETC2_RGBA1,
+                TextureFormat.ETC_RGB4 or TextureFormat.ETC_RGB4Crunched => TextureFormat.ETC_RGB4,
                 _ => null
             };
 
             if (compressedFormat.HasValue)
             {
-                EditorUtility.CompressTexture(texture, compressedFormat.Value, TextureCompressionQuality.Normal);
+                EditorUtility.CompressTexture(texture, compressedFormat.Value, quality);
             }
         }
 
@@ -799,6 +854,7 @@ namespace ChimeraHairMaster.Editor.Processing
             {
                 CompressToMatch(result, texture.format);
             }
+            CopyTextureSettings(texture, result);
             ShaderUtils.EnableMipStreaming(result);
 
             if (readable != texture)
@@ -910,6 +966,7 @@ namespace ChimeraHairMaster.Editor.Processing
                 {
                     CompressToMatch(output, source.format);
                 }
+                CopyTextureSettings(source, output);
                 ShaderUtils.EnableMipStreaming(output);
                 return output;
             }
@@ -1007,6 +1064,7 @@ namespace ChimeraHairMaster.Editor.Processing
             {
                 CompressToMatch(output, source.format);
             }
+            CopyTextureSettings(source, output);
             ShaderUtils.EnableMipStreaming(output);
 
             if (readable != source)
@@ -1086,6 +1144,7 @@ namespace ChimeraHairMaster.Editor.Processing
             {
                 CompressToMatch(output, originalTexture.format);
             }
+            CopyTextureSettings(originalTexture, output);
             ShaderUtils.EnableMipStreaming(output);
 
             // 一時テクスチャをクリーンアップ
@@ -1097,9 +1156,9 @@ namespace ChimeraHairMaster.Editor.Processing
         }
 
         /// <summary>
-        /// テクスチャをコピー
+        /// テクスチャをコピー。compressResult:false で非圧縮RGBA32コピーを得る（呼び出し側で最終圧縮する用途）。
         /// </summary>
-        private static Texture2D CopyTexture(Texture2D source, bool compressResult = true)
+        internal static Texture2D CopyTexture(Texture2D source, bool compressResult = true)
         {
             var readable = GetReadableTexture(source);
             var copy = new Texture2D(readable.width, readable.height, TextureFormat.RGBA32, true);
@@ -1110,6 +1169,7 @@ namespace ChimeraHairMaster.Editor.Processing
             {
                 CompressToMatch(copy, source.format);
             }
+            CopyTextureSettings(source, copy);
             ShaderUtils.EnableMipStreaming(copy);
 
             if (readable != source)

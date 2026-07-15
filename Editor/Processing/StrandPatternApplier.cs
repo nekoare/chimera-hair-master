@@ -127,13 +127,13 @@ namespace ChimeraHairMaster.Editor.Processing
                         if (preprocessed != null) colorInput = preprocessed;
                     }
 
-                    refProcessed = ColorProcessor.ProcessTexture(colorInput, perTexSettings);
+                    refProcessed = ColorProcessor.ProcessTexture(colorInput, perTexSettings, compressResult: false);
                     if (preprocessed != null) Object.DestroyImmediate(preprocessed);
                     if (refProcessed == null) continue;
 
                     if (uvMask != null)
                     {
-                        var dilated = ColorProcessor.DilateTexture(refProcessed, uvMask, 8);
+                        var dilated = ColorProcessor.DilateTexture(refProcessed, uvMask, 8, compressResult: false);
                         if (dilated != null)
                         {
                             Object.DestroyImmediate(refProcessed);

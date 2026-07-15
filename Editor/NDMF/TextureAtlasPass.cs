@@ -342,6 +342,9 @@ namespace ChimeraHairMaster.Editor.NDMF
                     var newMat = new Material(mat);
                     newMat.name = mat.name + "_CHM_Settings";
 
+                    // 輪郭線はシェーダ切替（Outline版の有無）で表現されるため、数値コピー前にシェーダを揃える
+                    // （モードは維持するので不透明対象が半透明化して消える退行は起きない）
+                    SyncOutlineVariant(sourceMaterial, newMat);
                     // 数値プロパティのみbaseMaterialから上書き（2nd/3rd/発光は除外、MatCapは設定に応じて除外）
                     ApplyShaderSettings(sourceMaterial, newMat,
                         excludeOverlayAndEmission: true,
@@ -411,6 +414,47 @@ namespace ChimeraHairMaster.Editor.NDMF
                         to.SetInt(propertyName, from.GetInt(propertyName));
                         break;
                 }
+            }
+        }
+
+        /// <summary>
+        /// lilToon の輪郭線は「プロパティ」ではなく「Outline版シェーダの有無」で表現される
+        /// （例: Hidden/lilToonTransparent ⇔ Hidden/lilToonTransparentOutline）。
+        /// from（previewMaterial）の輪郭線ON/OFFに合わせて、to のシェーダを
+        /// 「to 自身のレンダリングモード（Transparent/Cutout 等）を保ったまま」
+        /// Outline版／非Outline版へ切り替える。
+        ///
+        /// ※ 両方が Hidden/lilToon* の場合のみ対象。対応シェーダが見つからなければ何もしない。
+        ///   これにより耳・しっぽ等が別シェーダでも壊さない
+        ///   （過去に to.shader=from.shader の一律強制で耳・しっぽが消えた退行への配慮）。
+        /// ※ ApplyShaderSettings は数値プロパティしかコピーせずシェーダを維持するため、
+        ///   輪郭線の反映にはこの切替が別途必要。数値コピー前に呼ぶこと。
+        /// </summary>
+        internal static void SyncOutlineVariant(Material from, Material to)
+        {
+            if (from == null || to == null || from.shader == null || to.shader == null) return;
+
+            const string lilPrefix = "Hidden/lilToon";
+            const string outlineSuffix = "Outline";
+
+            string fromName = from.shader.name;
+            string toName = to.shader.name;
+
+            // lilToon の Hidden シェーダ同士のみ対象
+            if (!fromName.StartsWith(lilPrefix) || !toName.StartsWith(lilPrefix)) return;
+
+            bool fromOutline = fromName.EndsWith(outlineSuffix);
+            bool toOutline = toName.EndsWith(outlineSuffix);
+            if (fromOutline == toOutline) return; // 既に輪郭線ON/OFFが一致
+
+            string targetName = fromOutline
+                ? toName + outlineSuffix                                        // 非Outline → Outline版へ
+                : toName.Substring(0, toName.Length - outlineSuffix.Length);    // Outline → 非Outline版へ
+
+            var targetShader = Shader.Find(targetName);
+            if (targetShader != null)
+            {
+                to.shader = targetShader;
             }
         }
 

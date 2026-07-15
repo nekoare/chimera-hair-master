@@ -168,6 +168,16 @@ namespace ChimeraHairMaster.Editor.NDMF
                                 }
                             }
                         }
+                        // アトラスはフォールバックの _MainTex / _BumpMap / _ShadowStrengthMask も参照するため、
+                        // これらを同一マテリアル上で差し替えてもプレビューが無効化されるよう hash に含める
+                        foreach (var atlasProp in new[] { "_MainTex", "_BumpMap", "_ShadowStrengthMask" })
+                        {
+                            if (mat.HasProperty(atlasProp))
+                            {
+                                var t = mat.GetTexture(atlasProp);
+                                hash = hash * 31 + (t != null ? t.GetInstanceID() : 0);
+                            }
+                        }
                     }
                 }
 
@@ -868,6 +878,9 @@ namespace ChimeraHairMaster.Editor.NDMF
                             newMat.name = mat.name + "_CHM_Preview";
                             if (baseMaterialForPreview != null)
                             {
+                                // 輪郭線はシェーダ切替（Outline版シェーダの有無）で表現されるため、
+                                // 数値コピー前に previewMaterial の輪郭線ON/OFFへシェーダを揃える
+                                TextureAtlasPass.SyncOutlineVariant(baseMaterialForPreview, newMat);
                                 TextureAtlasPass.ApplyShaderSettings(baseMaterialForPreview, newMat,
                                     excludeOverlayAndEmission: true,
                                     excludeMatCap: !component.unifyMatCap);
@@ -939,7 +952,7 @@ namespace ChimeraHairMaster.Editor.NDMF
                             // 明度オフセットを適用
                             if (Mathf.Abs(brightnessOffset) > 0.001f)
                             {
-                                var offsetApplied = Processing.ColorProcessor.ApplyBrightnessOffset(baseTex, brightnessOffset);
+                                var offsetApplied = Processing.ColorProcessor.ApplyBrightnessOffset(baseTex, brightnessOffset, compressResult: false);
                                 if (offsetApplied != null)
                                 {
                                     currentTex = offsetApplied;
@@ -949,7 +962,7 @@ namespace ChimeraHairMaster.Editor.NDMF
 
                             // 色合わせ無視マスクを適用
                             {
-                                var masked = Processing.ColorMaskApplier.TryApply(component, rendererIndex, submeshIndex, tex, currentTex);
+                                var masked = Processing.ColorMaskApplier.TryApply(component, rendererIndex, submeshIndex, tex, currentTex, compressResult: false);
                                 if (masked != null)
                                 {
                                     currentTex = masked;
@@ -962,7 +975,7 @@ namespace ChimeraHairMaster.Editor.NDMF
                                 && rendererIndex != strandRef.RefIndex)
                             {
                                 var composed = Processing.StrandPatternApplier.TryComposeStrand(
-                                    currentTex, renderer, new[] { submeshIndex }, strandRef);
+                                    currentTex, renderer, new[] { submeshIndex }, strandRef, compressResult: false);
                                 if (composed != null)
                                 {
                                     currentTex = composed;
@@ -975,7 +988,7 @@ namespace ChimeraHairMaster.Editor.NDMF
                         }
 
                         // メインテクスチャがcolorChangeTargetsに含まれていない場合も処理
-                        if (!hasProcessedTexture && mat.HasProperty("_MainTex"))
+                        if (!hasProcessedTexture && mat.HasProperty("_MainTex") && !component.IsColorChangeExplicitlyDisabled("_MainTex"))
                         {
                             var tex = mat.GetTexture("_MainTex") as Texture2D;
                             if (tex != null)
@@ -990,7 +1003,7 @@ namespace ChimeraHairMaster.Editor.NDMF
 
                                     if (Mathf.Abs(brightnessOffset) > 0.001f)
                                     {
-                                        var offsetApplied = Processing.ColorProcessor.ApplyBrightnessOffset(baseTex, brightnessOffset);
+                                        var offsetApplied = Processing.ColorProcessor.ApplyBrightnessOffset(baseTex, brightnessOffset, compressResult: false);
                                         if (offsetApplied != null)
                                         {
                                             currentTex = offsetApplied;
@@ -1000,7 +1013,7 @@ namespace ChimeraHairMaster.Editor.NDMF
 
                                     // 色合わせ無視マスクを適用
                                     {
-                                        var masked = Processing.ColorMaskApplier.TryApply(component, rendererIndex, submeshIndex, tex, currentTex);
+                                        var masked = Processing.ColorMaskApplier.TryApply(component, rendererIndex, submeshIndex, tex, currentTex, compressResult: false);
                                         if (masked != null)
                                         {
                                             currentTex = masked;
@@ -1012,7 +1025,7 @@ namespace ChimeraHairMaster.Editor.NDMF
                                     if (strandRef != null && strandRef.IsValid && rendererIndex != strandRef.RefIndex)
                                     {
                                         var composed = Processing.StrandPatternApplier.TryComposeStrand(
-                                            currentTex, renderer, new[] { submeshIndex }, strandRef);
+                                            currentTex, renderer, new[] { submeshIndex }, strandRef, compressResult: false);
                                         if (composed != null)
                                         {
                                             currentTex = composed;
@@ -1115,14 +1128,14 @@ namespace ChimeraHairMaster.Editor.NDMF
                 if (preprocessed != null) colorTransformInput = preprocessed;
             }
 
-            var processedTex = Processing.ColorProcessor.ProcessTexture(colorTransformInput, perTextureSettings, true);
+            var processedTex = Processing.ColorProcessor.ProcessTexture(colorTransformInput, perTextureSettings, true, compressResult: false);
 
             if (preprocessed != null) Object.DestroyImmediate(preprocessed);
 
             // UV 使用領域外を edge dilation で塗り足し
             if (processedTex != null && uvMask != null)
             {
-                var dilated = Processing.ColorProcessor.DilateTexture(processedTex, uvMask, 8);
+                var dilated = Processing.ColorProcessor.DilateTexture(processedTex, uvMask, 8, compressResult: false);
                 if (dilated != null)
                 {
                     Object.DestroyImmediate(processedTex);
@@ -1225,6 +1238,8 @@ namespace ChimeraHairMaster.Editor.NDMF
                     // 1. 色変換テクスチャキャッシュを構築（ビルドの ColorTransformPass 相当）
                     var colorTransformTextures = new List<Texture>();
                     Dictionary<Texture2D, Texture2D>? processedTextureCache = null;
+                    // renderer×submesh 固有の処理結果（strand 等）。共有 cache より優先して参照される
+                    Dictionary<(int rendererIndex, int submeshIndex, Texture2D texture), Texture2D>? perIslandTextureCache = null;
                     if (component.enableColorTransform)
                     {
                         processedTextureCache = BuildColorTransformCache(component, colorTransformTextures);
@@ -1244,10 +1259,13 @@ namespace ChimeraHairMaster.Editor.NDMF
                         strandRef = Processing.StrandPatternApplier.PrepareRefData(component, refSettings, null, processedTextureCache);
 
                         // cache 経路の Renderer (per-renderer 調整なし) に strand を適用
-                        // 注: 同じ original を複数 Renderer で共有する場合、最初の Renderer の UV で計算される（既存挙動を踏襲）
+                        // strand は Renderer/サブメッシュごとに UV が異なるため、共有 cache へ書き戻さず
+                        // per-island キャッシュ（renderer×submesh×元テクスチャ）へ格納する。
+                        // これにより同じ original を複数 Renderer で共有していても各自に正しい模様が乗る
+                        // （旧実装は最初の Renderer の UV で計算した結果を全 Renderer が共有していた）。
                         if (strandRef != null && strandRef.IsValid)
                         {
-                            var doneOriginals = new HashSet<Texture2D>();
+                            perIslandTextureCache = new Dictionary<(int, int, Texture2D), Texture2D>();
                             for (int r = 0; r < component.targetRenderers.Count; r++)
                             {
                                 if (r == strandRef.RefIndex) continue;
@@ -1259,20 +1277,23 @@ namespace ChimeraHairMaster.Editor.NDMF
                                     var rm = rmats[s];
                                     if (rm == null || !rm.HasProperty("_MainTex")) continue;
                                     if (!component.IsSubmeshIncluded(r, s)) continue;
+                                    // このサブメッシュが後段のマテリアル一時差し替えで strand 込みフルチェーン処理される場合はスキップ。
+                                    // ※ 判定は (renderer, submesh) 単位。同じ Renderer 内でも「マスク無しサブメッシュ」は
+                                    //    差し替え側でスキップされるため、こちらの per-island strand で塗り感統一を適用する必要がある。
+                                    if (IsHandledByMaterialSwap(component, r, s)) continue;
                                     var origTex = rm.GetTexture("_MainTex") as Texture2D;
-                                    if (origTex == null || doneOriginals.Contains(origTex)) continue;
+                                    if (origTex == null) continue;
+                                    if (perIslandTextureCache.ContainsKey((r, s, origTex))) continue;
                                     if (!processedTextureCache.TryGetValue(origTex, out var processedTex)) continue;
 
                                     var composed = Processing.StrandPatternApplier.TryComposeStrand(
-                                        processedTex, rend, new[] { s }, strandRef);
+                                        processedTex, rend, new[] { s }, strandRef, compressResult: false);
                                     if (composed != null)
                                     {
                                         // 旧 processedTex は colorTransformTextures が保持しているのでそのまま破棄しない
-                                        // composed を cache 値として差し替えて、こちらも cleanup 対象に追加
-                                        processedTextureCache[origTex] = composed;
+                                        perIslandTextureCache[(r, s, origTex)] = composed;
                                         colorTransformTextures.Add(composed);
                                     }
-                                    doneOriginals.Add(origTex);
                                 }
                             }
                         }
@@ -1351,14 +1372,14 @@ namespace ChimeraHairMaster.Editor.NDMF
                                         if (preprocessed != null) colorInput = preprocessed;
                                     }
 
-                                    var processed = Processing.ColorProcessor.ProcessTexture(colorInput, perTexSettings, true);
+                                    var processed = Processing.ColorProcessor.ProcessTexture(colorInput, perTexSettings, true, compressResult: false);
                                     if (preprocessed != null) Object.DestroyImmediate(preprocessed);
                                     if (processed == null) continue;
 
                                     // 明度オフセットを適用
                                     if (Mathf.Abs(brightnessOffset) > 0.001f)
                                     {
-                                        var offsetApplied = Processing.ColorProcessor.ApplyBrightnessOffset(processed, brightnessOffset);
+                                        var offsetApplied = Processing.ColorProcessor.ApplyBrightnessOffset(processed, brightnessOffset, compressResult: false);
                                         if (offsetApplied != null)
                                         {
                                             Object.DestroyImmediate(processed);
@@ -1368,7 +1389,7 @@ namespace ChimeraHairMaster.Editor.NDMF
 
                                     // UV 使用領域外を edge dilation で塗り足し
                                     {
-                                        var dilated = Processing.ColorProcessor.DilateTexture(processed, uvMask, 8);
+                                        var dilated = Processing.ColorProcessor.DilateTexture(processed, uvMask, 8, compressResult: false);
                                         if (dilated != null)
                                         {
                                             Object.DestroyImmediate(processed);
@@ -1378,7 +1399,7 @@ namespace ChimeraHairMaster.Editor.NDMF
 
                                     // 色合わせ無視マスクを適用
                                     {
-                                        var masked = Processing.ColorMaskApplier.TryApply(component, r, s, tex, processed);
+                                        var masked = Processing.ColorMaskApplier.TryApply(component, r, s, tex, processed, compressResult: false);
                                         if (masked != null)
                                         {
                                             Object.DestroyImmediate(processed);
@@ -1392,7 +1413,7 @@ namespace ChimeraHairMaster.Editor.NDMF
                                         && r != strandRef.RefIndex)
                                     {
                                         var composed = Processing.StrandPatternApplier.TryComposeStrand(
-                                            processed, renderer, new[] { s }, strandRef);
+                                            processed, renderer, new[] { s }, strandRef, compressResult: false);
                                         if (composed != null)
                                         {
                                             Object.DestroyImmediate(processed);
@@ -1410,7 +1431,7 @@ namespace ChimeraHairMaster.Editor.NDMF
                                     var tex = tempMat.GetTexture("_MainTex") as Texture2D;
                                     bool alreadyProcessed = component.colorChangeTargets
                                         .Any(ct => ct.propertyName == "_MainTex" && ct.applyColorChange);
-                                    if (tex != null && !alreadyProcessed)
+                                    if (tex != null && !alreadyProcessed && !component.IsColorChangeExplicitlyDisabled("_MainTex"))
                                     {
                                         var perTexSettings = Processing.MeshUVSampler.PrepareSettingsWithUVStats(
                                             settings, renderer, new[] { s }, tex);
@@ -1426,14 +1447,14 @@ namespace ChimeraHairMaster.Editor.NDMF
                                             if (preprocessed != null) colorInput = preprocessed;
                                         }
 
-                                        var processed = Processing.ColorProcessor.ProcessTexture(colorInput, perTexSettings, true);
+                                        var processed = Processing.ColorProcessor.ProcessTexture(colorInput, perTexSettings, true, compressResult: false);
                                         if (preprocessed != null) Object.DestroyImmediate(preprocessed);
                                         if (processed != null)
                                         {
                                             // 明度オフセットを適用
                                             if (Mathf.Abs(brightnessOffset) > 0.001f)
                                             {
-                                                var offsetApplied = Processing.ColorProcessor.ApplyBrightnessOffset(processed, brightnessOffset);
+                                                var offsetApplied = Processing.ColorProcessor.ApplyBrightnessOffset(processed, brightnessOffset, compressResult: false);
                                                 if (offsetApplied != null)
                                                 {
                                                     Object.DestroyImmediate(processed);
@@ -1443,7 +1464,7 @@ namespace ChimeraHairMaster.Editor.NDMF
 
                                             // UV 使用領域外を edge dilation で塗り足し
                                             {
-                                                var dilated = Processing.ColorProcessor.DilateTexture(processed, uvMask, 8);
+                                                var dilated = Processing.ColorProcessor.DilateTexture(processed, uvMask, 8, compressResult: false);
                                                 if (dilated != null)
                                                 {
                                                     Object.DestroyImmediate(processed);
@@ -1453,7 +1474,7 @@ namespace ChimeraHairMaster.Editor.NDMF
 
                                             // 色合わせ無視マスクを適用
                                             {
-                                                var masked = Processing.ColorMaskApplier.TryApply(component, r, s, tex, processed);
+                                                var masked = Processing.ColorMaskApplier.TryApply(component, r, s, tex, processed, compressResult: false);
                                                 if (masked != null)
                                                 {
                                                     Object.DestroyImmediate(processed);
@@ -1466,7 +1487,7 @@ namespace ChimeraHairMaster.Editor.NDMF
                                                 && r != strandRef.RefIndex)
                                             {
                                                 var composed = Processing.StrandPatternApplier.TryComposeStrand(
-                                                    processed, renderer, new[] { s }, strandRef);
+                                                    processed, renderer, new[] { s }, strandRef, compressResult: false);
                                                 if (composed != null)
                                                 {
                                                     Object.DestroyImmediate(processed);
@@ -1491,7 +1512,7 @@ namespace ChimeraHairMaster.Editor.NDMF
                     TextureAtlasBuilder.AtlasResult atlasResult;
                     try
                     {
-                        atlasResult = TextureAtlasBuilder.Build(component, resolution, processedTextureCache ?? new Dictionary<Texture2D, Texture2D>(), isPreview: true);
+                        atlasResult = TextureAtlasBuilder.Build(component, resolution, processedTextureCache ?? new Dictionary<Texture2D, Texture2D>(), isPreview: true, perIslandTextureCache);
                     }
                     finally
                     {
@@ -1720,13 +1741,13 @@ namespace ChimeraHairMaster.Editor.NDMF
 
                         var perTexSettings = Processing.MeshUVSampler.PrepareSettingsWithUVStats(
                             settings, renderer, new[] { s }, tex);
-                        var processed = Processing.ColorProcessor.ProcessTexture(tex, perTexSettings, true);
+                        var processed = Processing.ColorProcessor.ProcessTexture(tex, perTexSettings, true, compressResult: false);
                         if (processed != null)
                         {
                             // UV 使用領域外を edge dilation で塗り足し
                             var uvMask = Processing.MeshUVRasterizer.Rasterize(
                                 renderer, new[] { s }, processed.width, processed.height);
-                            var dilated = Processing.ColorProcessor.DilateTexture(processed, uvMask, 8);
+                            var dilated = Processing.ColorProcessor.DilateTexture(processed, uvMask, 8, compressResult: false);
                             if (dilated != null)
                             {
                                 Object.DestroyImmediate(processed);
@@ -1741,17 +1762,17 @@ namespace ChimeraHairMaster.Editor.NDMF
                     if (mat.HasProperty("_MainTex"))
                     {
                         var tex = mat.GetTexture("_MainTex") as Texture2D;
-                        if (tex != null && !cache.ContainsKey(tex))
+                        if (tex != null && !cache.ContainsKey(tex) && !component.IsColorChangeExplicitlyDisabled("_MainTex"))
                         {
                             var perTexSettings = Processing.MeshUVSampler.PrepareSettingsWithUVStats(
                                 settings, renderer, new[] { s }, tex);
-                            var processed = Processing.ColorProcessor.ProcessTexture(tex, perTexSettings, true);
+                            var processed = Processing.ColorProcessor.ProcessTexture(tex, perTexSettings, true, compressResult: false);
                             if (processed != null)
                             {
                                 // UV 使用領域外を edge dilation で塗り足し
                                 var uvMask = Processing.MeshUVRasterizer.Rasterize(
                                     renderer, new[] { s }, processed.width, processed.height);
-                                var dilated = Processing.ColorProcessor.DilateTexture(processed, uvMask, 8);
+                                var dilated = Processing.ColorProcessor.DilateTexture(processed, uvMask, 8, compressResult: false);
                                 if (dilated != null)
                                 {
                                     Object.DestroyImmediate(processed);
@@ -1771,6 +1792,19 @@ namespace ChimeraHairMaster.Editor.NDMF
         /// <summary>
         /// Renderer単位のブラー／シャープ強度を取得
         /// </summary>
+        /// <summary>
+        /// (renderer, submesh) がアトラスプレビューの「1.5 マテリアル一時差し替え」経路で
+        /// strand 込みフルチェーン処理されるか。明度/ブラー・シャープは Renderer 単位、マスクは (r,s) 単位で判定する
+        /// （差し替え側 L1321 の per-submesh 条件と一致させる）。
+        /// true の (r,s) は per-island strand 側では扱わない（二重適用回避）。
+        /// </summary>
+        private bool IsHandledByMaterialSwap(ChimeraHairMaster component, int rendererIndex, int submeshIndex)
+        {
+            if (Mathf.Abs(GetRendererBrightnessOffset(component, rendererIndex)) > 0.001f) return true;
+            if (Mathf.Abs(GetRendererBlurSharp(component, rendererIndex)) > 0.001f) return true;
+            return component.GetColorMask(rendererIndex, submeshIndex) != null;
+        }
+
         private float GetRendererBlurSharp(ChimeraHairMaster component, int rendererIndex)
         {
             if (component.rendererBlurSharpAdjustments == null) return 0f;

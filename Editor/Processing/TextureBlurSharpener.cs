@@ -148,6 +148,7 @@ namespace ChimeraHairMaster.Editor.Processing
                 output.Apply(true);
                 RenderTexture.active = prev;
 
+                ColorProcessor.CopyTextureSettings(source, output);
                 ShaderUtils.EnableMipStreaming(output);
                 return output;
             }
@@ -187,6 +188,7 @@ namespace ChimeraHairMaster.Editor.Processing
             copy.name = source.name + "_BlurSharpenCopy";
             copy.SetPixels(readable.GetPixels());
             copy.Apply(true);
+            ColorProcessor.CopyTextureSettings(source, copy);
             ShaderUtils.EnableMipStreaming(copy);
             if (readable != source) Object.DestroyImmediate(readable);
             return copy;

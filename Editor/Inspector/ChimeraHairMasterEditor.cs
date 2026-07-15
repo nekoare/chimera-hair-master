@@ -2482,10 +2482,19 @@ namespace ChimeraHairMaster.Editor
             path = AssetDatabase.GenerateUniqueAssetPath(path);
 
             // 既存の previewMaterial がアセットなら削除
+            // ※ CHM が生成したプレビューマテリアル（CHM_Generated フォルダ配下）のみ対象にする。
+            //    ユーザーが割り当てた/フォルダ外へ移動した Asset を誤削除しないための所有権チェック。
             if (component.previewMaterial != null && AssetDatabase.Contains(component.previewMaterial))
             {
                 string oldPath = AssetDatabase.GetAssetPath(component.previewMaterial);
-                AssetDatabase.DeleteAsset(oldPath);
+                if (!string.IsNullOrEmpty(oldPath) && oldPath.Contains("CHM_Generated"))
+                {
+                    AssetDatabase.DeleteAsset(oldPath);
+                }
+                else if (!string.IsNullOrEmpty(oldPath))
+                {
+                    Debug.LogWarning($"[ChimeraHairMaster] previewMaterial '{oldPath}' は CHM 生成物ではないため削除しません（参照のみ差し替え）。");
+                }
             }
 
             AssetDatabase.CreateAsset(previewMat, path);

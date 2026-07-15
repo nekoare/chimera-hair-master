@@ -26,17 +26,26 @@ namespace ChimeraHairMaster.Editor.Processing
 
             // アセットパスを取得
             string assetPath = AssetDatabase.GetAssetPath(texture);
-            if (string.IsNullOrEmpty(assetPath)) return null;
+            if (string.IsNullOrEmpty(assetPath))
+            {
+                WarnUncompressedFallback(texture, "アセットパスが取得できません（ランタイム生成テクスチャ等）");
+                return null;
+            }
 
             // フルパスに変換
             string fullPath = Path.GetFullPath(assetPath);
-            if (!File.Exists(fullPath)) return null;
+            if (!File.Exists(fullPath))
+            {
+                WarnUncompressedFallback(texture, "元画像ファイルが見つかりません");
+                return null;
+            }
 
             // サポートされた画像形式かチェック（ImageConversion.LoadImage対応: PNG, JPG, TGA, EXR）
             string ext = Path.GetExtension(fullPath).ToLowerInvariant();
             if (ext != ".png" && ext != ".jpg" && ext != ".jpeg" && ext != ".tga" && ext != ".exr")
             {
-                // PSD等の非対応形式はフォールバック
+                // PSD/TIFF等の非対応形式はフォールバック
+                WarnUncompressedFallback(texture, $"非対応形式 {ext}");
                 return null;
             }
 
@@ -69,6 +78,19 @@ namespace ChimeraHairMaster.Editor.Processing
                 Debug.LogWarning($"[ChimeraHairMaster] 元画像ファイルの読み込みに失敗しました: {assetPath} - {ex.Message}");
                 return null;
             }
+        }
+
+        // 同一テクスチャで警告を繰り返さないための抑制セット
+        private static readonly System.Collections.Generic.HashSet<string> s_warnedUncompressedFallback
+            = new System.Collections.Generic.HashSet<string>();
+
+        private static void WarnUncompressedFallback(Texture2D texture, string reason)
+        {
+            string key = texture != null ? texture.name : "(null)";
+            if (!s_warnedUncompressedFallback.Add(key)) return;
+            Debug.LogWarning(
+                $"[ChimeraHairMaster] '{key}' を非圧縮で読み込めないため（{reason}）、" +
+                "インポート済みの圧縮データから処理します。ブロックノイズが気になる場合は元画像をPNG等にして取り込んでください。");
         }
 
         /// <summary>

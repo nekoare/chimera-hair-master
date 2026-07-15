@@ -39,6 +39,8 @@ namespace ChimeraHairMaster.Editor.NDMF
             // このコンポーネント用のキャッシュを初期化
             var textureCache = new Dictionary<Texture2D, Texture2D>();
             ProcessedTextureCache[component] = textureCache;
+            // texture 単位の共有キャッシュに紐づく UV 署名（別UV領域の取り違え防止）
+            var textureCacheSig = new Dictionary<Texture2D, int>();
 
             // Pass 単位のピクセル読み込みキャッシュ（GetReadableTexture + GetPixels の重複を避ける）
             var pixelCache = new MeshUVSampler.PixelCache();
@@ -92,7 +94,7 @@ namespace ChimeraHairMaster.Editor.NDMF
                     float brightnessOffset = GetRendererBrightnessOffset(component, rendererIndex);
                     float blurSharp = GetRendererBlurSharp(component, rendererIndex);
 
-                    ProcessRendererTextures(context, component, rendererIndex, renderer, submeshIndices, baseSettings, textureCache, pixelCache, brightnessOffset, blurSharp, strandRef);
+                    ProcessRendererTextures(context, component, rendererIndex, renderer, submeshIndices, baseSettings, textureCache, textureCacheSig, pixelCache, brightnessOffset, blurSharp, strandRef);
                 }
 
                 Debug.Log($"[ChimeraHairMaster] 色変換処理完了: {component.gameObject.name}, 処理テクスチャ数: {textureCache.Count}");
@@ -174,6 +176,7 @@ namespace ChimeraHairMaster.Editor.NDMF
             List<int> submeshIndices,
             ColorTransformSettings baseSettings,
             Dictionary<Texture2D, Texture2D> textureCache,
+            Dictionary<Texture2D, int> textureCacheSig,
             MeshUVSampler.PixelCache pixelCache,
             float brightnessOffset = 0f,
             float blurSharp = 0f,
@@ -208,6 +211,10 @@ namespace ChimeraHairMaster.Editor.NDMF
                 var newMaterial = new Material(material);
                 newMaterial.name = material.name + "_CHM";
 
+                // ※ previewMaterial の数値設定・輪郭線シェーダの反映は、この後段の
+                //   TextureAtlasPass.ProcessPerRendererMaterials（merge-OFF時に実行）で行う。
+                //   ここで重複して適用しない。
+
                 // 色変更対象のテクスチャを処理
                 foreach (var slot in component.colorChangeTargets)
                 {
@@ -225,11 +232,11 @@ namespace ChimeraHairMaster.Editor.NDMF
                         && slot.propertyName == "_MainTex"
                         && rendererIndex != strandRef.RefIndex;
                     bool useSharedCache = !hasOffset && !hasBlurSharp && !applyStrand;
-                    bool compressIntermediate = !applyStrand;
 
                     // テクスチャ毎に Oklab/RGBDelta 用の事前計算を行った settings を構築
                     // ※ 代表色抽出は元テクスチャから（ブラー/シャープの影響を受けない）
                     var settings = MeshUVSampler.PrepareSettingsWithUVStats(baseSettings, renderer, submeshIndices, texture, pixelCache);
+                    int uvSig = ColorProcessor.ComputeUvStatSignature(settings);
 
                     // UV 使用領域マスクを生成（dilation と前処理ブラー/シャープで共用）
                     bool[] uvMask = MeshUVRasterizer.Rasterize(
@@ -238,7 +245,10 @@ namespace ChimeraHairMaster.Editor.NDMF
                     // キャッシュを確認（共有可能な場合のみ）
                     Texture2D processedTexture = null;
                     bool foundInCache = false;
-                    if (useSharedCache && textureCache.TryGetValue(texture, out var cached))
+                    // 同じテクスチャでも UV 署名（代表色）が一致する場合のみ共有キャッシュを再利用する。
+                    // 別領域（署名違い）は取り違えになるため、そのまま新規処理する。
+                    if (useSharedCache && textureCache.TryGetValue(texture, out var cached)
+                        && textureCacheSig.TryGetValue(texture, out var cachedSig) && cachedSig == uvSig)
                     {
                         processedTexture = cached;
                         foundInCache = true;
@@ -259,7 +269,7 @@ namespace ChimeraHairMaster.Editor.NDMF
                         }
 
                         // 色変換を実行
-                        processedTexture = ColorProcessor.ProcessTexture(colorTransformInput, settings, compressResult: compressIntermediate);
+                        processedTexture = ColorProcessor.ProcessTexture(colorTransformInput, settings, compressResult: false);
 
                         // 前処理用の中間テクスチャを破棄
                         if (preprocessed != null)
@@ -270,7 +280,7 @@ namespace ChimeraHairMaster.Editor.NDMF
                         // 明度オフセットを適用
                         if (processedTexture != null && hasOffset)
                         {
-                            var offsetApplied = ColorProcessor.ApplyBrightnessOffset(processedTexture, brightnessOffset, compressResult: compressIntermediate);
+                            var offsetApplied = ColorProcessor.ApplyBrightnessOffset(processedTexture, brightnessOffset, compressResult: false);
                             if (offsetApplied != null)
                             {
                                 Object.DestroyImmediate(processedTexture);
@@ -281,7 +291,7 @@ namespace ChimeraHairMaster.Editor.NDMF
                         // UV 使用領域外を edge dilation で塗り足し
                         if (processedTexture != null)
                         {
-                            var dilated = ColorProcessor.DilateTexture(processedTexture, uvMask, 8, compressResult: compressIntermediate);
+                            var dilated = ColorProcessor.DilateTexture(processedTexture, uvMask, 8, compressResult: false);
                             if (dilated != null)
                             {
                                 Object.DestroyImmediate(processedTexture);
@@ -289,9 +299,10 @@ namespace ChimeraHairMaster.Editor.NDMF
                             }
                         }
 
-                        if (processedTexture != null && useSharedCache)
+                        if (processedTexture != null && useSharedCache && !textureCache.ContainsKey(texture))
                         {
                             textureCache[texture] = processedTexture;
+                            textureCacheSig[texture] = uvSig;
                         }
                     }
 
@@ -300,7 +311,7 @@ namespace ChimeraHairMaster.Editor.NDMF
                     // 旧 processedTexture を破棄せず参照だけ差し替える（cache に未マスク版が残るのは仕様）
                     if (processedTexture != null)
                     {
-                        var masked = Processing.ColorMaskApplier.TryApply(component, rendererIndex, i, texture, processedTexture, compressResult: compressIntermediate);
+                        var masked = Processing.ColorMaskApplier.TryApply(component, rendererIndex, i, texture, processedTexture, compressResult: false);
                         if (masked != null)
                         {
                             processedTexture = masked;
@@ -317,12 +328,28 @@ namespace ChimeraHairMaster.Editor.NDMF
                             submeshIndices,
                             strandRef,
                             texture.format,
-                            compressResult: !component.enableMeshMerge);
+                            compressResult: false);
                         if (composed != null && composed != processedTexture)
                         {
                             Object.DestroyImmediate(processedTexture);
                             processedTexture = composed;
                         }
+                    }
+
+                    // 最終圧縮（merge=false のみ）: 中間は全段非圧縮のため、ここで元フォーマットに1回だけ Best 圧縮する。
+                    // ※ 共有キャッシュ実体を破壊しないよう、キャッシュと同一参照ならコピーしてから圧縮する
+                    //   （そうしないと後続の cache 命中 renderer が圧縮済みをデコードしてブロックノイズが再発する）。
+                    if (!component.enableMeshMerge && processedTexture != null)
+                    {
+                        bool isSharedCacheEntry = useSharedCache
+                            && textureCache.TryGetValue(texture, out var sharedEntry)
+                            && ReferenceEquals(sharedEntry, processedTexture);
+                        if (isSharedCacheEntry)
+                        {
+                            // キャッシュは非圧縮のまま保持し、圧縮はこの renderer 専用コピーに対して行う
+                            processedTexture = ColorProcessor.CopyTexture(processedTexture, compressResult: false);
+                        }
+                        ColorProcessor.CompressToMatch(processedTexture, texture.format);
                     }
 
                     // 処理済みテクスチャを設定

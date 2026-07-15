@@ -203,6 +203,16 @@ namespace ChimeraHairMaster.Editor.Processing
                 }
             }
 
+            // 統合対象サブメッシュの集合（このRendererにアイランドが存在するsubmeshのみ）。
+            // アイランドは統合対象サブメッシュだけで作られるため、ここに無いsubmesh＝除外サブメッシュ。
+            // 除外サブメッシュの頂点は、UV境界のみのフォールバックで別サブメッシュのアイランドへ
+            // 誤マッチしてアトラス座標に書き換わる不具合があるため、remap 対象から除く。
+            var includedSubmeshes = new HashSet<int>();
+            foreach (var island in relevantIslands)
+            {
+                includedSubmeshes.Add(island.submeshIndex);
+            }
+
             // サブメッシュごとの頂点インデックスを取得
             var vertexToSubmesh = new int[uvs.Count];
             for (int i = 0; i < vertexToSubmesh.Length; i++)
@@ -228,6 +238,11 @@ namespace ChimeraHairMaster.Editor.Processing
             {
                 Vector2 uv = uvs[i];
                 int submeshIdx = vertexToSubmesh[i];
+
+                // 除外サブメッシュ（統合対象外）の頂点はUVを一切変えない。
+                // ※ ここでスキップしないと、下のUV境界のみフォールバックで包含アイランドに誤マッチし、
+                //   除外して残すマテリアル側のUVがアトラス座標へ壊れる。
+                if (!includedSubmeshes.Contains(submeshIdx)) continue;
 
                 // この頂点が属するアイランドを探す（サブメッシュを考慮）
                 IslandPlacement matchedIsland = null;

@@ -98,6 +98,7 @@ namespace ChimeraHairMaster.Editor.Processing
                 {
                     ColorProcessor.CompressToMatch(output, compressionFormat ?? target.format);
                 }
+                ColorProcessor.CopyTextureSettings(target, output);
                 ShaderUtils.EnableMipStreaming(output);
                 return output;
             }
@@ -176,6 +177,7 @@ namespace ChimeraHairMaster.Editor.Processing
             {
                 ColorProcessor.CompressToMatch(copy, compressionFormat ?? source.format);
             }
+            ColorProcessor.CopyTextureSettings(source, copy);
             ShaderUtils.EnableMipStreaming(copy);
             if (readable != source) Object.DestroyImmediate(readable);
             return copy;

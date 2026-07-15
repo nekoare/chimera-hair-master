@@ -10,6 +10,26 @@ namespace ChimeraHairMaster.Editor.Processing
     public static class TextureAtlasBuilder
     {
         /// <summary>
+        /// アクティブビルドターゲットが Android/Quest かどうか。
+        /// Android では DXT5/BC5 が非対応のため、アトラス圧縮を ASTC に切り替える必要がある。
+        /// </summary>
+        private static bool IsAndroidBuildTarget() =>
+            EditorUserBuildSettings.activeBuildTarget == BuildTarget.Android;
+
+        /// <summary>
+        /// カラーアトラスの圧縮フォーマット（Android は ASTC_6x6、それ以外は DXT5）。
+        /// ASTC_6x6 は Quest で有効な標準的フォーマットで、品質とサイズのバランスが良い。
+        /// </summary>
+        private static TextureFormat GetAtlasColorFormat() =>
+            IsAndroidBuildTarget() ? TextureFormat.ASTC_6x6 : TextureFormat.DXT5;
+
+        /// <summary>
+        /// ノーマルマップアトラスの圧縮フォーマット（Android は ASTC_6x6、それ以外は BC5）。
+        /// </summary>
+        private static TextureFormat GetAtlasNormalFormat() =>
+            IsAndroidBuildTarget() ? TextureFormat.ASTC_6x6 : TextureFormat.BC5;
+
+        /// <summary>
         /// アトラスビルド結果
         /// </summary>
         public class AtlasResult
@@ -79,7 +99,8 @@ namespace ChimeraHairMaster.Editor.Processing
             ChimeraHairMaster component,
             int resolution,
             Dictionary<Texture2D, Texture2D> processedTextureCache,
-            bool isPreview = false)
+            bool isPreview = false,
+            Dictionary<(int rendererIndex, int submeshIndex, Texture2D texture), Texture2D> perIslandTextureCache = null)
         {
             var result = new AtlasResult();
 
@@ -127,7 +148,8 @@ namespace ChimeraHairMaster.Editor.Processing
                     resolution,
                     islandPlacements,
                     processedTextureCache,
-                    isPreview
+                    isPreview,
+                    perIslandTextureCache
                 );
 
                 if (atlasTexture != null)
@@ -145,7 +167,8 @@ namespace ChimeraHairMaster.Editor.Processing
                     resolution,
                     islandPlacements,
                     processedTextureCache,
-                    isPreview
+                    isPreview,
+                    perIslandTextureCache
                 );
 
                 if (mainAtlas != null)
@@ -408,7 +431,7 @@ namespace ChimeraHairMaster.Editor.Processing
             atlas.Apply(true);
 
             // テクスチャ圧縮（DXT5 = Normal Quality相当）
-            EditorUtility.CompressTexture(atlas, TextureFormat.DXT5, TextureCompressionQuality.Normal);
+            EditorUtility.CompressTexture(atlas, GetAtlasColorFormat(), TextureCompressionQuality.Best);
 
             // VRChat向けにミップストリーミングを有効化
             ShaderUtils.EnableMipStreaming(atlas);
@@ -426,13 +449,15 @@ namespace ChimeraHairMaster.Editor.Processing
             int resolution,
             List<IslandPlacement> islandPlacements,
             Dictionary<Texture2D, Texture2D> processedTextureCache,
-            bool isPreview = false)
+            bool isPreview = false,
+            Dictionary<(int rendererIndex, int submeshIndex, Texture2D texture), Texture2D> perIslandTextureCache = null)
         {
             // ピクセルバッファを作成（透明で初期化）
             var pixels = new Color[resolution * resolution];
             // Color のデフォルト値は (0,0,0,0) = Color.clear なので初期化不要
 
             bool hasAnyTexture = false;
+            Texture2D representativeSource = null; // アトラスへ継承するサンプラー設定の代表ソース（最初の実ソース）
 
             // 各アイランドを配置（バッファに直接書き込み）
             foreach (var island in islandPlacements)
@@ -443,10 +468,18 @@ namespace ChimeraHairMaster.Editor.Processing
 
                 // サブメッシュに対応するマテリアルからテクスチャを取得（nullの場合は白フォールバック）
                 Texture2D sourceTexture = GetTextureFromRenderer(renderer, propertyName, island.submeshIndex);
+                if (representativeSource == null && sourceTexture != null) representativeSource = sourceTexture;
                 if (sourceTexture == null) sourceTexture = GetWhiteFallbackTexture();
 
                 // 処理済みテクスチャがあればそれを使用
-                if (processedTextureCache != null &&
+                // per-island（renderer×submesh 固有: blur/sharp・色マスク・strand 等）を優先し、
+                // 無ければ共有キャッシュ（テクスチャ単位）を参照する
+                if (perIslandTextureCache != null &&
+                    perIslandTextureCache.TryGetValue((island.rendererIndex, island.submeshIndex, sourceTexture), out var perIslandTexture))
+                {
+                    sourceTexture = perIslandTexture;
+                }
+                else if (processedTextureCache != null &&
                     processedTextureCache.TryGetValue(sourceTexture, out var processedTexture))
                 {
                     sourceTexture = processedTexture;
@@ -475,18 +508,19 @@ namespace ChimeraHairMaster.Editor.Processing
             atlas.name = $"Atlas_{propertyName}";
             atlas.SetPixels(pixels);
 
-            if (!isPreview)
-            {
-                // MipMapブリード防止のためエッジをダイレーション（ビルド時のみ）
-                DilateAtlas(atlas);
-            }
+            // 元テクスチャのサンプラー設定（filterMode/aniso/wrapMode）を代表ソースからアトラスへ継承
+            if (representativeSource != null) ColorProcessor.CopyTextureSettings(representativeSource, atlas);
+
+            // MipMapブリード防止のためエッジをダイレーション
+            // （プレビューでもUV島境界の継ぎ目を防ぐため実行。圧縮/ミップストリーミングはビルド時のみ）
+            DilateAtlas(atlas);
 
             atlas.Apply(true);
 
             if (!isPreview)
             {
                 // テクスチャ圧縮（DXT5 = Normal Quality相当）（ビルド時のみ）
-                EditorUtility.CompressTexture(atlas, TextureFormat.DXT5, TextureCompressionQuality.Normal);
+                EditorUtility.CompressTexture(atlas, GetAtlasColorFormat(), TextureCompressionQuality.Best);
                 ShaderUtils.EnableMipStreaming(atlas);
             }
 
@@ -759,7 +793,7 @@ namespace ChimeraHairMaster.Editor.Processing
             if (!isPreview)
             {
                 // テクスチャ圧縮（DXT5 = Normal Quality相当）（ビルド時のみ）
-                EditorUtility.CompressTexture(atlas, TextureFormat.DXT5, TextureCompressionQuality.Normal);
+                EditorUtility.CompressTexture(atlas, GetAtlasColorFormat(), TextureCompressionQuality.Best);
                 ShaderUtils.EnableMipStreaming(atlas);
             }
 
@@ -824,7 +858,7 @@ namespace ChimeraHairMaster.Editor.Processing
             if (!isPreview)
             {
                 // ノーマルマップ圧縮（BC5 = 2チャンネル専用）（ビルド時のみ）
-                EditorUtility.CompressTexture(atlas, TextureFormat.BC5, TextureCompressionQuality.Normal);
+                EditorUtility.CompressTexture(atlas, GetAtlasNormalFormat(), TextureCompressionQuality.Best);
                 ShaderUtils.EnableMipStreaming(atlas);
             }
 
