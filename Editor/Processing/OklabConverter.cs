@@ -121,10 +121,59 @@ namespace ChimeraHairMaster.Editor.Processing
         /// <summary>
         /// OKLCh (L, C, h_radians) → sRGB Color (アルファは別途指定)
         /// 結果が sRGB の [0,1] 範囲外の場合は単純 saturate でクリップ
+        ///
+        /// ※ 色変換パスでは使わないこと。範囲外の色をチャンネルごとに切るため
+        ///    色相までずれる。ガマット外を正しく扱うには OklchToSRGBGamutMapped を使う。
         /// </summary>
         public static Color OklchToSRGB(Vector3 lch, float alpha = 1f)
         {
             Vector3 lin = OklabToLinearRGB(OklchToOklab(lch));
+            lin.x = Mathf.Clamp01(lin.x);
+            lin.y = Mathf.Clamp01(lin.y);
+            lin.z = Mathf.Clamp01(lin.z);
+            return LinearToSRGB(lin, alpha);
+        }
+
+        /// <summary>
+        /// OKLCh (L, C, h_radians) → sRGB Color。L と h を保ったまま C だけを縮めて
+        /// sRGB のガマット内に収める。
+        ///
+        /// C を二分探索で連続的に求める。以前は 0.9 倍を最大 8 回繰り返していたが、
+        /// 反復回数が整数なので出力彩度が 9 段階の飛び飛びの値しか取れず、
+        /// 陰影のグラデーション上に帯状の段差が出ていた。
+        ///
+        /// ※ Editor/Shader/OklabConverter.hlsl の同名関数と定数・手順を必ず一致させること。
+        ///    片方だけ変更すると GPU 利用時と CPU フォールバック時で出力が食い違う。
+        /// ※ GamutEps はガマット内判定と探索の述語で共用する。別々の値にすると
+        ///    探索の目標と判定がずれ、新しい段差が出る。
+        /// </summary>
+        public static Color OklchToSRGBGamutMapped(Vector3 lch, float alpha = 1f)
+        {
+            // h は探索中ずっと固定なので、cos/sin はループの外で 1 回だけ求める
+            float cosH = Mathf.Cos(lch.z);
+            float sinH = Mathf.Sin(lch.z);
+
+            Vector3 lin = OklabToLinearRGB(new Vector3(lch.x, lch.y * cosH, lch.y * sinH));
+            if (!IsInSRGBGamut(lin, GamutEps))
+            {
+                // ガマット内に収まる最大の C を二分探索する。
+                // C = 0 のとき線形 RGB は (L³, L³, L³) になる（Oklab→線形 RGB 行列の
+                // 各行の和が 1 のため）。上流の SoftClip01 が L を (0,1) に収めるので、
+                // 下端は必ずガマット内。これが探索が成立する前提。
+                float lo = 0f;
+                // C が負だと探索が色相の反対側に収束するので、上端は 0 以上に丸める
+                float hi = Mathf.Max(0f, lch.y);
+                for (int i = 0; i < GamutIterations; i++)
+                {
+                    float mid = (lo + hi) * 0.5f;
+                    Vector3 probe = OklabToLinearRGB(new Vector3(lch.x, mid * cosH, mid * sinH));
+                    if (IsInSRGBGamut(probe, GamutEps)) lo = mid;
+                    else hi = mid;
+                }
+                // 内側の端を採用する（彩度が上がる方向には絶対に振らない）
+                lin = OklabToLinearRGB(new Vector3(lch.x, lo * cosH, lo * sinH));
+            }
+
             lin.x = Mathf.Clamp01(lin.x);
             lin.y = Mathf.Clamp01(lin.y);
             lin.z = Mathf.Clamp01(lin.z);
@@ -168,6 +217,30 @@ namespace ChimeraHairMaster.Editor.Processing
         #endregion
 
         #region Helpers
+
+        /// <summary>
+        /// float 誤差レベルのはみ出しを許容する量。
+        /// 1e-3 だと暗部（L≈0.05〜0.12）でガマット内の領域が飛び飛びになり、
+        /// 二分探索が前提とする単調性が崩れて帯が残る。L=0.08 のグレーは
+        /// 線形値が 5e-4 しかないので、1e-3 は色そのものより許容量が大きい状態だった。
+        /// </summary>
+        private const float GamutEps = 1e-6f;
+
+        /// <summary>
+        /// 彩度の二分探索の反復回数。厳密解との 8bit 出力誤差は
+        /// 8 回で 16 階調、10 回で 3 階調、12 回で 1 階調（量子化下限）
+        /// </summary>
+        private const int GamutIterations = 12;
+
+        /// <summary>
+        /// 線形 RGB が sRGB のガマット内か。eps は float 誤差の遊び
+        /// </summary>
+        private static bool IsInSRGBGamut(Vector3 lin, float eps)
+        {
+            return lin.x >= -eps && lin.x <= 1f + eps &&
+                   lin.y >= -eps && lin.y <= 1f + eps &&
+                   lin.z >= -eps && lin.z <= 1f + eps;
+        }
 
         private static float Cbrt(float x)
         {

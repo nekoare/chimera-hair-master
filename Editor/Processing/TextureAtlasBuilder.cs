@@ -850,7 +850,11 @@ namespace ChimeraHairMaster.Editor.Processing
             }
 
             // アトラステクスチャを作成してバッファを一括反映
-            var atlas = new Texture2D(resolution, resolution, TextureFormat.RGBA32, true);
+            // ノーマルマップはリニアデータなので linear:true。sRGB 扱いだと
+            // サンプル時に誤ってデコードされ、法線の向きが狂う。
+            // （PC ビルドは BC5 に sRGB バリアントが無いため無影響。
+            //   プレビューの非圧縮表示と Android の ASTC でのみ効く）
+            var atlas = new Texture2D(resolution, resolution, TextureFormat.RGBA32, true, /* linear */ true);
             atlas.name = "Atlas_BumpMap";
             atlas.SetPixels(pixels);
             atlas.Apply(true);

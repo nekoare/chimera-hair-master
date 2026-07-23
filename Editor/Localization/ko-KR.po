@@ -150,6 +150,9 @@ msgstr "덮어쓰기"
 msgid "Window:Setup:OverwriteConfirmCancel"
 msgstr "취소"
 
+msgid "Window:Setup:DuplicateFound"
+msgstr "이 아바타에는 같은 메시를 대상으로 하는 Chimera Hair Master \"{0}\"가 이미 설정되어 있습니다.\n이중 처리로 인해 표시가 깨지는 것을 방지하기 위해 새 설정을 취소했습니다.\n\n기존 \"{0}\"를 편집하거나 삭제한 후 다시 실행하세요."
+
 msgid "Window:ColorTransform:Enabled"
 msgstr "색상 매칭\n활성화"
 
@@ -572,6 +575,9 @@ msgstr "오프셋 Y"
 
 msgid "MeshDeformInspector:Symmetry:OffsetZ"
 msgstr "오프셋 Z"
+
+msgid "MeshDeformInspector:Symmetry:ScopeNote"
+msgstr "대칭은 이동과 팽창에만 반영됩니다. 회전·스케일·스무스는 한쪽에만 적용됩니다."
 
 msgid "MeshDeformInspector:Advanced:Header"
 msgstr "상세 설정"

@@ -150,6 +150,9 @@ msgstr "覆盖"
 msgid "Window:Setup:OverwriteConfirmCancel"
 msgstr "取消"
 
+msgid "Window:Setup:DuplicateFound"
+msgstr "此化身已存在针对相同网格的 Chimera Hair Master「{0}」。\n为避免重复处理导致显示损坏，已取消新的设置。\n\n请编辑或删除现有的「{0}」后再重新执行。"
+
 msgid "Window:ColorTransform:Enabled"
 msgstr "色调统一\n已启用"
 
@@ -572,6 +575,9 @@ msgstr "偏移 Y"
 
 msgid "MeshDeformInspector:Symmetry:OffsetZ"
 msgstr "偏移 Z"
+
+msgid "MeshDeformInspector:Symmetry:ScopeNote"
+msgstr "对称仅适用于移动和膨胀。旋转、缩放和平滑只影响一侧。"
 
 msgid "MeshDeformInspector:Advanced:Header"
 msgstr "高级设置"

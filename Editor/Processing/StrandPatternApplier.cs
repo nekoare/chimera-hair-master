@@ -216,8 +216,8 @@ namespace ChimeraHairMaster.Editor.Processing
             try
             {
                 var (tStdHigh, tStdMid) = StrandPatternComposer.ComputeBandStds(tBandHigh, tHP8, strandMask);
-                float ratioHigh = (tStdHigh >= 1e-5f) ? refData.RefStdHigh / tStdHigh : 1f;
-                float ratioMid = (tStdMid >= 1e-5f) ? refData.RefStdMid / tStdMid : 1f;
+                var (ratioHigh, ratioMid) = StrandPatternComposer.ComputeBandRatios(
+                    refData.RefStdHigh, refData.RefStdMid, tStdHigh, tStdMid);
 
                 return StrandPatternComposer.ComposeBands(
                     currentTex, tBandHigh, tHP8, strandMask,

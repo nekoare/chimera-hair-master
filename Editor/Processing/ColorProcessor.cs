@@ -244,6 +244,11 @@ namespace ChimeraHairMaster.Editor.Processing
             // UAVフラグ付きでRenderTextureを作成
             var desc = new RenderTextureDescriptor(resolution, 1, RenderTextureFormat.ARGB32, 0);
             desc.enableRandomWrite = true;
+            // 他の RT（sourceRT/targetRT 等）と同じく sRGB を明示する。
+            // Linear color space プロジェクトでこれが抜けていると Blit で
+            // sRGB→リニアにデコードされた値が非 sRGB の RT に入り、
+            // compute が sRGB 値として読むため Gradient モードだけ暗くなる。
+            desc.sRGB = true;
             RenderTexture rt = new RenderTexture(desc);
             rt.Create();
             Graphics.Blit(gradientTex, rt);
@@ -682,7 +687,7 @@ namespace ChimeraHairMaster.Editor.Processing
             float newH = OklabConverter.WrapHueRadians(targetLch.z + retained);
 
             // OKLCh → sRGB に戻す
-            Color result = OklchToSRGBWithAlpha(new Vector3(newL, newC, newH), pixel.a);
+            Color result = OklabConverter.OklchToSRGBGamutMapped(new Vector3(newL, newC, newH), pixel.a);
             return result;
         }
 
@@ -708,37 +713,6 @@ namespace ChimeraHairMaster.Editor.Processing
             shifted.z = OklabConverter.SoftClip01(shifted.z, softZone);
 
             return OklabConverter.LinearToSRGB(shifted, pixel.a);
-        }
-
-        /// <summary>
-        /// OKLCh → sRGB（gamut外は彩度を段階的に下げて収める簡易ガミュートマッピング）
-        /// </summary>
-        private static Color OklchToSRGBWithAlpha(Vector3 lch, float alpha)
-        {
-            Vector3 lab = OklabConverter.OklchToOklab(lch);
-            Vector3 lin = OklabConverter.OklabToLinearRGB(lab);
-
-            // 線形 RGB が範囲外なら C を下げて再変換（最大 8 回）
-            // わずかなはみ出し（float 誤差レベル）は許容して過剰な彩度縮小を避ける
-            const int maxIter = 8;
-            const float eps = 1e-3f;     // float 誤差許容量
-            const float shrink = 0.9f;   // 縮小係数（0.75 → 0.9 に緩和）
-            float c = lch.y;
-            for (int i = 0; i < maxIter; i++)
-            {
-                if (lin.x >= -eps && lin.x <= 1f + eps &&
-                    lin.y >= -eps && lin.y <= 1f + eps &&
-                    lin.z >= -eps && lin.z <= 1f + eps)
-                    break;
-                c *= shrink;
-                lab = OklabConverter.OklchToOklab(new Vector3(lch.x, c, lch.z));
-                lin = OklabConverter.OklabToLinearRGB(lab);
-            }
-
-            lin.x = Mathf.Clamp01(lin.x);
-            lin.y = Mathf.Clamp01(lin.y);
-            lin.z = Mathf.Clamp01(lin.z);
-            return OklabConverter.LinearToSRGB(lin, alpha);
         }
 
         /// <summary>

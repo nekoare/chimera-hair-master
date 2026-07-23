@@ -12,6 +12,28 @@ namespace ChimeraHairMaster.Editor.Processing
         private const float EncodedNeutral = 128f / 255f;
 
         /// <summary>
+        /// 高バンドの量子化ノイズ床（RMS）。
+        /// バンドは RGBA32 に detail*0.5+0.5 で格納され、ComputeBandStds が *2.0 で
+        /// 復号するため、復号後の量子化ステップは 2/255。一様量子化誤差の RMS は
+        /// ステップ/√12 なので (2/255)/√12 ≒ 0.0023。
+        /// ※ 8bit 格納であることが前提。バンドを高精度フォーマットに変えたら
+        ///    この値は無意味になる（ゲートが常時発火して機能が丸ごと止まる）
+        /// </summary>
+        private const float StdNoiseFloorHigh = 0.0025f;
+
+        /// <summary>
+        /// 中バンドの量子化ノイズ床（RMS）。
+        /// 中バンドは独立に量子化された 2 枚の差なので分散が倍、つまり √2 倍になる
+        /// </summary>
+        private const float StdNoiseFloorMid = 0.0035f;
+
+        /// <summary>この倍率以下の std はノイズと見なして効果を掛けない</summary>
+        private const float NoiseGateLowScale = 2f;
+
+        /// <summary>この倍率以上の std は実信号と見なして従来どおり全適用する</summary>
+        private const float NoiseGateHighScale = 4f;
+
+        /// <summary>
         /// σ_h と σ_l による 2 バンド分解: B_high = source - blur(σ_h), B_mid = blur(σ_h) - blur(σ_l)
         /// 派生時は target の bandHigh と hp8 の 2 つの highpass テクスチャを渡す
         /// </summary>
@@ -152,6 +174,41 @@ namespace ChimeraHairMaster.Editor.Processing
             if (count == 0) return (0f, 0f);
             return ((float)System.Math.Sqrt(sumSqHigh / count),
                     (float)System.Math.Sqrt(sumSqMid / count));
+        }
+
+        /// <summary>
+        /// お手本と target のバンド std から、バンドごとのゲイン比を求める。
+        ///
+        /// この機能はお手本の模様をコピーするのではなく、target 自身のディテール振幅を
+        /// お手本と同じ RMS に揃えるゲイン転送。そのため target に模様が無ければ
+        /// 比をいくら上げても模様は出ず、増幅されるのは量子化ノイズだけになる。
+        /// （出力の振幅は比に依らず常にお手本の std と一致するので、比の上限を
+        ///   クランプしても混入ノイズは減らない。判定すべきは「target の std が
+        ///   実在するディテールか、量子化ノイズか」）
+        ///
+        /// std がノイズ床の 2 倍以下ならノイズと見なして 1（効果なし）、
+        /// 4 倍以上なら実信号と見なして従来どおりの比、その間は線形に繋ぐ。
+        /// </summary>
+        public static (float ratioHigh, float ratioMid) ComputeBandRatios(
+            float refStdHigh, float refStdMid, float targetStdHigh, float targetStdMid)
+        {
+            return (GateRatio(refStdHigh, targetStdHigh, StdNoiseFloorHigh),
+                    GateRatio(refStdMid, targetStdMid, StdNoiseFloorMid));
+        }
+
+        private static float GateRatio(float refStd, float targetStd, float noiseFloor)
+        {
+            float gateLow = noiseFloor * NoiseGateLowScale;
+            // ゼロ除算のガードも兼ねる
+            if (targetStd <= gateLow) return 1f;
+
+            float raw = refStd / targetStd;
+
+            // 実信号と判断できる領域では、従来と完全に同じ値を返す
+            float gateHigh = noiseFloor * NoiseGateHighScale;
+            if (targetStd >= gateHigh) return raw;
+
+            return Mathf.Lerp(1f, raw, (targetStd - gateLow) / (gateHigh - gateLow));
         }
 
         private static RenderTexture CreateRT(int width, int height)

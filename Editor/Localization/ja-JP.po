@@ -150,6 +150,9 @@ msgstr "上書き"
 msgid "Window:Setup:OverwriteConfirmCancel"
 msgstr "キャンセル"
 
+msgid "Window:Setup:DuplicateFound"
+msgstr "このアバターには、同じメッシュを対象にした Chimera Hair Master「{0}」が既に設定されています。\n二重に処理されて表示が壊れるのを防ぐため、新規セットアップを中止しました。\n\n既存の「{0}」を編集するか、削除してから再実行してください。"
+
 msgid "Window:ColorTransform:Enabled"
 msgstr "色合わせ\n有効"
 
@@ -572,6 +575,9 @@ msgstr "オフセット Y"
 
 msgid "MeshDeformInspector:Symmetry:OffsetZ"
 msgstr "オフセット Z"
+
+msgid "MeshDeformInspector:Symmetry:ScopeNote"
+msgstr "対称は移動と膨張のみに反映されます。回転・スケール・スムーズは片側のみに適用されます。"
 
 msgid "MeshDeformInspector:Advanced:Header"
 msgstr "詳細設定"

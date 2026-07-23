@@ -188,5 +188,101 @@ namespace ChimeraHairMaster.Tests
             for (int i = 0; i < mask.Length; i++) mask[i] = true;
             return mask;
         }
+
+        // --- バンドゲインのノイズ床ゲート（v1.5.10）---
+        // 以下は GPU 不要（純粋な数値計算）
+
+        [Test]
+        public void ComputeBandRatios_TargetAtNoiseFloor_ReturnsOne()
+        {
+            // 模様がほぼ無いテクスチャでは std の実体が 8bit 量子化ノイズなので、
+            // 比を上げてもノイズが増幅されるだけ。効果を掛けないこと。
+            // 修正前はここで 80 倍のゲインが掛かっていた。
+            var (ratioHigh, ratioMid) = StrandPatternComposer.ComputeBandRatios(
+                refStdHigh: 0.020f, refStdMid: 0.020f,
+                targetStdHigh: 0.00025f, targetStdMid: 0.00035f);
+
+            Assert.That(ratioHigh, Is.EqualTo(1f), "ノイズ床の高バンドにゲインが掛かった");
+            Assert.That(ratioMid, Is.EqualTo(1f), "ノイズ床の中バンドにゲインが掛かった");
+        }
+
+        [Test]
+        public void ComputeBandRatios_TargetZero_ReturnsOneWithoutDivideByZero()
+        {
+            // 完全な単色。ゼロ除算で Infinity / NaN が漏れないこと
+            var (ratioHigh, ratioMid) = StrandPatternComposer.ComputeBandRatios(
+                refStdHigh: 0.020f, refStdMid: 0.020f,
+                targetStdHigh: 0f, targetStdMid: 0f);
+
+            Assert.That(ratioHigh, Is.EqualTo(1f));
+            Assert.That(ratioMid, Is.EqualTo(1f));
+            Assert.That(float.IsNaN(ratioHigh) || float.IsInfinity(ratioHigh), Is.False,
+                "高バンドが NaN / Infinity になった");
+            Assert.That(float.IsNaN(ratioMid) || float.IsInfinity(ratioMid), Is.False,
+                "中バンドが NaN / Infinity になった");
+        }
+
+        [TestCase(0.02023f)]   // 普通の毛束
+        [TestCase(0.05793f)]   // 濃い毛束
+        public void ComputeBandRatios_WellAboveNoiseFloor_ReturnsRawRatio(float targetStd)
+        {
+            // 実在するディテールがある場合は従来の値と完全一致すること。
+            // 既存ユーザーの見た目を変えないための契約。
+            const float refStd = 0.020f;
+            var (ratioHigh, _) = StrandPatternComposer.ComputeBandRatios(
+                refStd, refStd, targetStd, targetStd);
+
+            Assert.That(ratioHigh, Is.EqualTo(refStd / targetStd),
+                "ノイズ床から十分離れているのに従来と違う比になった");
+        }
+
+        [Test]
+        public void ComputeBandRatios_InGateBand_BlendsMonotonically()
+        {
+            // ゲート帯では 1 と生の比の間を単調に繋ぐこと。
+            // 硬い閾値だと隣接メッシュの片方だけ質感が跳ぶ。
+            const float refStd = 0.020f;
+            float prev = 1f;
+            for (int i = 0; i <= 20; i++)
+            {
+                float targetStd = 0.0050f + (0.0100f - 0.0050f) * i / 20f;
+                var (ratio, _) = StrandPatternComposer.ComputeBandRatios(
+                    refStd, refStd, targetStd, targetStd);
+
+                Assert.That(ratio, Is.GreaterThanOrEqualTo(1f), $"targetStd={targetStd} で 1 を下回った");
+                Assert.That(ratio, Is.LessThanOrEqualTo(refStd / targetStd + 1e-4f),
+                    $"targetStd={targetStd} で生の比を超えた");
+                if (i > 0)
+                {
+                    Assert.That(ratio, Is.GreaterThanOrEqualTo(prev - 1e-4f),
+                        $"targetStd={targetStd} でブレンドが単調でない");
+                }
+                prev = ratio;
+            }
+        }
+
+        [Test]
+        public void ComputeBandRatios_NoiseFloorMatchesQuantizationDerivation()
+        {
+            // ノイズ床は「バンドが 8bit 格納され *2.0 で復号される」ことから導いている。
+            // ここで固定するのは床の定数と導出式の対応関係だけで、格納フォーマット
+            // そのものは検証できない（GPU が必要なため）。バンドを高精度フォーマットに
+            // 変えるときは、このテストが通っていても床の定数を必ず見直すこと。
+            // 見直さないとゲートが常時発火して機能が丸ごと止まる。
+            const float decodedQuantStep = 2f / 255f;
+            float theoretical = decodedQuantStep / Mathf.Sqrt(12f);
+
+            // 高バンドは理論値どおり
+            var (ratioAtFloor, _) = StrandPatternComposer.ComputeBandRatios(
+                0.020f, 0.020f, theoretical * 2f - 1e-6f, 1f);
+            Assert.That(ratioAtFloor, Is.EqualTo(1f),
+                $"理論ノイズ床 {theoretical:F5} の 2 倍以下がゲートされていない");
+
+            // 中バンドは独立に量子化された 2 枚の差なので √2 倍
+            var (_, ratioMidAtFloor) = StrandPatternComposer.ComputeBandRatios(
+                0.020f, 0.020f, 1f, theoretical * Mathf.Sqrt(2f) * 2f - 1e-6f);
+            Assert.That(ratioMidAtFloor, Is.EqualTo(1f),
+                "中バンドのノイズ床が √2 倍になっていない");
+        }
     }
 }

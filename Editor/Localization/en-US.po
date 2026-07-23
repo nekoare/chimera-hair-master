@@ -150,6 +150,9 @@ msgstr "Overwrite"
 msgid "Window:Setup:OverwriteConfirmCancel"
 msgstr "Cancel"
 
+msgid "Window:Setup:DuplicateFound"
+msgstr "This avatar already has a Chimera Hair Master \"{0}\" targeting the same mesh.\nSetup was cancelled to avoid double processing that would break the result.\n\nEdit or remove the existing \"{0}\" and try again."
+
 msgid "Window:ColorTransform:Enabled"
 msgstr "Color Matching\nEnabled"
 
@@ -572,6 +575,9 @@ msgstr "Offset Y"
 
 msgid "MeshDeformInspector:Symmetry:OffsetZ"
 msgstr "Offset Z"
+
+msgid "MeshDeformInspector:Symmetry:ScopeNote"
+msgstr "Symmetry applies to Move and Inflate only. Rotate, Scale and Smooth affect one side only."
 
 msgid "MeshDeformInspector:Advanced:Header"
 msgstr "Advanced"

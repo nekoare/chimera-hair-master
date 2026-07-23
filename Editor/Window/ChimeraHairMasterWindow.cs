@@ -461,6 +461,10 @@ namespace ChimeraHairMaster.Editor
                             // 削除した index に紐づく設定を除去し、後続 index を 1 つ詰める
                             // （これをしないと meshCutMask・除外・UV配置が後続 Renderer にズレる）
                             RemapEntriesForRendererRemoval(i);
+                            // 色ピッカーの選択 index も詰める（放置すると別 Renderer を指したまま
+                            // 気づかず違うパーツから色を拾ってしまう）
+                            selectedColorPickerRendererIndex = RemapRendererIndexAfterRemoval(selectedColorPickerRendererIndex, i);
+                            selectedGradientColorPickerRendererIndex = RemapRendererIndexAfterRemoval(selectedGradientColorPickerRendererIndex, i);
                             ClearUVCache();
                             SyncMaterialSelections();
                             UpdateUVPlacements();
@@ -2422,6 +2426,17 @@ namespace ChimeraHairMaster.Editor
         /// これを行わないと、削除位置より後ろの Renderer に設定（除外・メッシュカットマスク・
         /// UV配置）がズレて適用され、最後尾の設定が失われる。
         /// </summary>
+        /// <summary>
+        /// Renderer が removedIndex で削除されたときに、単一の Renderer index を詰める。
+        /// 削除対象そのものだった場合は 0 に戻す。
+        /// </summary>
+        private static int RemapRendererIndexAfterRemoval(int index, int removedIndex)
+        {
+            if (index == removedIndex) return 0;
+            if (index > removedIndex) return index - 1;
+            return index;
+        }
+
         private void RemapEntriesForRendererRemoval(int removedIndex)
         {
             RendererIndexRemap.RemoveRenderer(
@@ -2799,6 +2814,20 @@ namespace ChimeraHairMaster.Editor
             }
             else
             {
+                // 同じ Renderer を対象にした CHM が既にアバターにある場合、新規作成すると
+                // NDMF が同じ Renderer を二重処理して色変換・アトラス化が競合する。
+                // 重複を検出したら報告のみ行い、新規セットアップは保留する。
+                var conflicting = FindConflictingComponent();
+                if (conflicting != null)
+                {
+                    EditorUtility.DisplayDialog(
+                        CHMLocales.Tr("Window:Title"),
+                        string.Format(CHMLocales.Tr("Window:Setup:DuplicateFound"), conflicting.gameObject.name),
+                        "OK"
+                    );
+                    return;
+                }
+
                 chimeraComponent = CreateChimeraHairMasterObject();
             }
 
@@ -2887,6 +2916,31 @@ namespace ChimeraHairMaster.Editor
                 if (renderer == null) continue;
                 component.uvPlacements.Add(new UVIslandPlacement(renderer));
             }
+        }
+
+        /// <summary>
+        /// アバター内に、今回の対象 Renderer と重複する CHM が既に存在すれば返す。
+        /// 同じ Renderer を 2 つの CHM が処理すると NDMF ビルドで二重適用になるため、
+        /// 新規セットアップ前の重複チェックに使う。無ければ null。
+        /// </summary>
+        private ChimeraHairMaster FindConflictingComponent()
+        {
+            if (selectedAvatar == null) return null;
+
+            var targetSet = new HashSet<SkinnedMeshRenderer>(targetRenderers);
+            targetSet.Remove(null);
+            if (targetSet.Count == 0) return null;
+
+            var existing = selectedAvatar.GetComponentsInChildren<ChimeraHairMaster>(true);
+            foreach (var component in existing)
+            {
+                if (component == null || component.targetRenderers == null) continue;
+                foreach (var renderer in component.targetRenderers)
+                {
+                    if (renderer != null && targetSet.Contains(renderer)) return component;
+                }
+            }
+            return null;
         }
 
         private ChimeraHairMaster CreateChimeraHairMasterObject()

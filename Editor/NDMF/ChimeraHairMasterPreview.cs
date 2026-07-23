@@ -635,6 +635,13 @@ namespace ChimeraHairMaster.Editor.NDMF
                     }
                 }
 
+                // この時点で remappedMeshes に入っているのはアトラスUVへリマップされた
+                // Renderer だけ。以降の変形ループは元UVのまま頂点だけ動かしたメッシュを足すので、
+                // 「UVがアトラス空間にあるか」を後で per-Renderer に判定するためここで確定させる。
+                var atlasRemappedIds = remappedMeshes != null
+                    ? new HashSet<int>(remappedMeshes.Keys)
+                    : new HashSet<int>();
+
                 // メッシュ変形プレビュー
                 // MeshDeformPassがビルドパスとして先に実行される場合があるため、
                 // renderer.sharedMeshがアセットかどうかで適用済みを判定し二重適用を防ぐ
@@ -718,7 +725,7 @@ namespace ChimeraHairMaster.Editor.NDMF
 
                 // アトラスモードのメッシュはキャッシュが所有するため、PreviewNodeでは破棄しない
                 // 変形用に Instantiate したメッシュ（ownedMeshes）のみ PreviewNode が破棄する
-                return Task.FromResult<IRenderFilterNode>(new PreviewNode(processedMaterials, generatedTextures, remappedMeshes, ownedMeshes));
+                return Task.FromResult<IRenderFilterNode>(new PreviewNode(processedMaterials, generatedTextures, remappedMeshes, ownedMeshes, atlasRemappedIds));
             }
             catch (Exception ex)
             {
@@ -2066,6 +2073,11 @@ namespace ChimeraHairMaster.Editor.NDMF
             // アトラスモードの場合は Mesh も変更対象
             private readonly bool _isAtlasMode;
 
+            // UVがアトラス空間へリマップされた Renderer の InstanceID 集合。
+            // _isAtlasMode（remappedMeshes が非空か）はメッシュ変形の元UVメッシュでも true に
+            // なるため、マスク可視化で「アトラスUVか」を判定する用途にはこちらを使う。
+            private readonly HashSet<int>? _atlasRemappedIds;
+
             // このノードが所有する（Disposeで破棄する）メッシュ
             // アトラスキャッシュ所有のメッシュは含まれない
             private readonly List<Mesh>? _ownedMeshes;
@@ -2078,12 +2090,14 @@ namespace ChimeraHairMaster.Editor.NDMF
                 Dictionary<Material, Material>? processedMaterials,
                 List<Texture>? generatedTextures,
                 Dictionary<int, Mesh>? remappedMeshes = null,
-                List<Mesh>? ownedMeshes = null)
+                List<Mesh>? ownedMeshes = null,
+                HashSet<int>? atlasRemappedIds = null)
             {
                 _processedMaterials = processedMaterials;
                 _generatedTextures = generatedTextures;
                 _remappedMeshes = remappedMeshes;
                 _isAtlasMode = remappedMeshes != null && remappedMeshes.Count > 0;
+                _atlasRemappedIds = atlasRemappedIds;
                 _ownedMeshes = ownedMeshes;
             }
 
@@ -2147,7 +2161,14 @@ namespace ChimeraHairMaster.Editor.NDMF
                         }
                         _activeMaskSlot = maskSlot;
 
-                        if (_isAtlasMode)
+                        // この Renderer の UV がアトラス空間にあるかで分岐する。
+                        // _isAtlasMode（ノード全体）ではなく Renderer 単位で見ないと、
+                        // merge-OFF + メッシュ変形（元UVのまま頂点だけ動く）のとき
+                        // アトラス分岐に誤って入り、マスクが誤配置される。
+                        int maskOriginalId = original.GetInstanceID();
+                        bool rendererIsAtlasUV = _atlasRemappedIds != null && _atlasRemappedIds.Contains(maskOriginalId);
+
+                        if (rendererIsAtlasUV)
                         {
                             // アトラスモード: メッシュUVがアトラス空間なので直接マスクを設定
                             var proxyMats = proxy.sharedMaterials;
@@ -2163,10 +2184,9 @@ namespace ChimeraHairMaster.Editor.NDMF
                         else
                         {
                             // 従来モード: アトラスマスクを元UV空間に合成してから設定
-                            int originalId = original.GetInstanceID();
-                            if (islandMappings.TryGetValue(originalId, out var mappings))
+                            if (islandMappings.TryGetValue(maskOriginalId, out var mappings))
                             {
-                                var compositedMask = CompositeMaskForRenderer(originalId, mappings, maskTex);
+                                var compositedMask = CompositeMaskForRenderer(maskOriginalId, mappings, maskTex);
 
                                 var proxyMats = proxy.sharedMaterials;
                                 var affectedSubmeshes = new HashSet<int>();

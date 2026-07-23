@@ -2292,6 +2292,16 @@ namespace ChimeraHairMaster.Editor
         /// </summary>
         private void ApplyDeformationToRenderers(ChimeraHairMaster component)
         {
+            // 変形編集セッション中は Renderer のメッシュに編集中のデルタが乗っているため、
+            // 先に EndEdit で元メッシュへ戻してから焼き込む。これを怠ると
+            // デルタが二重適用され、元メッシュも失われる。ExportMesh と同じ前処理。
+            var editor = MeshDeformationInspectorUI.ActiveSceneEditor;
+            if (editor != null && editor.CurrentMode != Deformation.MeshDeformationSceneEditor.EditMode.Off)
+            {
+                editor.EndEdit();
+                UnityEditor.SceneView.RepaintAll();
+            }
+
             foreach (var deformation in component.rendererDeformations)
             {
                 if (deformation.deltas == null || deformation.deltas.Count == 0) continue;
@@ -2384,7 +2394,13 @@ namespace ChimeraHairMaster.Editor
             if (component == null || component.targetRenderers == null || component.targetRenderers.Count == 0)
                 return null;
 
-            var otherComponents = component.gameObject.scene
+            // Prefab アセット編集など、シーンに属さない文脈では GetRootGameObjects() が
+            // 例外を投げるため、有効なシーンのときだけ他コンポーネントを走査する。
+            var scene = component.gameObject.scene;
+            if (!scene.IsValid() || !scene.isLoaded)
+                return null;
+
+            var otherComponents = scene
                 .GetRootGameObjects()
                 .SelectMany(go => go.GetComponentsInChildren<ChimeraHairMaster>(true))
                 .Where(c => c != component && c.isEnabled && c.targetRenderers != null);

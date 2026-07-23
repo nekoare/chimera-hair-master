@@ -373,6 +373,13 @@ namespace ChimeraHairMaster.Editor
                 SceneEditor.SymmetryOffsetY = EditorGUILayout.FloatField(CHMLocales.Tr("MeshDeformInspector:Symmetry:OffsetY"), SceneEditor.SymmetryOffsetY);
             if (SceneEditor.SymmetryZ)
                 SceneEditor.SymmetryOffsetZ = EditorGUILayout.FloatField(CHMLocales.Tr("MeshDeformInspector:Symmetry:OffsetZ"), SceneEditor.SymmetryOffsetZ);
+
+            // 対称は現状、移動と膨張のみ反映される。回転・スケール・スムーズは
+            // 片側にしか効かないため、誤操作を防ぐよう適用範囲を明示する。
+            if (SceneEditor.SymmetryX || SceneEditor.SymmetryY || SceneEditor.SymmetryZ)
+            {
+                EditorGUILayout.HelpBox(CHMLocales.Tr("MeshDeformInspector:Symmetry:ScopeNote"), MessageType.Info);
+            }
         }
 
         #endregion

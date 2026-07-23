@@ -880,7 +880,10 @@ namespace ChimeraHairMaster.Editor.Deformation
                     _selectedVertices = islandVertices;
                 }
 
-                _selectedIslandIndex = resultIsland; // 最後に操作したアイランド（ギズモ位置用）
+                // 最後に操作したアイランド（ギズモ位置用）。
+                // Ctrl で全解除して選択が空になった場合は -1 に戻す。
+                // （resultIsland のままだとギズモが幽霊表示で残る）
+                _selectedIslandIndex = _selectedVertices.Count > 0 ? resultIsland : -1;
                 UpdateHandleFromSelection();
                 e.Use();
             }
@@ -1392,9 +1395,15 @@ namespace ChimeraHairMaster.Editor.Deformation
                     var distances = _geodesicCalculator.ComputeDistances(_selectedVertices, BrushRadius * 2f);
                     foreach (var kvp in distances)
                     {
+                        // 距離キャッシュは半径拡大時の再計算のため 2R 分を残すが、
+                        // ウェイトを張るのは半径内の頂点のみ。ここをゲートしないと
+                        // Constant フォールオフでブラシ球の外側（最大 2R）まで変形してしまう。
                         _dragStartDistances[kvp.Key] = kvp.Value;
-                        float t = Mathf.Clamp01(kvp.Value / BrushRadius);
-                        _falloffWeights[kvp.Key] = EvaluateFalloff(t);
+                        if (kvp.Value <= BrushRadius)
+                        {
+                            float t = Mathf.Clamp01(kvp.Value / BrushRadius);
+                            _falloffWeights[kvp.Key] = EvaluateFalloff(t);
+                        }
                     }
                     return;
                 }
@@ -1436,6 +1445,11 @@ namespace ChimeraHairMaster.Editor.Deformation
                     _falloffWeights[kvp.Key] = EvaluateFalloff(t);
                 }
             }
+
+            // 対称側もブラシ半径に追従させる（これを怠るとドラッグ中の半径スクロールで
+            // 主側だけ範囲が変わり、対称側が開始時の半径のまま取り残される）。
+            // _falloffWeights を張り直した後に呼ぶ（内部で主側と重複する頂点を除外するため）。
+            ComputeSymmetryFalloffWeights();
         }
 
         private float GetVertexWeight(int vertexIndex)

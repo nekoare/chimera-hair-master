@@ -118,27 +118,59 @@ float SoftClip01(float x, float softZone)
     return x;
 }
 
-// OKLCh -> sRGB（gamut外は彩度を最大 8 回まで段階的に下げて収める）
-// ε 閾値で float 誤差レベルのはみ出しは許容し、過剰な彩度縮小を避ける
+// float 誤差レベルのはみ出しを許容する量
+// 1e-3 だと暗部（L≈0.05〜0.12）でガマット内の領域が飛び飛びになり、
+// 二分探索が前提とする単調性が崩れて帯が残る。L=0.08 のグレーは
+// 線形値が 5e-4 しかないので、1e-3 は色そのものより許容量が大きい状態だった。
+// ※ ガマット内判定と二分探索の述語で共用する。別々の値にすると
+//    探索の目標と判定がずれ、新しい段差が出る
+static const float CHM_GAMUT_EPS = 1e-6;
+
+// 彩度の二分探索の反復回数。厳密解との 8bit 出力誤差は
+// 8 回で 16 階調、10 回で 3 階調、12 回で 1 階調（量子化下限）
+#define CHM_GAMUT_ITERATIONS 12
+
+// 線形 RGB が sRGB のガマット内か。eps は float 誤差の遊び
+bool IsInSRGBGamut(float3 lin, float eps)
+{
+    return all(lin >= -eps) && all(lin <= 1.0 + eps);
+}
+
+// OKLCh -> sRGB。L と h を保ったまま C だけを縮めてガマット内に収める
+//
+// C を二分探索で連続的に求める。以前は 0.9 倍を最大 8 回繰り返していたが、
+// 反復回数が整数なので出力彩度が 9 段階の飛び飛びの値しか取れず、
+// 陰影のグラデーション上に帯状の段差が出ていた。
+//
+// ※ Editor/Processing/OklabConverter.cs の同名関数と定数・手順を必ず一致させること。
+//    片方だけ変更すると GPU 利用時と CPU フォールバック時で出力が食い違う。
 float3 OklchToSRGBGamutMapped(float3 lch)
 {
-    float3 lab = OklchToOklab(lch);
-    float3 lin = OklabToLinearRGB(lab);
-    float c = lch.y;
+    // h は探索中ずっと固定なので、cos/sin はループの外で 1 回だけ求める
+    float cosH, sinH;
+    sincos(lch.z, sinH, cosH);
 
-    static const float gamutEps = 1e-3;
-    static const float gamutShrink = 0.9;
-
-    [unroll]
-    for (int i = 0; i < 8; i++)
+    float3 lin = OklabToLinearRGB(float3(lch.x, lch.y * cosH, lch.y * sinH));
+    if (!IsInSRGBGamut(lin, CHM_GAMUT_EPS))
     {
-        if (lin.x >= -gamutEps && lin.x <= 1.0 + gamutEps &&
-            lin.y >= -gamutEps && lin.y <= 1.0 + gamutEps &&
-            lin.z >= -gamutEps && lin.z <= 1.0 + gamutEps)
-            break;
-        c *= gamutShrink;
-        lab = OklchToOklab(float3(lch.x, c, lch.z));
-        lin = OklabToLinearRGB(lab);
+        // ガマット内に収まる最大の C を二分探索する。
+        // C = 0 のとき線形 RGB は (L^3, L^3, L^3) になる（Oklab->線形 RGB 行列の
+        // 各行の和が 1 のため）。上流の SoftClip01 が L を (0,1) に収めるので、
+        // 下端は必ずガマット内。これが探索が成立する前提。
+        float lo = 0.0;
+        // C が負だと探索が色相の反対側に収束するので、上端は 0 以上に丸める
+        float hi = max(0.0, lch.y);
+
+        [unroll]
+        for (int i = 0; i < CHM_GAMUT_ITERATIONS; i++)
+        {
+            float mid = (lo + hi) * 0.5;
+            float3 probe = OklabToLinearRGB(float3(lch.x, mid * cosH, mid * sinH));
+            if (IsInSRGBGamut(probe, CHM_GAMUT_EPS)) lo = mid;
+            else hi = mid;
+        }
+        // 内側の端を採用する（彩度が上がる方向には絶対に振らない）
+        lin = OklabToLinearRGB(float3(lch.x, lo * cosH, lo * sinH));
     }
 
     lin = saturate(lin);
