@@ -31,6 +31,9 @@ namespace ChimeraHairMaster.Editor
         private SerializedProperty rgbDeltaIntensityProp;
         private SerializedProperty rgbDeltaSoftClipZoneProp;
         private SerializedProperty textureResolutionProp;
+        private SerializedProperty preserveAtlasAlphaProp;
+        private SerializedProperty normalAtlasResolutionProp;
+        private SerializedProperty aoAtlasResolutionProp;
         private SerializedProperty colorChangeTargetsProp;
         private SerializedProperty uvPlacementsProp;
         private SerializedProperty baseMaterialProp;
@@ -117,6 +120,9 @@ namespace ChimeraHairMaster.Editor
             rgbDeltaIntensityProp = serializedObject.FindProperty("rgbDeltaIntensity");
             rgbDeltaSoftClipZoneProp = serializedObject.FindProperty("rgbDeltaSoftClipZone");
             textureResolutionProp = serializedObject.FindProperty("textureResolution");
+            preserveAtlasAlphaProp = serializedObject.FindProperty("preserveAtlasAlpha");
+            normalAtlasResolutionProp = serializedObject.FindProperty("normalAtlasResolution");
+            aoAtlasResolutionProp = serializedObject.FindProperty("aoAtlasResolution");
             colorChangeTargetsProp = serializedObject.FindProperty("colorChangeTargets");
             uvPlacementsProp = serializedObject.FindProperty("uvPlacements");
             baseMaterialProp = serializedObject.FindProperty("baseMaterial");
@@ -360,6 +366,15 @@ namespace ChimeraHairMaster.Editor
                     {
                         // 解像度（メッシュ統合時のみ）
                         EditorGUILayout.PropertyField(textureResolutionProp, new GUIContent(CHMLocales.Tr("Inspector:TextureResolution")));
+
+                        // ノーマル/AOアトラスの解像度（メインアトラス比）
+                        EditorGUILayout.PropertyField(normalAtlasResolutionProp, new GUIContent(CHMLocales.Tr("Inspector:NormalAtlasResolution")));
+                        EditorGUILayout.PropertyField(aoAtlasResolutionProp, new GUIContent(CHMLocales.Tr("Inspector:AOAtlasResolution")));
+
+                        // アルファチャンネル保持（メッシュ統合時のみ）
+                        EditorGUILayout.PropertyField(preserveAtlasAlphaProp, new GUIContent(
+                            CHMLocales.Tr("Inspector:PreserveAtlasAlpha"),
+                            CHMLocales.Tr("Inspector:PreserveAtlasAlphaHelp")));
                         EditorGUILayout.Space(5);
                     }
 

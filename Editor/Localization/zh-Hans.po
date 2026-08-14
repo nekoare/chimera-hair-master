@@ -237,6 +237,18 @@ msgstr "贴图设置"
 msgid "Inspector:TextureResolution"
 msgstr "分辨率"
 
+msgid "Inspector:PreserveAtlasAlpha"
+msgstr "始终保留 Alpha 通道"
+
+msgid "Inspector:PreserveAtlasAlphaHelp"
+msgstr "关闭（推荐）时，不透明的图集将以无 Alpha 格式(DXT1)压缩以节省内存。仅当着色器将 Alpha 用于特殊用途时才开启。"
+
+msgid "Inspector:NormalAtlasResolution"
+msgstr "法线贴图分辨率"
+
+msgid "Inspector:AOAtlasResolution"
+msgstr "AO 贴图分辨率"
+
 msgid "Inspector:ColorChangeTargets"
 msgstr "变色对象"
 

@@ -237,6 +237,18 @@ msgstr "텍스처 설정"
 msgid "Inspector:TextureResolution"
 msgstr "해상도"
 
+msgid "Inspector:PreserveAtlasAlpha"
+msgstr "알파 채널 항상 유지"
+
+msgid "Inspector:PreserveAtlasAlphaHelp"
+msgstr "OFF(권장)인 경우 아틀라스가 불투명하면 메모리 절약을 위해 알파 없는 형식(DXT1)으로 압축합니다. 셰이더가 알파를 특수 용도로 사용하는 경우에만 ON으로 설정하세요."
+
+msgid "Inspector:NormalAtlasResolution"
+msgstr "노멀맵 해상도"
+
+msgid "Inspector:AOAtlasResolution"
+msgstr "AO맵 해상도"
+
 msgid "Inspector:ColorChangeTargets"
 msgstr "색상 변경 대상"
 

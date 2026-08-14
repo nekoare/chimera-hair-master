@@ -225,6 +225,26 @@ namespace ChimeraHairMaster
         public TextureResolution textureResolution = TextureResolution._2048;
 
         /// <summary>
+        /// カラーアトラスのアルファチャンネルを常に保持する（PC ビルドのみ影響）。
+        /// false（既定）の場合、アトラスが実質不透明ならメモリ半減のため DXT1 で圧縮する。
+        /// アルファを透過以外の用途に使う特殊なシェーダ向けのエスケープハッチ
+        /// </summary>
+        [SerializeField]
+        public bool preserveAtlasAlpha = false;
+
+        /// <summary>
+        /// ノーマルマップアトラスの解像度（メインアトラス比）
+        /// </summary>
+        [SerializeField]
+        public AtlasSubResolution normalAtlasResolution = AtlasSubResolution.Full;
+
+        /// <summary>
+        /// AOマップアトラスの解像度（メインアトラス比）
+        /// </summary>
+        [SerializeField]
+        public AtlasSubResolution aoAtlasResolution = AtlasSubResolution.Full;
+
+        /// <summary>
         /// 色変更を適用するテクスチャスロット一覧
         /// </summary>
         [SerializeField]

@@ -85,7 +85,7 @@ namespace ChimeraHairMaster.Editor.Processing
                 result.UVTransforms = atlasResult.UVTransforms;
 
                 // 3. 出力マテリアルを生成
-                result.Material = CreateOutputMaterial(component.baseMaterial, atlasResult.AtlasTextures);
+                result.Material = CreateOutputMaterial(component.baseMaterial, atlasResult.AtlasTextures, atlasResult.ClearedProperties);
 
                 // キャッシュをクリーンアップ
                 CleanupTextures(processedTextureCache);
@@ -167,7 +167,7 @@ namespace ChimeraHairMaster.Editor.Processing
         /// <summary>
         /// 出力マテリアルを生成
         /// </summary>
-        private static Material CreateOutputMaterial(Material baseMaterial, Dictionary<string, Texture2D> atlasTextures)
+        private static Material CreateOutputMaterial(Material baseMaterial, Dictionary<string, Texture2D> atlasTextures, List<string> clearedProperties)
         {
             // 基準マテリアルをコピー
             var outputMaterial = new Material(baseMaterial);
@@ -179,6 +179,16 @@ namespace ChimeraHairMaster.Editor.Processing
                 if (outputMaterial.HasProperty(kvp.Key))
                 {
                     outputMaterial.SetTexture(kvp.Key, kvp.Value);
+                }
+            }
+
+            // アトラス生成をスキップしたプロパティをクリア
+            // （基準マテリアル由来のテクスチャが旧UVのまま残るのを防ぐ）
+            foreach (var propertyName in clearedProperties)
+            {
+                if (outputMaterial.HasProperty(propertyName))
+                {
+                    outputMaterial.SetTexture(propertyName, null);
                 }
             }
 

@@ -36,6 +36,12 @@ namespace ChimeraHairMaster.Editor.NDMF
             public Dictionary<int, Mesh> RemappedMeshes = new();
 
             /// <summary>
+            /// アトラス生成をスキップしたためプレビューマテリアルで null クリアすべきプロパティ名
+            /// （TextureAtlasBuilder.AtlasResult.ClearedProperties 由来。完全キャッシュヒット時にも必要）
+            /// </summary>
+            public List<string> ClearedProperties = new();
+
+            /// <summary>
             /// メッシュが破棄されずに残っているか（破棄済み参照の再利用防止）
             /// </summary>
             public bool MeshesAlive
@@ -194,6 +200,12 @@ namespace ChimeraHairMaster.Editor.NDMF
             unchecked
             {
                 int hash = ComputeLayoutHash(component, previewResolution);
+
+                // AO/ノーマルアトラスの解像度設定（変更時にテクスチャ再生成をトリガー。
+                // UVリマップには影響しないため LayoutHash ではなくこちらに含める）
+                // ※ preserveAtlasAlpha は圧縮時のみ影響し、プレビューは非圧縮なので含めない
+                hash = hash * 31 + (int)component.normalAtlasResolution;
+                hash = hash * 31 + (int)component.aoAtlasResolution;
 
                 hash = hash * 31 + component.enableColorTransform.GetHashCode();
 
@@ -1212,6 +1224,7 @@ namespace ChimeraHairMaster.Editor.NDMF
 
                 Dictionary<string, Texture2D> atlasTextures;
                 Dictionary<int, Mesh> cachedMeshes;
+                List<string> clearedProperties;
 
                 if (fullCacheHit)
                 {
@@ -1219,6 +1232,7 @@ namespace ChimeraHairMaster.Editor.NDMF
                     CHMLog.Verbose($"[ChimeraHairMaster] {component.name}: アトラスキャッシュヒット（マテリアル再作成のみ）");
                     atlasTextures = cachedEntry!.AtlasTextures;
                     cachedMeshes = cachedEntry.RemappedMeshes;
+                    clearedProperties = cachedEntry.ClearedProperties;
                 }
                 else
                 {
@@ -1615,12 +1629,14 @@ namespace ChimeraHairMaster.Editor.NDMF
                             LayoutHash = layoutHash,
                             InputHash = inputHash,
                             AtlasTextures = atlasResult.AtlasTextures,
-                            RemappedMeshes = newMeshes
+                            RemappedMeshes = newMeshes,
+                            ClearedProperties = atlasResult.ClearedProperties
                         };
                         _atlasCache[componentId] = newCacheEntry;
 
                         atlasTextures = newCacheEntry.AtlasTextures;
                         cachedMeshes = newCacheEntry.RemappedMeshes;
+                        clearedProperties = newCacheEntry.ClearedProperties;
 
                         CHMLog.Verbose($"[ChimeraHairMaster] {component.name}: アトラスプレビュー生成完了 " +
                                   $"(アトラス数: {atlasTextures.Count}, リマップメッシュ数: {cachedMeshes.Count})");
@@ -1630,9 +1646,11 @@ namespace ChimeraHairMaster.Editor.NDMF
                         // レイアウトキャッシュヒット: テクスチャのみ更新、メッシュ再利用
                         cachedEntry!.InputHash = inputHash;
                         cachedEntry.AtlasTextures = atlasResult.AtlasTextures;
+                        cachedEntry.ClearedProperties = atlasResult.ClearedProperties;
 
                         atlasTextures = cachedEntry.AtlasTextures;
                         cachedMeshes = cachedEntry.RemappedMeshes;
+                        clearedProperties = cachedEntry.ClearedProperties;
 
                         CHMLog.Verbose($"[ChimeraHairMaster] {component.name}: テクスチャ再生成完了（メッシュ再利用、アトラス数: {atlasTextures.Count}）");
                     }
@@ -1656,6 +1674,16 @@ namespace ChimeraHairMaster.Editor.NDMF
                     if (atlasMat.HasProperty(kvp.Key))
                     {
                         atlasMat.SetTexture(kvp.Key, kvp.Value);
+                    }
+                }
+
+                // アトラス生成をスキップしたプロパティをクリア
+                // （previewMaterial 由来のテクスチャが旧UVのまま残るのを防ぐ。ビルドと同じ挙動）
+                foreach (var propertyName in clearedProperties)
+                {
+                    if (atlasMat.HasProperty(propertyName))
+                    {
+                        atlasMat.SetTexture(propertyName, null);
                     }
                 }
 

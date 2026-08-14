@@ -199,6 +199,17 @@ namespace ChimeraHairMaster.Editor.NDMF
                 }
             }
 
+            // アトラス生成をスキップしたプロパティをクリア
+            // （ソースコピー由来のテクスチャが旧UVのまま残るのを防ぐ）
+            foreach (var propertyName in atlasResult.ClearedProperties)
+            {
+                if (outputMaterial.HasProperty(propertyName))
+                {
+                    outputMaterial.SetTexture(propertyName, null);
+                    Debug.Log($"[ChimeraHairMaster] テクスチャクリア（アトラス生成スキップ）: {propertyName}");
+                }
+            }
+
             // 出力マテリアルを保存
             component.outputMaterial = outputMaterial;
 

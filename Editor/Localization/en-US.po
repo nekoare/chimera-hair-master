@@ -237,6 +237,18 @@ msgstr "Texture Settings"
 msgid "Inspector:TextureResolution"
 msgstr "Resolution"
 
+msgid "Inspector:PreserveAtlasAlpha"
+msgstr "Always Preserve Alpha Channel"
+
+msgid "Inspector:PreserveAtlasAlphaHelp"
+msgstr "When OFF (recommended), opaque atlases are compressed without an alpha channel (DXT1) to save memory. Turn ON only if your shader uses alpha for special purposes."
+
+msgid "Inspector:NormalAtlasResolution"
+msgstr "Normal Map Resolution"
+
+msgid "Inspector:AOAtlasResolution"
+msgstr "AO Map Resolution"
+
 msgid "Inspector:ColorChangeTargets"
 msgstr "Color Change Targets"
 

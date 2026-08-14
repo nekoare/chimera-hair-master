@@ -237,6 +237,18 @@ msgstr "テクスチャ設定"
 msgid "Inspector:TextureResolution"
 msgstr "解像度"
 
+msgid "Inspector:PreserveAtlasAlpha"
+msgstr "アルファチャンネルを常に保持"
+
+msgid "Inspector:PreserveAtlasAlphaHelp"
+msgstr "OFF（推奨）の場合、アトラスが不透明ならメモリ節約のためアルファ無しの形式(DXT1)で圧縮します。アルファを特殊な用途に使うシェーダの場合のみONにしてください。"
+
+msgid "Inspector:NormalAtlasResolution"
+msgstr "ノーマルマップ解像度"
+
+msgid "Inspector:AOAtlasResolution"
+msgstr "AOマップ解像度"
+
 msgid "Inspector:ColorChangeTargets"
 msgstr "色変更対象"
 

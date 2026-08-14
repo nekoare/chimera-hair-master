@@ -30,6 +30,83 @@ namespace ChimeraHairMaster.Editor.Processing
             IsAndroidBuildTarget() ? TextureFormat.ASTC_6x6 : TextureFormat.BC5;
 
         /// <summary>
+        /// サブアトラス（AO/ノーマル）の解像度を計算。
+        /// アイランド配置は正規化座標なのでメインアトラスと解像度が異なっても正しく配置される
+        /// </summary>
+        private static int GetSubResolution(int resolution, AtlasSubResolution subResolution)
+        {
+            int divisor = Mathf.Max((int)subResolution, 1);
+            return Mathf.Max(resolution / divisor, 64);
+        }
+
+        /// <summary>
+        /// AOマップアトラスの圧縮フォーマット（Android は ASTC_6x6、それ以外は DXT1）。
+        /// AO はグレースケール（lilToon は R チャンネル参照）でアルファ不要のため、
+        /// DXT1 で十分（DXT5 の半分のメモリ）。
+        /// </summary>
+        private static TextureFormat GetAtlasAOFormat() =>
+            IsAndroidBuildTarget() ? TextureFormat.ASTC_6x6 : TextureFormat.DXT1;
+
+        /// <summary>
+        /// 不透明とみなすアルファ値のしきい値。
+        /// ソースが DXT5 圧縮済みだと不透明ピクセルでも 254 前後に化けるため 255 にしない
+        /// </summary>
+        private const byte OpaqueAlphaThreshold = 250;
+
+        /// <summary>
+        /// アトラスのアイランド領域が実質不透明（全ピクセル α ≥ しきい値）かどうか。
+        /// アトラス背景は透明（α=0）で初期化されるため全面走査では常に false になる。
+        /// メッシュUVがサンプリングするのはアイランド矩形内のみなので、そこだけを判定対象にする
+        /// </summary>
+        internal static bool IsEffectivelyOpaqueInIslands(
+            Texture2D atlas,
+            List<IslandPlacement> islandPlacements)
+        {
+            int resolution = atlas.width;
+            var pixels = atlas.GetPixels32(0);
+
+            foreach (var island in islandPlacements)
+            {
+                // Blit と同じ矩形計算（BlitIslandToAtlas 参照）
+                int startX = Mathf.FloorToInt(island.atlasPosition.x * resolution);
+                int startY = Mathf.FloorToInt(island.atlasPosition.y * resolution);
+                int width = Mathf.Max(Mathf.FloorToInt(island.atlasScale.x * resolution), 1);
+                int height = Mathf.Max(Mathf.FloorToInt(island.atlasScale.y * resolution), 1);
+
+                int endX = Mathf.Min(startX + width, resolution);
+                int endY = Mathf.Min(startY + height, resolution);
+                startX = Mathf.Max(startX, 0);
+                startY = Mathf.Max(startY, 0);
+
+                for (int y = startY; y < endY; y++)
+                {
+                    int rowOffset = y * resolution;
+                    for (int x = startX; x < endX; x++)
+                    {
+                        if (pixels[rowOffset + x].a < OpaqueAlphaThreshold) return false;
+                    }
+                }
+            }
+            return true;
+        }
+
+        /// <summary>
+        /// カラーアトラスの圧縮フォーマットを決定。
+        /// PC ではアイランド領域が実質不透明なら DXT1（DXT5 の半分のメモリ）、それ以外は DXT5。
+        /// Android(ASTC_6x6) はアルファ有無で bpp が変わらないため判定不要。
+        /// preserveAtlasAlpha 有効時は判定せず常に DXT5（エスケープハッチ）
+        /// </summary>
+        private static TextureFormat ChooseColorAtlasFormat(
+            Texture2D atlas,
+            ChimeraHairMaster component,
+            List<IslandPlacement> islandPlacements)
+        {
+            if (IsAndroidBuildTarget()) return TextureFormat.ASTC_6x6;
+            if (component != null && component.preserveAtlasAlpha) return TextureFormat.DXT5;
+            return IsEffectivelyOpaqueInIslands(atlas, islandPlacements) ? TextureFormat.DXT1 : TextureFormat.DXT5;
+        }
+
+        /// <summary>
         /// アトラスビルド結果
         /// </summary>
         public class AtlasResult
@@ -51,6 +128,14 @@ namespace ChimeraHairMaster.Editor.Processing
             /// </summary>
             public List<IslandPlacement> IslandPlacements { get; set; }
                 = new List<IslandPlacement>();
+
+            /// <summary>
+            /// アトラス生成をスキップしたため、出力マテリアルで null クリアすべきプロパティ名。
+            /// 出力マテリアルは元マテリアルの完全コピーのため、クリアしないと
+            /// 元のテクスチャが旧UVのまま残ってしまう
+            /// </summary>
+            public List<string> ClearedProperties { get; set; }
+                = new List<string>();
         }
 
         /// <summary>
@@ -181,17 +266,36 @@ namespace ChimeraHairMaster.Editor.Processing
             result.IslandPlacements = islandPlacements;
 
             // AOマップ（_ShadowStrengthMask）のアトラスを生成
-            var aoAtlas = BuildAOMapAtlas(component, resolution, islandPlacements, isPreview);
-            if (aoAtlas != null)
+            // ソースが1枚も無い場合は全白アトラスになるだけなので生成せず、
+            // 出力マテリアル側でプロパティをクリアさせる（メモリ節約）
+            if (AnyIslandHasTexture(component, islandPlacements, "_ShadowStrengthMask"))
             {
-                result.AtlasTextures["_ShadowStrengthMask"] = aoAtlas;
+                int aoResolution = GetSubResolution(resolution, component.aoAtlasResolution);
+                var aoAtlas = BuildAOMapAtlas(component, aoResolution, islandPlacements, isPreview);
+                if (aoAtlas != null)
+                {
+                    result.AtlasTextures["_ShadowStrengthMask"] = aoAtlas;
+                }
+            }
+            else
+            {
+                result.ClearedProperties.Add("_ShadowStrengthMask");
             }
 
             // ノーマルマップ（_BumpMap）のアトラスを生成
-            var normalAtlas = BuildNormalMapAtlas(component, resolution, islandPlacements, isPreview);
-            if (normalAtlas != null)
+            // ソースが1枚も無い場合は全フラットノーマルになるだけなので同様にスキップ
+            if (AnyIslandHasTexture(component, islandPlacements, "_BumpMap"))
             {
-                result.AtlasTextures["_BumpMap"] = normalAtlas;
+                int normalResolution = GetSubResolution(resolution, component.normalAtlasResolution);
+                var normalAtlas = BuildNormalMapAtlas(component, normalResolution, islandPlacements, isPreview);
+                if (normalAtlas != null)
+                {
+                    result.AtlasTextures["_BumpMap"] = normalAtlas;
+                }
+            }
+            else
+            {
+                result.ClearedProperties.Add("_BumpMap");
             }
 
             return result;
@@ -519,8 +623,8 @@ namespace ChimeraHairMaster.Editor.Processing
 
             if (!isPreview)
             {
-                // テクスチャ圧縮（DXT5 = Normal Quality相当）（ビルド時のみ）
-                EditorUtility.CompressTexture(atlas, GetAtlasColorFormat(), TextureCompressionQuality.Best);
+                // テクスチャ圧縮（ビルド時のみ）。実質不透明なら DXT1 でメモリ半減
+                EditorUtility.CompressTexture(atlas, ChooseColorAtlasFormat(atlas, component, islandPlacements), TextureCompressionQuality.Best);
                 ShaderUtils.EnableMipStreaming(atlas);
             }
 
@@ -602,6 +706,30 @@ namespace ChimeraHairMaster.Editor.Processing
                 _whiteFallbackTexture.name = "WhiteFallback";
             }
             return _whiteFallbackTexture;
+        }
+
+        /// <summary>
+        /// いずれかのアイランドのソースに指定プロパティのテクスチャが存在するか。
+        /// アトラス生成時の Blit ループと同じ取得経路（GetTextureFromRenderer + submeshIndex）で
+        /// 判定するため、false ⇔ 全アイランドがフォールバック色で塗られる、が保証される
+        /// </summary>
+        internal static bool AnyIslandHasTexture(
+            ChimeraHairMaster component,
+            List<IslandPlacement> islandPlacements,
+            string propertyName)
+        {
+            foreach (var island in islandPlacements)
+            {
+                if (island.rendererIndex >= component.targetRenderers.Count) continue;
+                var renderer = component.targetRenderers[island.rendererIndex];
+                if (renderer == null) continue;
+
+                if (GetTextureFromRenderer(renderer, propertyName, island.submeshIndex) != null)
+                {
+                    return true;
+                }
+            }
+            return false;
         }
 
         /// <summary>
@@ -792,8 +920,8 @@ namespace ChimeraHairMaster.Editor.Processing
 
             if (!isPreview)
             {
-                // テクスチャ圧縮（DXT5 = Normal Quality相当）（ビルド時のみ）
-                EditorUtility.CompressTexture(atlas, GetAtlasColorFormat(), TextureCompressionQuality.Best);
+                // テクスチャ圧縮（ビルド時のみ）。AO はグレースケールなので DXT1 で十分
+                EditorUtility.CompressTexture(atlas, GetAtlasAOFormat(), TextureCompressionQuality.Best);
                 ShaderUtils.EnableMipStreaming(atlas);
             }
 

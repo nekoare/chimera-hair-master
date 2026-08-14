@@ -31,4 +31,29 @@ namespace ChimeraHairMaster
         [InspectorName("4096x4096")]
         _4096 = 4096
     }
+
+    /// <summary>
+    /// AO/ノーマルなどサブアトラスの解像度（メインアトラス解像度に対する比率）。
+    /// enum 値は除数として使用する
+    /// </summary>
+    public enum AtlasSubResolution
+    {
+        /// <summary>
+        /// メインアトラスと同じ解像度
+        /// </summary>
+        [InspectorName("×1")]
+        Full = 1,
+
+        /// <summary>
+        /// メインアトラスの1/2解像度
+        /// </summary>
+        [InspectorName("×1/2")]
+        Half = 2,
+
+        /// <summary>
+        /// メインアトラスの1/4解像度
+        /// </summary>
+        [InspectorName("×1/4")]
+        Quarter = 4
+    }
 }
