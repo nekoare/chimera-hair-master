@@ -493,51 +493,5 @@ namespace ChimeraHairMaster.Editor.NDMF
                    propertyName == "_UseMatCap" ||
                    propertyName == "_UseMatCap2nd";
         }
-
-        /// <summary>
-        /// マットキャップテクスチャのみをコピー
-        /// </summary>
-        private void CopyMatCapTextures(Material source, Material dest)
-        {
-            // マットキャップ1st
-            string[] matCap1stProps = new string[]
-            {
-                "_MatCapTex",
-                "_MatCapBlendMask",
-                "_MatCapBumpMap"
-            };
-
-            foreach (var prop in matCap1stProps)
-            {
-                if (source.HasProperty(prop) && dest.HasProperty(prop))
-                {
-                    var tex = source.GetTexture(prop);
-                    if (tex != null)
-                    {
-                        dest.SetTexture(prop, tex);
-                    }
-                }
-            }
-
-            // マットキャップ2nd
-            string[] matCap2ndProps = new string[]
-            {
-                "_MatCap2ndTex",
-                "_MatCap2ndBlendMask",
-                "_MatCap2ndBumpMap"
-            };
-
-            foreach (var prop in matCap2ndProps)
-            {
-                if (source.HasProperty(prop) && dest.HasProperty(prop))
-                {
-                    var tex = source.GetTexture(prop);
-                    if (tex != null)
-                    {
-                        dest.SetTexture(prop, tex);
-                    }
-                }
-            }
-        }
     }
 }

@@ -245,6 +245,21 @@ namespace ChimeraHairMaster
         public AtlasSubResolution aoAtlasResolution = AtlasSubResolution.Full;
 
         /// <summary>
+        /// 「マスクテクスチャを生成」で書き出した再配置済みマスク（プロパティ名 → PNGアセット）。
+        /// ビルドでは自動適用しない——ユーザーがマテリアル設定（previewMaterial）へ
+        /// 割り当てたものだけが出力に乗る
+        /// </summary>
+        [SerializeField]
+        public List<GeneratedMaskEntry> generatedMasks = new List<GeneratedMaskEntry>();
+
+        /// <summary>
+        /// 生成時点の入力ハッシュ（UV配置・素材のマスク/トグル）。
+        /// 現在値と食い違う場合、インスペクタで「再生成が必要」の警告に使う
+        /// </summary>
+        [SerializeField]
+        public int generatedMasksInputHash;
+
+        /// <summary>
         /// 色変更を適用するテクスチャスロット一覧
         /// </summary>
         [SerializeField]
@@ -729,5 +744,18 @@ namespace ChimeraHairMaster
         }
 
         #endregion
+    }
+
+    /// <summary>
+    /// 「マスクテクスチャを生成」で書き出した再配置済みマスクの1エントリ
+    /// </summary>
+    [Serializable]
+    public class GeneratedMaskEntry
+    {
+        /// <summary>割り当て先のテクスチャプロパティ名（例 "_MatCapBlendMask"）</summary>
+        public string propertyName;
+
+        /// <summary>生成されたPNGアセット</summary>
+        public Texture2D texture;
     }
 }

@@ -1,6 +1,8 @@
+using System;
 using System.Collections.Generic;
 using UnityEditor;
 using UnityEngine;
+using Object = UnityEngine.Object;
 
 namespace ChimeraHairMaster.Editor.Processing
 {
@@ -46,6 +48,245 @@ namespace ChimeraHairMaster.Editor.Processing
         /// </summary>
         private static TextureFormat GetAtlasAOFormat() =>
             IsAndroidBuildTarget() ? TextureFormat.ASTC_6x6 : TextureFormat.DXT1;
+
+        /// <summary>
+        /// フラットノーマル色（頂点法線の向きを変更しない）
+        /// </summary>
+        private static readonly Color FlatNormal = new Color(128f / 255f, 128f / 255f, 1f, 1f);
+
+        /// <summary>
+        /// マスク系アトラススロットの定義。
+        /// カラーアトラス（_MainTex 系）は色変更・不透明判定など独自ロジックを持つため
+        /// このテーブルには乗せず、「カラー系」と「マスク系」の2系統とする
+        /// </summary>
+        internal class MaskSlotDefinition
+        {
+            /// <summary>対象テクスチャプロパティ名</summary>
+            public string propertyName;
+
+            /// <summary>
+            /// テクスチャ未設定アイランドの塗りつぶし色。
+            /// 引数はそのアイランドのマテリアル（null の場合は背景初期化用の既定値を返すこと）
+            /// </summary>
+            public Func<Material, Color> fallbackColor;
+
+            /// <summary>リニアデータか（ノーマルマップのみ true。sRGB 扱いだと法線の向きが狂う）</summary>
+            public bool linear;
+
+            /// <summary>圧縮フォーマット（ビルドターゲット依存のため関数）</summary>
+            public Func<TextureFormat> format;
+
+            /// <summary>従う解像度設定</summary>
+            public Func<ChimeraHairMaster, AtlasSubResolution> resolution;
+
+            /// <summary>
+            /// 機能のON/OFFトグルプロパティ名（例 "_UseMatCap"）。
+            /// 指定すると生成条件・塗りつぶし色が機能のON/OFFを考慮する。null なら常時有効扱い
+            /// </summary>
+            public string enableProperty;
+
+            /// <summary>
+            /// UVモードプロパティ名（例 "_EmissionMap_UVMode"）。
+            /// 指定時、値がUV0以外のマテリアルがあるとスロット全体を放置（生成もクリアもしない）。
+            /// プレビューの入力ハッシュにも使われる
+            /// </summary>
+            public string uvModeProperty;
+
+            /// <summary>
+            /// スクロール/回転アニメのプロパティ名（例 "_EmissionMap_ScrollRotate"）。
+            /// 指定時、非ゼロのマテリアルがあるとスロット全体を放置。
+            /// プレビューの入力ハッシュにも使われる
+            /// </summary>
+            public string scrollRotateProperty;
+
+            /// <summary>UVモード/スクロールの制約ガードを持つか</summary>
+            public bool HasAtlasGuard => uvModeProperty != null || scrollRotateProperty != null;
+
+            /// <summary>
+            /// ソースのピクセルを透明置換せずそのまま焼き込むか。
+            /// 既定（false、AO/ノーマル用）は透明ピクセル（α≒0）をフォールバック色に置換するが、
+            /// エミッション系はアルファ自体が発光強度データのため置換すると
+            /// 「アルファで消している」領域が白＝フル発光に化ける。
+            /// マットキャップマスクもシェーダは .rgb をそのまま読むため、置換しない方が実挙動に忠実
+            /// </summary>
+            public bool blitRaw;
+
+            /// <summary>
+            /// シェーダがアルファを読まないスロットか（.rgb / .r のみ参照）。
+            /// PNG生成時にインポータの alphaSource=None を設定し、
+            /// ソース由来のアルファ混入で DXT5（メモリ2倍）に化けるのを防いで DXT1 に固定する
+            /// </summary>
+            public bool alphaUnused;
+        }
+
+        /// <summary>
+        /// ビルド時に自動でアトラス化するマスク系スロット（AO/ノーマルのみ）。
+        /// マットキャップ/エミッション系は自動適用せず、AdditionalMaskSlots による
+        /// アセット生成（ユーザーが previewMaterial に手動割り当て）で扱う
+        /// </summary>
+        internal static readonly MaskSlotDefinition[] MaskSlots =
+        {
+            new MaskSlotDefinition
+            {
+                propertyName = "_ShadowStrengthMask",
+                fallbackColor = _ => Color.white, // AOなし = 影なし
+                format = GetAtlasAOFormat,
+                resolution = c => c.aoAtlasResolution,
+            },
+            new MaskSlotDefinition
+            {
+                propertyName = "_BumpMap",
+                fallbackColor = _ => FlatNormal,
+                linear = true,
+                format = GetAtlasNormalFormat,
+                resolution = c => c.normalAtlasResolution,
+            },
+        };
+
+        /// <summary>
+        /// 「マスクテクスチャを生成」でPNGアセットとして書き出す追加マスクスロット。
+        /// ビルドでは自動適用しない——ユーザーがマテリアル設定（previewMaterial）に
+        /// 割り当てたものだけが従来のテクスチャと同様に出力へ乗る。
+        ///
+        /// 塗りつぶしは白=フル適用（lilToonのマスク無しと同義）、機能OFFの素材は黒/透明=適用しない。
+        /// これにより「一部の房だけマットキャップ/発光」も1枚のマスクで再現できる。
+        /// - マットキャップマスクは .rgb のみ参照（lilToon）のため黒でよい
+        /// - エミッション系はマスクのアルファが発光強度に乗る（emissionColor.a）ため
+        ///   OFF島は透明 (0,0,0,0) で塗る
+        /// - エミッションはUVモード/スクロールがUV0固定でない場合、生成対象から除外（警告）
+        /// </summary>
+        internal static readonly MaskSlotDefinition[] AdditionalMaskSlots =
+        {
+            new MaskSlotDefinition
+            {
+                propertyName = "_MatCapBlendMask",
+                enableProperty = "_UseMatCap",
+                fallbackColor = mat => FeatureFallback(mat, "_UseMatCap", Color.black),
+                blitRaw = true,
+                alphaUnused = true,
+            },
+            new MaskSlotDefinition
+            {
+                propertyName = "_MatCap2ndBlendMask",
+                enableProperty = "_UseMatCap2nd",
+                fallbackColor = mat => FeatureFallback(mat, "_UseMatCap2nd", Color.black),
+                blitRaw = true,
+                alphaUnused = true,
+            },
+            new MaskSlotDefinition
+            {
+                propertyName = "_EmissionBlendMask",
+                enableProperty = "_UseEmission",
+                fallbackColor = mat => FeatureFallback(mat, "_UseEmission", Color.clear),
+                blitRaw = true,
+                scrollRotateProperty = "_EmissionBlendMask_ScrollRotate",
+            },
+            new MaskSlotDefinition
+            {
+                propertyName = "_Emission2ndBlendMask",
+                enableProperty = "_UseEmission2nd",
+                fallbackColor = mat => FeatureFallback(mat, "_UseEmission2nd", Color.clear),
+                blitRaw = true,
+                scrollRotateProperty = "_Emission2ndBlendMask_ScrollRotate",
+            },
+            new MaskSlotDefinition
+            {
+                propertyName = "_EmissionMap",
+                enableProperty = "_UseEmission",
+                fallbackColor = mat => FeatureFallback(mat, "_UseEmission", Color.clear),
+                blitRaw = true,
+                uvModeProperty = "_EmissionMap_UVMode",
+                scrollRotateProperty = "_EmissionMap_ScrollRotate",
+            },
+            new MaskSlotDefinition
+            {
+                propertyName = "_Emission2ndMap",
+                enableProperty = "_UseEmission2nd",
+                fallbackColor = mat => FeatureFallback(mat, "_UseEmission2nd", Color.clear),
+                blitRaw = true,
+                uvModeProperty = "_Emission2ndMap_UVMode",
+                scrollRotateProperty = "_Emission2ndMap_ScrollRotate",
+            },
+            // 光沢（Reflection）。_SmoothnessTex/_MetallicGlossMap は .r のみ参照のグレースケール。
+            // OFF島の黒は smoothness/metallic=0 で「ほぼ無効」だが完全OFFではない——
+            // 実質のOFFゲートは _ReflectionColorTex の透明（反射色が消える）
+            new MaskSlotDefinition
+            {
+                propertyName = "_SmoothnessTex",
+                enableProperty = "_UseReflection",
+                fallbackColor = mat => FeatureFallback(mat, "_UseReflection", Color.black),
+                blitRaw = true,
+                alphaUnused = true,
+            },
+            new MaskSlotDefinition
+            {
+                propertyName = "_MetallicGlossMap",
+                enableProperty = "_UseReflection",
+                fallbackColor = mat => FeatureFallback(mat, "_UseReflection", Color.black),
+                blitRaw = true,
+                alphaUnused = true,
+            },
+            new MaskSlotDefinition
+            {
+                propertyName = "_ReflectionColorTex",
+                enableProperty = "_UseReflection",
+                fallbackColor = mat => FeatureFallback(mat, "_UseReflection", Color.clear),
+                blitRaw = true,
+            },
+            // ラメ（Glitter）の色/マスク。UVモード（UV0-3）があるためガード付き。
+            // ※ _GlitterShapeTex はラメ粒子空間でサンプリングされるため対象外（再配置すると壊れる）
+            new MaskSlotDefinition
+            {
+                propertyName = "_GlitterColorTex",
+                enableProperty = "_UseGlitter",
+                fallbackColor = mat => FeatureFallback(mat, "_UseGlitter", Color.clear),
+                blitRaw = true,
+                uvModeProperty = "_GlitterColorTex_UVMode",
+            },
+        };
+
+        /// <summary>
+        /// マテリアルで機能トグルがONか（プロパティが無い＝非lilToon等は OFF 扱い）
+        /// </summary>
+        private static bool IsFeatureEnabled(Material mat, string enableProperty)
+        {
+            return mat != null &&
+                   mat.HasProperty(enableProperty) &&
+                   mat.GetFloat(enableProperty) != 0f;
+        }
+
+        /// <summary>
+        /// 機能ONなら白（フル適用）、OFFなら offColor（適用しない）。
+        /// mat == null（背景初期化・不明マテリアル）は offColor —— アイランド外の未使用領域を
+        /// 白にすると mipmap 縮小時にアイランド縁へ「フル適用」がにじむため、安全側に倒す。
+        /// offColor はマスクの使われ方に合わせる:
+        /// - マットキャップマスクは .rgb のみ参照されるため黒で十分
+        /// - エミッション系はアルファが発光強度（emissionColor.a）に乗るため、
+        ///   ブレンドモードに依らず無効化できる透明 (0,0,0,0) を使う
+        /// </summary>
+        private static Color FeatureFallback(Material mat, string enableProperty, Color offColor)
+        {
+            if (mat == null) return offColor;
+            return IsFeatureEnabled(mat, enableProperty) ? Color.white : offColor;
+        }
+
+        /// <summary>
+        /// テクスチャのUV参照がUV0かつスクロール/回転アニメ無しか。
+        /// lilToon のエミッションは UVMode（0=UV0/1-3=UV1-3/4=Rim）と ScrollRotate を持ち、
+        /// UV0 以外やアニメ使用時はアトラス化すると表示が壊れる。
+        /// プロパティが存在しない場合は制約なしとして true
+        /// </summary>
+        internal static bool IsUV0WithoutAnimation(Material mat, MaskSlotDefinition def)
+        {
+            if (mat == null) return true;
+            if (def.uvModeProperty != null &&
+                mat.HasProperty(def.uvModeProperty) &&
+                mat.GetFloat(def.uvModeProperty) != 0f) return false;
+            if (def.scrollRotateProperty != null &&
+                mat.HasProperty(def.scrollRotateProperty) &&
+                mat.GetVector(def.scrollRotateProperty) != Vector4.zero) return false;
+            return true;
+        }
 
         /// <summary>
         /// 不透明とみなすアルファ値のしきい値。
@@ -265,37 +506,26 @@ namespace ChimeraHairMaster.Editor.Processing
             // アイランド配置情報を結果に保存（UV変換時に使用）
             result.IslandPlacements = islandPlacements;
 
-            // AOマップ（_ShadowStrengthMask）のアトラスを生成
-            // ソースが1枚も無い場合は全白アトラスになるだけなので生成せず、
-            // 出力マテリアル側でプロパティをクリアさせる（メモリ節約）
-            if (AnyIslandHasTexture(component, islandPlacements, "_ShadowStrengthMask"))
+            // マスク系アトラス（AO/ノーマル）をスロットテーブルに従って生成。
+            // ソースが1枚も無い場合は全面フォールバック色のアトラスになるだけなので生成せず、
+            // 出力マテリアル側でプロパティをクリアさせる（メモリ節約）。
+            // マットキャップ/エミッション系はここでは扱わない——BuildAdditionalMaskTextures で
+            // アセット生成し、ユーザーが previewMaterial に割り当てたものがそのまま出力に乗る
+            foreach (var def in MaskSlots)
             {
-                int aoResolution = GetSubResolution(resolution, component.aoAtlasResolution);
-                var aoAtlas = BuildAOMapAtlas(component, aoResolution, islandPlacements, isPreview);
-                if (aoAtlas != null)
+                if (AnyIslandHasTexture(component, islandPlacements, def.propertyName))
                 {
-                    result.AtlasTextures["_ShadowStrengthMask"] = aoAtlas;
+                    int maskResolution = GetSubResolution(resolution, def.resolution(component));
+                    var maskAtlas = BuildMaskAtlas(component, def, maskResolution, islandPlacements, isPreview);
+                    if (maskAtlas != null)
+                    {
+                        result.AtlasTextures[def.propertyName] = maskAtlas;
+                    }
                 }
-            }
-            else
-            {
-                result.ClearedProperties.Add("_ShadowStrengthMask");
-            }
-
-            // ノーマルマップ（_BumpMap）のアトラスを生成
-            // ソースが1枚も無い場合は全フラットノーマルになるだけなので同様にスキップ
-            if (AnyIslandHasTexture(component, islandPlacements, "_BumpMap"))
-            {
-                int normalResolution = GetSubResolution(resolution, component.normalAtlasResolution);
-                var normalAtlas = BuildNormalMapAtlas(component, normalResolution, islandPlacements, isPreview);
-                if (normalAtlas != null)
+                else
                 {
-                    result.AtlasTextures["_BumpMap"] = normalAtlas;
+                    result.ClearedProperties.Add(def.propertyName);
                 }
-            }
-            else
-            {
-                result.ClearedProperties.Add("_BumpMap");
             }
 
             return result;
@@ -397,150 +627,6 @@ namespace ChimeraHairMaster.Editor.Processing
             }
 
             return placements;
-        }
-
-        /// <summary>
-        /// 後方互換性のため残す
-        /// </summary>
-        private static List<UVIslandPlacement> GetOrCalculatePlacements(ChimeraHairMaster component)
-        {
-            if (component.uvPlacements != null && component.uvPlacements.Count > 0)
-            {
-                bool hasValidPlacement = false;
-                foreach (var p in component.uvPlacements)
-                {
-                    if (p.renderer != null && (p.scale.x > 0 || p.scale.y > 0))
-                    {
-                        hasValidPlacement = true;
-                        break;
-                    }
-                }
-
-                if (hasValidPlacement)
-                {
-                    return component.uvPlacements;
-                }
-            }
-
-            return CalculateAutoLayout(component.targetRenderers);
-        }
-
-        /// <summary>
-        /// 自動レイアウトを計算（後方互換性のため残す）
-        /// </summary>
-        private static List<UVIslandPlacement> CalculateAutoLayout(List<SkinnedMeshRenderer> renderers)
-        {
-            var placements = new List<UVIslandPlacement>();
-            int count = renderers.Count;
-
-            if (count == 0) return placements;
-
-            int cols = Mathf.CeilToInt(Mathf.Sqrt(count));
-            int rows = Mathf.CeilToInt((float)count / cols);
-
-            float cellWidth = 1f / cols;
-            float cellHeight = 1f / rows;
-
-            for (int i = 0; i < count; i++)
-            {
-                if (renderers[i] == null) continue;
-
-                int col = i % cols;
-                int row = i / cols;
-
-                var placement = new UVIslandPlacement(renderers[i])
-                {
-                    position = new Vector2(col * cellWidth, row * cellHeight),
-                    scale = new Vector2(cellWidth, cellHeight),
-                    rotation = 0
-                };
-
-                placements.Add(placement);
-            }
-
-            return placements;
-        }
-
-        /// <summary>
-        /// 特定のスロット用にアトラスを生成
-        /// メッシュの実際のUV範囲を考慮してテクスチャを配置
-        /// </summary>
-        private static Texture2D BuildAtlasForSlot(
-            ChimeraHairMaster component,
-            string propertyName,
-            int resolution,
-            List<UVIslandPlacement> placements,
-            Dictionary<Texture2D, Texture2D> processedTextureCache)
-        {
-            // アトラステクスチャを作成
-            var atlas = new Texture2D(resolution, resolution, TextureFormat.RGBA32, true);
-            atlas.name = $"Atlas_{propertyName}";
-
-            // 背景を透明で初期化
-            var clearPixels = new Color[resolution * resolution];
-            for (int i = 0; i < clearPixels.Length; i++)
-            {
-                clearPixels[i] = Color.clear;
-            }
-            atlas.SetPixels(clearPixels);
-
-            bool hasAnyTexture = false;
-
-            // 各Rendererのテクスチャを配置
-            foreach (var placement in placements)
-            {
-                if (placement.renderer == null) continue;
-
-                // マテリアルからテクスチャを取得（nullの場合は白フォールバック）
-                Texture2D sourceTexture = GetTextureFromRenderer(placement.renderer, propertyName);
-                if (sourceTexture == null) sourceTexture = GetWhiteFallbackTexture();
-
-                // 処理済みテクスチャがあればそれを使用
-                if (processedTextureCache != null &&
-                    processedTextureCache.TryGetValue(sourceTexture, out var processedTexture))
-                {
-                    sourceTexture = processedTexture;
-                }
-
-                // メッシュのUV境界を取得
-                Rect uvBounds = new Rect(0, 0, 1, 1);
-                if (placement.renderer.sharedMesh != null)
-                {
-                    uvBounds = MeshUVRemapper.CalculateUVBounds(placement.renderer.sharedMesh);
-                }
-
-                // テクスチャをアトラスに配置（UV境界を考慮）
-                BlitTextureToAtlasWithUVBounds(
-                    atlas,
-                    sourceTexture,
-                    placement.position,
-                    placement.scale,
-                    placement.rotation,
-                    uvBounds,
-                    resolution
-                );
-
-                hasAnyTexture = true;
-            }
-
-            if (!hasAnyTexture)
-            {
-                Object.DestroyImmediate(atlas);
-                return null;
-            }
-
-            // MipMapブリード防止のためエッジをダイレーション
-            DilateAtlas(atlas);
-
-            atlas.Apply(true);
-
-            // テクスチャ圧縮（DXT5 = Normal Quality相当）
-            EditorUtility.CompressTexture(atlas, GetAtlasColorFormat(), TextureCompressionQuality.Best);
-
-            // VRChat向けにミップストリーミングを有効化
-            ShaderUtils.EnableMipStreaming(atlas);
-
-            return atlas;
         }
 
         /// <summary>
@@ -733,6 +819,205 @@ namespace ChimeraHairMaster.Editor.Processing
         }
 
         /// <summary>
+        /// いずれかのアイランドのマテリアルが条件を満たすか
+        /// （AnyIslandHasTexture と同じ走査規則）
+        /// </summary>
+        private static bool AnyIslandMaterial(
+            ChimeraHairMaster component,
+            List<IslandPlacement> islandPlacements,
+            Func<Material, bool> predicate)
+        {
+            foreach (var island in islandPlacements)
+            {
+                if (island.rendererIndex >= component.targetRenderers.Count) continue;
+                var renderer = component.targetRenderers[island.rendererIndex];
+                if (renderer == null) continue;
+
+                var mat = GetMaterialFromRenderer(renderer, island.submeshIndex);
+                if (mat != null && predicate(mat))
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// スロットのマスクを再配置生成してよいか（EmissionMap の UVモード/スクロールガード）。
+        /// 機能ONのアイランドのいずれかで制約に引っかかる場合、スロット全体を対象外にする
+        /// （UV0以外やアニメ使用のテクスチャは再配置しても正しく表示できないため）
+        /// </summary>
+        private static bool CanAtlasAdditionalSlot(
+            ChimeraHairMaster component,
+            List<IslandPlacement> islandPlacements,
+            MaskSlotDefinition def)
+        {
+            if (!def.HasAtlasGuard) return true;
+
+            bool ok = !AnyIslandMaterial(component, islandPlacements,
+                m => IsFeatureEnabled(m, def.enableProperty) && !IsUV0WithoutAnimation(m, def));
+
+            if (!ok)
+            {
+                Debug.LogWarning($"[ChimeraHairMaster] {def.propertyName} はUVモードがUV0以外、" +
+                    "またはスクロール/回転アニメ使用のため生成対象から除外しました");
+            }
+            return ok;
+        }
+
+        /// <summary>
+        /// 機能ONの島に実テクスチャがあるか。
+        /// 機能OFFの島のテクスチャは焼き込まれない（OFF色で塗られる）ため数えない
+        /// </summary>
+        private static bool AnyEnabledIslandHasTexture(
+            ChimeraHairMaster component,
+            List<IslandPlacement> islandPlacements,
+            MaskSlotDefinition def)
+        {
+            return AnyIslandMaterial(component, islandPlacements, m =>
+                (def.enableProperty == null || IsFeatureEnabled(m, def.enableProperty)) &&
+                m.HasProperty(def.propertyName) &&
+                m.GetTexture(def.propertyName) is Texture2D tex && tex != null);
+        }
+
+        /// <summary>
+        /// 追加マスク（マットキャップ/エミッション）のテクスチャを生成すべきか。
+        /// 機能ONの島に実テクスチャがあるか、島の間で機能ON/OFFが混在している場合に生成する
+        /// （混在時はテクスチャが無くても白/黒の塗り分けマスクとして意味がある）。
+        /// 全島OFF・全島ONでテクスチャ無しの場合は生成不要（マスク無し=フル適用で足りる）
+        /// </summary>
+        internal static bool ShouldGenerateAdditionalMask(
+            ChimeraHairMaster component,
+            List<IslandPlacement> islandPlacements,
+            MaskSlotDefinition def)
+        {
+            bool anyIslandOn = AnyIslandMaterial(component, islandPlacements,
+                m => IsFeatureEnabled(m, def.enableProperty));
+            if (!anyIslandOn) return false;
+
+            if (AnyEnabledIslandHasTexture(component, islandPlacements, def)) return true;
+
+            // テクスチャが無くても、ON/OFFが混在していれば塗り分けマスクが必要
+            return AnyIslandMaterial(component, islandPlacements,
+                m => !IsFeatureEnabled(m, def.enableProperty));
+        }
+
+        /// <summary>
+        /// 追加マスク（マットキャップ/エミッション）を統合後UVに再配置した非圧縮テクスチャとして生成。
+        /// PNG書き出し用で、ビルドでは自動適用しない。
+        /// 生成対象が無いスロット・UVモード等の制約に引っかかるスロットは含まれない
+        /// </summary>
+        internal static List<(MaskSlotDefinition def, Texture2D texture)> BuildAdditionalMaskTextures(
+            ChimeraHairMaster component,
+            int resolution)
+        {
+            var results = new List<(MaskSlotDefinition, Texture2D)>();
+
+            var islandPlacements = GetOrCalculateIslandPlacements(component);
+            if (islandPlacements.Count == 0)
+            {
+                Debug.LogWarning("[ChimeraHairMaster] アイランド配置情報がありません");
+                return results;
+            }
+
+            foreach (var def in AdditionalMaskSlots)
+            {
+                if (!CanAtlasAdditionalSlot(component, islandPlacements, def)) continue;
+                if (!ShouldGenerateAdditionalMask(component, islandPlacements, def)) continue;
+
+                // 非圧縮で生成（isPreview: true）し、PNG化は呼び出し側で行う
+                var texture = BuildMaskAtlas(component, def, resolution, islandPlacements, isPreview: true);
+                if (texture != null)
+                {
+                    results.Add((def, texture));
+                }
+            }
+            return results;
+        }
+
+        /// <summary>
+        /// 追加マスク生成の入力ハッシュ（UV配置・各島のマスクテクスチャ・機能ON/OFF・UVモード）。
+        /// 生成時に保存しておき、現在値と食い違ったら「再生成が必要」の警告に使う
+        /// </summary>
+        internal static int ComputeAdditionalMaskInputHash(ChimeraHairMaster component)
+        {
+            unchecked
+            {
+                int hash = 17;
+                var islandPlacements = GetOrCalculateIslandPlacements(component);
+                foreach (var island in islandPlacements)
+                {
+                    hash = hash * 31 + island.rendererIndex;
+                    hash = hash * 31 + island.submeshIndex;
+                    hash = hash * 31 + island.originalBounds.GetHashCode();
+                    hash = hash * 31 + island.atlasPosition.GetHashCode();
+                    hash = hash * 31 + island.atlasScale.GetHashCode();
+
+                    if (island.rendererIndex >= component.targetRenderers.Count) continue;
+                    var renderer = component.targetRenderers[island.rendererIndex];
+                    if (renderer == null) continue;
+                    var mat = GetMaterialFromRenderer(renderer, island.submeshIndex);
+                    if (mat == null) continue;
+
+                    foreach (var def in AdditionalMaskSlots)
+                    {
+                        if (mat.HasProperty(def.propertyName))
+                        {
+                            var tex = mat.GetTexture(def.propertyName);
+                            hash = hash * 31 + (tex != null ? tex.GetInstanceID() : 0);
+                        }
+                        if (mat.HasProperty(def.enableProperty))
+                        {
+                            hash = hash * 31 + mat.GetFloat(def.enableProperty).GetHashCode();
+                        }
+                        if (def.uvModeProperty != null && mat.HasProperty(def.uvModeProperty))
+                        {
+                            hash = hash * 31 + mat.GetFloat(def.uvModeProperty).GetHashCode();
+                        }
+                        if (def.scrollRotateProperty != null && mat.HasProperty(def.scrollRotateProperty))
+                        {
+                            hash = hash * 31 + mat.GetVector(def.scrollRotateProperty).GetHashCode();
+                        }
+                    }
+                }
+                return hash;
+            }
+        }
+
+        /// <summary>
+        /// 統合対象の素材で使われているマットキャップ画像（_MatCapTex / _MatCap2ndTex）を収集。
+        /// マットキャップ画像は視線ベースサンプリングのため再配置は不要・不可能で、
+        /// ユーザーがどれを使うか選んで previewMaterial に割り当てるための一覧
+        /// </summary>
+        internal static List<(string propertyName, Texture2D texture)> CollectMatCapTextures(
+            ChimeraHairMaster component)
+        {
+            var results = new List<(string, Texture2D)>();
+            var seen = new HashSet<Texture2D>();
+            string[] matCapProps = { "_MatCapTex", "_MatCap2ndTex" };
+
+            var islandPlacements = GetOrCalculateIslandPlacements(component);
+            foreach (var island in islandPlacements)
+            {
+                if (island.rendererIndex >= component.targetRenderers.Count) continue;
+                var renderer = component.targetRenderers[island.rendererIndex];
+                if (renderer == null) continue;
+                var mat = GetMaterialFromRenderer(renderer, island.submeshIndex);
+                if (mat == null) continue;
+
+                foreach (var prop in matCapProps)
+                {
+                    if (!mat.HasProperty(prop)) continue;
+                    if (mat.GetTexture(prop) is Texture2D tex && tex != null && seen.Add(tex))
+                    {
+                        results.Add((prop, tex));
+                    }
+                }
+            }
+            return results;
+        }
+
+        /// <summary>
         /// Rendererからテクスチャを取得（全マテリアルから探す）
         /// </summary>
         private static Texture2D GetTextureFromRenderer(SkinnedMeshRenderer renderer, string propertyName)
@@ -776,111 +1061,27 @@ namespace ChimeraHairMaster.Editor.Processing
         }
 
         /// <summary>
-        /// テクスチャをアトラスに配置（UV境界を考慮）
-        /// メッシュの実際のUV範囲のみを切り出して配置
+        /// マスク系アトラス（AO/ノーマル等）をスロット定義に従って生成。
+        /// テクスチャ未設定のアイランドは定義のフォールバック色で塗りつぶす。
+        ///
+        /// ノーマルマップは linear:true で作成する。sRGB 扱いだとサンプル時に
+        /// 誤ってデコードされ、法線の向きが狂う。
+        /// （PC ビルドは BC5 に sRGB バリアントが無いため無影響。
+        ///   プレビューの非圧縮表示と Android の ASTC でのみ効く）
         /// </summary>
-        private static void BlitTextureToAtlasWithUVBounds(
-            Texture2D atlas,
-            Texture2D source,
-            Vector2 position,
-            Vector2 scale,
-            float rotation,
-            Rect uvBounds,
-            int resolution)
-        {
-            // 読み取り可能なテクスチャを取得
-            Texture2D readable = GetReadableTexture(source);
-
-            // 配置範囲を計算（アトラス上の位置）
-            int startX = Mathf.FloorToInt(position.x * resolution);
-            int startY = Mathf.FloorToInt(position.y * resolution);
-            int width = Mathf.FloorToInt(scale.x * resolution);
-            int height = Mathf.FloorToInt(scale.y * resolution);
-
-            // 少なくとも1ピクセルの幅と高さを確保
-            width = Mathf.Max(width, 1);
-            height = Mathf.Max(height, 1);
-
-            // 回転を考慮してピクセルをコピー
-            for (int y = 0; y < height; y++)
-            {
-                for (int x = 0; x < width; x++)
-                {
-                    // アトラス上の座標
-                    int atlasX = startX + x;
-                    int atlasY = startY + y;
-
-                    if (atlasX < 0 || atlasX >= resolution ||
-                        atlasY < 0 || atlasY >= resolution)
-                        continue;
-
-                    // 配置領域内での正規化座標 (0-1)
-                    float normalizedX = (float)x / width;
-                    float normalizedY = (float)y / height;
-
-                    // 回転を適用
-                    if (rotation != 0)
-                    {
-                        float rad = -rotation * Mathf.Deg2Rad;
-                        float cos = Mathf.Cos(rad);
-                        float sin = Mathf.Sin(rad);
-                        float cx = normalizedX - 0.5f;
-                        float cy = normalizedY - 0.5f;
-                        normalizedX = cx * cos - cy * sin + 0.5f;
-                        normalizedY = cx * sin + cy * cos + 0.5f;
-                    }
-
-                    // UV境界にマッピング（正規化座標 -> 元のUV空間）
-                    float u = uvBounds.x + normalizedX * uvBounds.width;
-                    float v = uvBounds.y + normalizedY * uvBounds.height;
-
-                    // ソーステクスチャからサンプリング
-                    Color pixel = SampleTexture(readable, u, v);
-
-                    // 透明でない場合のみ書き込み（ノイズ防止）
-                    if (pixel.a > 0.01f)
-                    {
-                        atlas.SetPixel(atlasX, atlasY, pixel);
-                    }
-                }
-            }
-
-            // 一時テクスチャをクリーンアップ
-            if (readable != source)
-            {
-                Object.DestroyImmediate(readable);
-            }
-        }
-
-        /// <summary>
-        /// テクスチャをアトラスに配置（旧メソッド、互換性のため残す）
-        /// </summary>
-        private static void BlitTextureToAtlas(
-            Texture2D atlas,
-            Texture2D source,
-            Vector2 position,
-            Vector2 scale,
-            float rotation,
-            int resolution)
-        {
-            BlitTextureToAtlasWithUVBounds(atlas, source, position, scale, rotation, new Rect(0, 0, 1, 1), resolution);
-        }
-
-        /// <summary>
-        /// AOマップ（_ShadowStrengthMask）のアトラスを生成
-        /// 設定されていないアイランドは白（255, 255, 255）で塗りつぶす
-        /// </summary>
-        private static Texture2D BuildAOMapAtlas(
+        private static Texture2D BuildMaskAtlas(
             ChimeraHairMaster component,
+            MaskSlotDefinition def,
             int resolution,
             List<IslandPlacement> islandPlacements,
             bool isPreview = false)
         {
-            // ピクセルバッファを作成（白で初期化: AOなし = 影なし）
+            // ピクセルバッファを作成（マテリアル非依存の既定フォールバック色で初期化）
+            Color background = def.fallbackColor(null);
             var pixels = new Color[resolution * resolution];
             for (int i = 0; i < pixels.Length; i++)
             {
-                pixels[i] = Color.white;
+                pixels[i] = background;
             }
 
             // 各アイランドを配置（バッファに直接書き込み）
@@ -890,8 +1091,17 @@ namespace ChimeraHairMaster.Editor.Processing
                 var renderer = component.targetRenderers[island.rendererIndex];
                 if (renderer == null) continue;
 
-                // サブメッシュに対応するマテリアルからAOマップを取得
-                Texture2D sourceTexture = GetTextureFromRenderer(renderer, "_ShadowStrengthMask", island.submeshIndex);
+                // サブメッシュに対応するマテリアルからテクスチャを取得
+                Texture2D sourceTexture = GetTextureFromRenderer(renderer, def.propertyName, island.submeshIndex);
+                var islandMaterial = GetMaterialFromRenderer(renderer, island.submeshIndex);
+                Color fallback = def.fallbackColor(islandMaterial);
+
+                // 機能OFFの島は、テクスチャが割り当てられていても適用しない
+                // （割り当てたままトグルOFFにしている素材のマスクが焼かれるのを防ぐ）
+                if (def.enableProperty != null && !IsFeatureEnabled(islandMaterial, def.enableProperty))
+                {
+                    sourceTexture = null;
+                }
 
                 if (sourceTexture != null)
                 {
@@ -902,26 +1112,28 @@ namespace ChimeraHairMaster.Editor.Processing
                         island.atlasPosition,
                         island.atlasScale,
                         resolution,
-                        Color.white
+                        fallback,
+                        replaceTransparent: !def.blitRaw
                     );
                 }
                 else
                 {
-                    // テクスチャが設定されていない場合は白で塗りつぶし（既に白で初期化済み）
-                    FillIslandWithColor(pixels, island.atlasPosition, island.atlasScale, resolution, Color.white);
+                    // テクスチャが設定されていない場合はフォールバック色で塗りつぶし
+                    FillIslandWithColor(pixels, island.atlasPosition, island.atlasScale, resolution, fallback);
                 }
             }
 
             // アトラステクスチャを作成してバッファを一括反映
-            var atlas = new Texture2D(resolution, resolution, TextureFormat.RGBA32, true);
-            atlas.name = "Atlas_ShadowStrengthMask";
+            var atlas = new Texture2D(resolution, resolution, TextureFormat.RGBA32, true, def.linear);
+            atlas.name = "Atlas" + def.propertyName;
             atlas.SetPixels(pixels);
             atlas.Apply(true);
 
-            if (!isPreview)
+            // テクスチャ圧縮（ビルド時のみ）。
+            // AdditionalMaskSlots は format 未定義（常に非圧縮生成→PNG化）なので対象外
+            if (!isPreview && def.format != null)
             {
-                // テクスチャ圧縮（ビルド時のみ）。AO はグレースケールなので DXT1 で十分
-                EditorUtility.CompressTexture(atlas, GetAtlasAOFormat(), TextureCompressionQuality.Best);
+                EditorUtility.CompressTexture(atlas, def.format(), TextureCompressionQuality.Best);
                 ShaderUtils.EnableMipStreaming(atlas);
             }
 
@@ -929,72 +1141,17 @@ namespace ChimeraHairMaster.Editor.Processing
         }
 
         /// <summary>
-        /// ノーマルマップ（_BumpMap）のアトラスを生成
-        /// 設定されていないアイランドはフラットノーマル（128, 128, 255）で塗りつぶす
+        /// Rendererからサブメッシュに対応するマテリアルを取得
+        /// （GetTextureFromRenderer のサブメッシュ指定時と同じ解決規則）
         /// </summary>
-        private static Texture2D BuildNormalMapAtlas(
-            ChimeraHairMaster component,
-            int resolution,
-            List<IslandPlacement> islandPlacements,
-            bool isPreview = false)
+        private static Material GetMaterialFromRenderer(SkinnedMeshRenderer renderer, int submeshIndex)
         {
-            // フラットノーマル色（頂点法線の向きを変更しない）
-            Color flatNormal = new Color(128f / 255f, 128f / 255f, 1f, 1f);
-
-            // ピクセルバッファを作成（フラットノーマルで初期化）
-            var pixels = new Color[resolution * resolution];
-            for (int i = 0; i < pixels.Length; i++)
+            var materials = renderer.sharedMaterials;
+            if (submeshIndex >= 0 && submeshIndex < materials.Length)
             {
-                pixels[i] = flatNormal;
+                return materials[submeshIndex];
             }
-
-            // 各アイランドを配置（バッファに直接書き込み）
-            foreach (var island in islandPlacements)
-            {
-                if (island.rendererIndex >= component.targetRenderers.Count) continue;
-                var renderer = component.targetRenderers[island.rendererIndex];
-                if (renderer == null) continue;
-
-                // サブメッシュに対応するマテリアルからノーマルマップを取得
-                Texture2D sourceTexture = GetTextureFromRenderer(renderer, "_BumpMap", island.submeshIndex);
-
-                if (sourceTexture != null)
-                {
-                    BlitIslandToAtlasWithFallback(
-                        pixels,
-                        sourceTexture,
-                        island.originalBounds,
-                        island.atlasPosition,
-                        island.atlasScale,
-                        resolution,
-                        flatNormal
-                    );
-                }
-                else
-                {
-                    // テクスチャが設定されていない場合はフラットノーマルで塗りつぶし
-                    FillIslandWithColor(pixels, island.atlasPosition, island.atlasScale, resolution, flatNormal);
-                }
-            }
-
-            // アトラステクスチャを作成してバッファを一括反映
-            // ノーマルマップはリニアデータなので linear:true。sRGB 扱いだと
-            // サンプル時に誤ってデコードされ、法線の向きが狂う。
-            // （PC ビルドは BC5 に sRGB バリアントが無いため無影響。
-            //   プレビューの非圧縮表示と Android の ASTC でのみ効く）
-            var atlas = new Texture2D(resolution, resolution, TextureFormat.RGBA32, true, /* linear */ true);
-            atlas.name = "Atlas_BumpMap";
-            atlas.SetPixels(pixels);
-            atlas.Apply(true);
-
-            if (!isPreview)
-            {
-                // ノーマルマップ圧縮（BC5 = 2チャンネル専用）（ビルド時のみ）
-                EditorUtility.CompressTexture(atlas, GetAtlasNormalFormat(), TextureCompressionQuality.Best);
-                ShaderUtils.EnableMipStreaming(atlas);
-            }
-
-            return atlas;
+            return null;
         }
 
         /// <summary>
@@ -1030,7 +1187,9 @@ namespace ChimeraHairMaster.Editor.Processing
 
         /// <summary>
         /// アイランドをアトラスに配置（フォールバック色付き）
-        /// 透明ピクセルはフォールバック色で置き換える
+        /// replaceTransparent が true の場合、透明ピクセルはフォールバック色で置き換える
+        /// （エミッション系のようにアルファ自体がデータのスロットでは false にして
+        /// ソースのピクセルをそのまま焼き込むこと）
         /// </summary>
         private static void BlitIslandToAtlasWithFallback(
             Color[] pixels,
@@ -1039,7 +1198,8 @@ namespace ChimeraHairMaster.Editor.Processing
             Vector2 atlasPosition,
             Vector2 atlasScale,
             int resolution,
-            Color fallbackColor)
+            Color fallbackColor,
+            bool replaceTransparent = true)
         {
             Texture2D readable = GetReadableTexture(source);
 
@@ -1068,7 +1228,7 @@ namespace ChimeraHairMaster.Editor.Processing
                     Color pixel = SampleTexture(readable, u, v);
 
                     int idx = atlasY * resolution + atlasX;
-                    if (pixel.a > 0.01f)
+                    if (!replaceTransparent || pixel.a > 0.01f)
                     {
                         pixels[idx] = pixel;
                     }

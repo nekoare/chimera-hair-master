@@ -2019,35 +2019,16 @@ namespace ChimeraHairMaster.Editor.NDMF
         /// </summary>
         private static void CopyMatCapTextures(Material source, Material dest)
         {
-            // マットキャップ1st
-            string[] matCap1stProps = new string[]
+            // マットキャップ画像のみコピーする。
+            // マスク（_MatCapBlendMask等）とカスタムノーマル（_MatCapBumpMap等）はUV0参照のため、
+            // 統合後UVとずれたままコピーされてしまう（インスペクタの CreatePreviewMaterial と同じ方針）
+            string[] matCapProps = new string[]
             {
                 "_MatCapTex",
-                "_MatCapBlendMask",
-                "_MatCapBumpMap"
+                "_MatCap2ndTex"
             };
 
-            foreach (var prop in matCap1stProps)
-            {
-                if (source.HasProperty(prop) && dest.HasProperty(prop))
-                {
-                    var tex = source.GetTexture(prop);
-                    if (tex != null)
-                    {
-                        dest.SetTexture(prop, tex);
-                    }
-                }
-            }
-
-            // マットキャップ2nd
-            string[] matCap2ndProps = new string[]
-            {
-                "_MatCap2ndTex",
-                "_MatCap2ndBlendMask",
-                "_MatCap2ndBumpMap"
-            };
-
-            foreach (var prop in matCap2ndProps)
+            foreach (var prop in matCapProps)
             {
                 if (source.HasProperty(prop) && dest.HasProperty(prop))
                 {
@@ -2061,14 +2042,17 @@ namespace ChimeraHairMaster.Editor.NDMF
         }
 
         /// <summary>
-        /// マットキャップテクスチャを上書き（Noneも含めてsourceの値で置き換える）
+        /// マットキャップ画像を上書き（Noneも含めてsourceの値で置き換える）。
+        /// マスク/カスタムノーマルは各素材のUVに紐づくため上書き対象にしない
+        /// （previewMaterial がマスクを持たなくなったのに合わせ、実適用の
+        /// ColorApplier.CopyMatCapTextures の null スキップ挙動と結果を一致させる）
         /// </summary>
         private static void OverwriteMatCapTextures(Material source, Material dest)
         {
             string[] matCapProps = new string[]
             {
-                "_MatCapTex", "_MatCapBlendMask", "_MatCapBumpMap",
-                "_MatCap2ndTex", "_MatCap2ndBlendMask", "_MatCap2ndBumpMap"
+                "_MatCapTex",
+                "_MatCap2ndTex"
             };
 
             foreach (var prop in matCapProps)

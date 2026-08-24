@@ -2886,6 +2886,25 @@ namespace ChimeraHairMaster.Editor
             component.enableMeshMerge = enableMeshMerge;
             component.unifyMatCap = unifyMatCap;
 
+            // メッシュ統合の切り替えに合わせて previewMaterial の 2nd/3rd/発光トグルを同期する。
+            // previewMaterial は統合OFF時の生成でこれらが0固定されるため、後から統合ONに
+            // 切り替えた場合に復元しないと、出力マテリアル（previewMaterial のコピー）でも
+            // 発光等が無効のままになる
+            if (component.previewMaterial != null && component.baseMaterial != null)
+            {
+                Undo.RecordObject(component.previewMaterial, "Sync Preview Material Toggles");
+                if (enableMeshMerge)
+                {
+                    ChimeraHairMasterEditor.RestoreOverlayAndEmissionFromBase(
+                        component.baseMaterial, component.previewMaterial);
+                }
+                else
+                {
+                    ChimeraHairMasterEditor.StripOverlayAndEmission(component.previewMaterial);
+                }
+                EditorUtility.SetDirty(component.previewMaterial);
+            }
+
             // アイランド単位のUV配置をコピー
             component.islandPlacements = new List<IslandPlacement>();
             foreach (var island in islandPlacements)

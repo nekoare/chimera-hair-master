@@ -249,14 +249,65 @@ msgstr "ノーマルマップ解像度"
 msgid "Inspector:AOAtlasResolution"
 msgstr "AOマップ解像度"
 
+msgid "Inspector:AdditionalMaskSection"
+msgstr "マットキャップ/発光/反射/ラメ マスク"
+
+msgid "Inspector:AdditionalMaskSectionHelp"
+msgstr "素材で使われているマットキャップ/発光/反射/ラメのマスクを、統合後のUVに再配置したPNGとして生成します。自動では適用されません。「割り当て」でマテリアル設定に適用するか、画像を編集してから手動で割り当ててください"
+
+msgid "Inspector:GenerateAdditionalMasks"
+msgstr "マスクテクスチャを生成"
+
+msgid "Inspector:AssignToMaterial"
+msgstr "割り当て"
+
+msgid "Inspector:GeneratedMasksStale"
+msgstr "UV配置または素材が変更されています。マスクを再生成してください"
+
+msgid "Inspector:SourceMatCaps"
+msgstr "元のマットキャップ画像"
+
+msgid "Inspector:AssignRequiresPreviewMaterial"
+msgstr "割り当てにはプレビューマテリアルが必要です（基準マテリアルを設定すると自動生成されます）"
+
+msgid "Inspector:MaskName:_MatCapBlendMask"
+msgstr "マットキャップ/マスク"
+
+msgid "Inspector:MaskName:_MatCap2ndBlendMask"
+msgstr "マットキャップ2nd/マスク"
+
+msgid "Inspector:MaskName:_EmissionMap"
+msgstr "発光/テクスチャ"
+
+msgid "Inspector:MaskName:_EmissionBlendMask"
+msgstr "発光/マスク"
+
+msgid "Inspector:MaskName:_Emission2ndMap"
+msgstr "発光2nd/テクスチャ"
+
+msgid "Inspector:MaskName:_Emission2ndBlendMask"
+msgstr "発光2nd/マスク"
+
+msgid "Inspector:MaskName:_SmoothnessTex"
+msgstr "反射/滑らかさ"
+
+msgid "Inspector:MaskName:_MetallicGlossMap"
+msgstr "反射/金属度"
+
+msgid "Inspector:MaskName:_ReflectionColorTex"
+msgstr "反射/色"
+
+msgid "Inspector:MaskName:_GlitterColorTex"
+msgstr "ラメ/テクスチャ"
+
+msgid "Inspector:MaskName:_MatCapTex"
+msgstr "マットキャップ"
+
+msgid "Inspector:MaskName:_MatCap2ndTex"
+msgstr "マットキャップ2nd"
+
 msgid "Inspector:ColorChangeTargets"
 msgstr "色変更対象"
-
-msgid "Inspector:UVPlacements"
-msgstr "UV配置"
-
-msgid "Inspector:UVPlacementsHelp"
-msgstr "UV配置の変更はEditorWindowから行ってください。"
 
 msgid "Inspector:BaseMaterial"
 msgstr "基準マテリアル"

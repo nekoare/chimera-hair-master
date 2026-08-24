@@ -34,8 +34,6 @@ namespace ChimeraHairMaster.Editor
         private SerializedProperty preserveAtlasAlphaProp;
         private SerializedProperty normalAtlasResolutionProp;
         private SerializedProperty aoAtlasResolutionProp;
-        private SerializedProperty colorChangeTargetsProp;
-        private SerializedProperty uvPlacementsProp;
         private SerializedProperty baseMaterialProp;
         private SerializedProperty previewMaterialProp;
         private SerializedProperty meshMergeModeProp;
@@ -123,8 +121,6 @@ namespace ChimeraHairMaster.Editor
             preserveAtlasAlphaProp = serializedObject.FindProperty("preserveAtlasAlpha");
             normalAtlasResolutionProp = serializedObject.FindProperty("normalAtlasResolution");
             aoAtlasResolutionProp = serializedObject.FindProperty("aoAtlasResolution");
-            colorChangeTargetsProp = serializedObject.FindProperty("colorChangeTargets");
-            uvPlacementsProp = serializedObject.FindProperty("uvPlacements");
             baseMaterialProp = serializedObject.FindProperty("baseMaterial");
             previewMaterialProp = serializedObject.FindProperty("previewMaterial");
             meshMergeModeProp = serializedObject.FindProperty("meshMergeMode");
@@ -264,6 +260,14 @@ namespace ChimeraHairMaster.Editor
             DrawBasicSettings();
             EditorGUILayout.Space(5);
 
+            // メッシュ統合ON時のみ、テクスチャ設定を基本設定と同列に出す
+            // （OFF時は中身が色変更対象のみのため、従来どおり基本設定内に表示）
+            if (enableMeshMergeProp.boolValue)
+            {
+                DrawTextureSettings();
+                EditorGUILayout.Space(5);
+            }
+
             DrawColorSettings();
             EditorGUILayout.Space(10);
 
@@ -321,6 +325,44 @@ namespace ChimeraHairMaster.Editor
             }
         }
 
+        /// <summary>
+        /// テクスチャ設定（メッシュ統合ON時のみ呼ばれる、基本設定と同列のトップレベルセクション。
+        /// 既定は閉じる）。統合OFF時は DrawBasicSettings 内に色変更対象のみ表示される
+        /// </summary>
+        private void DrawTextureSettings()
+        {
+            var component = target as ChimeraHairMaster;
+
+            showTextureSettings = EditorGUILayout.Foldout(showTextureSettings, CHMLocales.Tr("Inspector:TextureSettings"), true, EditorStyles.foldoutHeader);
+            if (!showTextureSettings) return;
+
+            EditorGUI.indentLevel++;
+
+            if (enableMeshMergeProp.boolValue)
+            {
+                // 解像度（メッシュ統合時のみ）
+                EditorGUILayout.PropertyField(textureResolutionProp, new GUIContent(CHMLocales.Tr("Inspector:TextureResolution")));
+
+                // ノーマル/AOアトラスの解像度（メインアトラス比）
+                EditorGUILayout.PropertyField(normalAtlasResolutionProp, new GUIContent(CHMLocales.Tr("Inspector:NormalAtlasResolution")));
+                EditorGUILayout.PropertyField(aoAtlasResolutionProp, new GUIContent(CHMLocales.Tr("Inspector:AOAtlasResolution")));
+
+                // アルファチャンネル保持（メッシュ統合時のみ）
+                EditorGUILayout.PropertyField(preserveAtlasAlphaProp, new GUIContent(
+                    CHMLocales.Tr("Inspector:PreserveAtlasAlpha"),
+                    CHMLocales.Tr("Inspector:PreserveAtlasAlphaHelp")));
+
+                // マットキャップ/エミッションのマスク生成（自動適用はしない）
+                DrawAdditionalMaskSection(component);
+            }
+
+            // 色変更対象（colorChangeTargets）はUI非表示。
+            // _MainTex 以外のカラーテクスチャを色合わせ/アトラス化対象に追加する上級者向けの
+            // 拡張口としてデータ・処理は維持しており、必要なら Inspector の Debug モードで編集できる
+
+            EditorGUI.indentLevel--;
+        }
+
         private void DrawBasicSettings()
         {
             var component = target as ChimeraHairMaster;
@@ -352,53 +394,6 @@ namespace ChimeraHairMaster.Editor
                 if (sharedRendererWarning != null)
                 {
                     EditorGUILayout.HelpBox(sharedRendererWarning, MessageType.Warning);
-                }
-
-                EditorGUILayout.Space(10);
-
-                // テクスチャ設定
-                showTextureSettings = EditorGUILayout.Foldout(showTextureSettings, CHMLocales.Tr("Inspector:TextureSettings"), true);
-                if (showTextureSettings)
-                {
-                    EditorGUI.indentLevel++;
-
-                    if (enableMeshMergeProp.boolValue)
-                    {
-                        // 解像度（メッシュ統合時のみ）
-                        EditorGUILayout.PropertyField(textureResolutionProp, new GUIContent(CHMLocales.Tr("Inspector:TextureResolution")));
-
-                        // ノーマル/AOアトラスの解像度（メインアトラス比）
-                        EditorGUILayout.PropertyField(normalAtlasResolutionProp, new GUIContent(CHMLocales.Tr("Inspector:NormalAtlasResolution")));
-                        EditorGUILayout.PropertyField(aoAtlasResolutionProp, new GUIContent(CHMLocales.Tr("Inspector:AOAtlasResolution")));
-
-                        // アルファチャンネル保持（メッシュ統合時のみ）
-                        EditorGUILayout.PropertyField(preserveAtlasAlphaProp, new GUIContent(
-                            CHMLocales.Tr("Inspector:PreserveAtlasAlpha"),
-                            CHMLocales.Tr("Inspector:PreserveAtlasAlphaHelp")));
-                        EditorGUILayout.Space(5);
-                    }
-
-                    // 色変更対象テクスチャ
-                    EditorGUILayout.PropertyField(colorChangeTargetsProp, new GUIContent(CHMLocales.Tr("Inspector:ColorChangeTargets")), true);
-
-                    if (enableMeshMergeProp.boolValue)
-                    {
-                        // UV配置（読み取り専用、メッシュ統合時のみ）
-                        EditorGUILayout.Space(5);
-                        EditorGUI.BeginDisabledGroup(true);
-                        EditorGUILayout.PropertyField(uvPlacementsProp, new GUIContent(CHMLocales.Tr("Inspector:UVPlacements")), true);
-                        EditorGUI.EndDisabledGroup();
-
-                        if (showHelp)
-                        {
-                            EditorGUILayout.HelpBox(
-                                CHMLocales.Tr("Inspector:UVPlacementsHelp"),
-                                MessageType.Info
-                            );
-                        }
-                    }
-
-                    EditorGUI.indentLevel--;
                 }
 
                 // メッシュカット設定（メッシュ統合有効時のみ）
@@ -2464,6 +2459,244 @@ namespace ChimeraHairMaster.Editor
         }
 
         /// <summary>
+        /// 生成マスクPNGの保存先フォルダ（プレビューマテリアルと同じ CHM_Generated 配下）
+        /// </summary>
+        private static string GetGeneratedMasksFolder(ChimeraHairMaster component)
+        {
+            string baseDir = Path.GetDirectoryName(GetPreviewMaterialAssetPath(component))?.Replace('\\', '/');
+            if (string.IsNullOrEmpty(baseDir)) baseDir = "Assets/CHM_Generated";
+            string safeName = SanitizeFileName(component.gameObject.name);
+            return $"{baseDir}/{safeName}_Masks";
+        }
+
+        /// <summary>
+        /// マットキャップ/エミッションのマスク生成セクション。
+        /// 素材のマスクを統合後UVに再配置したPNGを生成し、ユーザーが「割り当て」で
+        /// previewMaterial に適用する。ビルドでの自動適用はしない
+        /// </summary>
+        private void DrawAdditionalMaskSection(ChimeraHairMaster component)
+        {
+            if (component == null) return;
+
+            EditorGUILayout.Space(5);
+            EditorGUILayout.LabelField(CHMLocales.Tr("Inspector:AdditionalMaskSection"), EditorStyles.boldLabel);
+            if (showHelp)
+            {
+                EditorGUILayout.HelpBox(CHMLocales.Tr("Inspector:AdditionalMaskSectionHelp"), MessageType.Info);
+            }
+
+            if (GUILayout.Button(CHMLocales.Tr("Inspector:GenerateAdditionalMasks")))
+            {
+                GenerateAdditionalMaskTextures(component);
+            }
+
+            bool hasPreviewMaterial = component.previewMaterial != null;
+
+            if (component.generatedMasks.Count > 0)
+            {
+                // 生成後にUV配置や素材が変わっていたら再生成を促す
+                if (component.generatedMasksInputHash != TextureAtlasBuilder.ComputeAdditionalMaskInputHash(component))
+                {
+                    EditorGUILayout.HelpBox(CHMLocales.Tr("Inspector:GeneratedMasksStale"), MessageType.Warning);
+                }
+
+                foreach (var entry in component.generatedMasks)
+                {
+                    if (entry == null || entry.texture == null) continue;
+
+                    EditorGUILayout.BeginHorizontal();
+                    EditorGUI.BeginDisabledGroup(true);
+                    EditorGUILayout.ObjectField(GetMaskDisplayName(entry.propertyName), entry.texture, typeof(Texture2D), false);
+                    EditorGUI.EndDisabledGroup();
+
+                    // 解像度（インポータの maxTextureSize を直接編集。PNG自体はフル解像度のまま
+                    // なので再生成不要で切り替えられる）
+                    DrawGeneratedMaskSizePopup(entry.texture);
+
+                    EditorGUI.BeginDisabledGroup(!hasPreviewMaterial);
+                    if (GUILayout.Button(CHMLocales.Tr("Inspector:AssignToMaterial"), GUILayout.Width(60)))
+                    {
+                        AssignGeneratedMask(component, entry);
+                    }
+                    EditorGUI.EndDisabledGroup();
+                    EditorGUILayout.EndHorizontal();
+                }
+            }
+
+            // 元の髪で使われているマットキャップ画像（視線ベースのため再配置不要。選んで割り当てる）
+            var matCaps = TextureAtlasBuilder.CollectMatCapTextures(component);
+            if (matCaps.Count > 0)
+            {
+                EditorGUILayout.LabelField(CHMLocales.Tr("Inspector:SourceMatCaps"), EditorStyles.miniBoldLabel);
+                foreach (var (propertyName, texture) in matCaps)
+                {
+                    EditorGUILayout.BeginHorizontal();
+                    EditorGUI.BeginDisabledGroup(true);
+                    EditorGUILayout.ObjectField(GetMaskDisplayName(propertyName), texture, typeof(Texture2D), false);
+                    EditorGUI.EndDisabledGroup();
+                    EditorGUI.BeginDisabledGroup(!hasPreviewMaterial);
+                    if (GUILayout.Button(CHMLocales.Tr("Inspector:AssignToMaterial"), GUILayout.Width(60)))
+                    {
+                        AssignMatCapTexture(component, propertyName, texture);
+                    }
+                    EditorGUI.EndDisabledGroup();
+                    EditorGUILayout.EndHorizontal();
+                }
+            }
+
+            if (!hasPreviewMaterial && (component.generatedMasks.Count > 0 || matCaps.Count > 0))
+            {
+                EditorGUILayout.HelpBox(CHMLocales.Tr("Inspector:AssignRequiresPreviewMaterial"), MessageType.Info);
+            }
+        }
+
+        /// <summary>生成マスクの解像度ポップアップの選択肢</summary>
+        private static readonly int[] MaskSizeValues = { 512, 1024, 2048, 4096 };
+        private static readonly string[] MaskSizeLabels = { "512", "1024", "2048", "4096" };
+
+        /// <summary>
+        /// マスクプロパティの表示名（lilToonのマテリアル設定UIの「セクション名/欄名」に揃える。
+        /// 例: _MatCapBlendMask → マットキャップ/マスク）
+        /// </summary>
+        private static string GetMaskDisplayName(string propertyName)
+        {
+            return CHMLocales.Tr("Inspector:MaskName:" + propertyName);
+        }
+
+        /// <summary>
+        /// 生成マスクの解像度ポップアップ（インポータの maxTextureSize を直接読み書き）。
+        /// 再生成してもインポータ設定は維持されるため、ユーザーの選択が失われない
+        /// </summary>
+        private static void DrawGeneratedMaskSizePopup(Texture2D texture)
+        {
+            string path = AssetDatabase.GetAssetPath(texture);
+            if (string.IsNullOrEmpty(path)) return;
+            if (!(AssetImporter.GetAtPath(path) is TextureImporter importer)) return;
+
+            int newSize = EditorGUILayout.IntPopup(importer.maxTextureSize, MaskSizeLabels, MaskSizeValues, GUILayout.Width(60));
+            if (newSize != importer.maxTextureSize)
+            {
+                importer.maxTextureSize = newSize;
+                importer.SaveAndReimport();
+            }
+        }
+
+        /// <summary>
+        /// 追加マスク（マットキャップ/エミッション）を統合後UVに再配置し、PNGアセットとして保存
+        /// </summary>
+        private void GenerateAdditionalMaskTextures(ChimeraHairMaster component)
+        {
+            int resolution = (int)component.textureResolution;
+            var generated = TextureAtlasBuilder.BuildAdditionalMaskTextures(component, resolution);
+
+            Undo.RecordObject(component, "Generate Mask Textures");
+            component.generatedMasks.Clear();
+            component.generatedMasksInputHash = TextureAtlasBuilder.ComputeAdditionalMaskInputHash(component);
+
+            if (generated.Count == 0)
+            {
+                EditorUtility.SetDirty(component);
+                serializedObject.Update();
+                Debug.Log("[ChimeraHairMaster] 生成対象のマットキャップ/エミッションマスクがありませんでした" +
+                    "（素材側でマスク未使用、または機能ON/OFFの塗り分けが不要）");
+                return;
+            }
+
+            string folder = GetGeneratedMasksFolder(component);
+            if (!Directory.Exists(folder))
+            {
+                Directory.CreateDirectory(folder);
+                AssetDatabase.Refresh();
+            }
+
+            foreach (var (def, texture) in generated)
+            {
+                // 同名パスへ上書きすることでGUIDを維持し、割り当て済み参照を壊さない
+                string path = $"{folder}/Atlas{def.propertyName}.png";
+                bool isNewAsset = !File.Exists(path);
+                File.WriteAllBytes(path, texture.EncodeToPNG());
+                Object.DestroyImmediate(texture);
+
+                AssetDatabase.ImportAsset(path);
+                if (AssetImporter.GetAtPath(path) is TextureImporter importer)
+                {
+                    // 初回生成時のみ既定解像度を設定（再生成でユーザーの選択を上書きしない）。
+                    // マスクにフル解像度は通常不要なため 512〜2048 にクランプ
+                    if (isNewAsset)
+                    {
+                        importer.maxTextureSize = Mathf.Clamp(resolution, 512, 2048);
+                    }
+                    // エミッション系のアルファは発光強度データであり透過表現ではない
+                    importer.alphaIsTransparency = false;
+                    // シェーダがアルファを読まないスロットはアルファを捨てて DXT1 に固定
+                    // （ソース由来のアルファ混入で DXT5 = メモリ2倍に化けるのを防ぐ）
+                    importer.alphaSource = def.alphaUnused
+                        ? TextureImporterAlphaSource.None
+                        : TextureImporterAlphaSource.FromInput;
+                    // ビルド生成アトラスと同基準でミップストリーミングを有効化
+                    importer.streamingMipmaps = true;
+                    importer.SaveAndReimport();
+                }
+
+                var asset = AssetDatabase.LoadAssetAtPath<Texture2D>(path);
+                component.generatedMasks.Add(new GeneratedMaskEntry
+                {
+                    propertyName = def.propertyName,
+                    texture = asset,
+                });
+            }
+
+            EditorUtility.SetDirty(component);
+            serializedObject.Update();
+            Debug.Log($"[ChimeraHairMaster] マスクテクスチャを {component.generatedMasks.Count} 件生成しました: {folder}");
+        }
+
+        /// <summary>
+        /// 生成済みマスクを previewMaterial に割り当て、対応する機能トグルもONにする
+        /// （割り当てたのに機能が無効で見えない事故の防止）
+        /// </summary>
+        private static void AssignGeneratedMask(ChimeraHairMaster component, GeneratedMaskEntry entry)
+        {
+            var previewMat = component.previewMaterial;
+            if (previewMat == null || entry.texture == null) return;
+
+            Undo.RecordObject(previewMat, "Assign Generated Mask");
+            if (previewMat.HasProperty(entry.propertyName))
+            {
+                previewMat.SetTexture(entry.propertyName, entry.texture);
+            }
+            foreach (var def in TextureAtlasBuilder.AdditionalMaskSlots)
+            {
+                if (def.propertyName == entry.propertyName && previewMat.HasProperty(def.enableProperty))
+                {
+                    previewMat.SetFloat(def.enableProperty, 1f);
+                }
+            }
+            EditorUtility.SetDirty(previewMat);
+        }
+
+        /// <summary>
+        /// 元素材のマットキャップ画像を previewMaterial に割り当て、機能トグルもONにする
+        /// </summary>
+        private static void AssignMatCapTexture(ChimeraHairMaster component, string propertyName, Texture2D texture)
+        {
+            var previewMat = component.previewMaterial;
+            if (previewMat == null || texture == null) return;
+
+            Undo.RecordObject(previewMat, "Assign MatCap Texture");
+            if (previewMat.HasProperty(propertyName))
+            {
+                previewMat.SetTexture(propertyName, texture);
+            }
+            string enableProperty = propertyName == "_MatCap2ndTex" ? "_UseMatCap2nd" : "_UseMatCap";
+            if (previewMat.HasProperty(enableProperty))
+            {
+                previewMat.SetFloat(enableProperty, 1f);
+            }
+            EditorUtility.SetDirty(previewMat);
+        }
+
+        /// <summary>
         /// パス中のディレクトリが存在しなければ作成
         /// </summary>
         private static void EnsureDirectoryExists(string assetPath)
@@ -2596,35 +2829,17 @@ namespace ChimeraHairMaster.Editor
         /// </summary>
         private static void CopyMatCapTextures(Material source, Material dest)
         {
-            // マットキャップ1st
-            string[] matCap1stProps = new string[]
+            // マットキャップ画像のみコピーする。
+            // マスク（_MatCapBlendMask等）とカスタムノーマル（_MatCapBumpMap等）はUV0参照のため、
+            // 統合後UVとずれたままコピーされてしまう（顧客報告のズレの直接原因）。
+            // 再配置済みマスクは「マスクテクスチャを生成」で作成し、ユーザーが割り当てる
+            string[] matCapProps = new string[]
             {
                 "_MatCapTex",
-                "_MatCapBlendMask",
-                "_MatCapBumpMap"
+                "_MatCap2ndTex"
             };
 
-            foreach (var prop in matCap1stProps)
-            {
-                if (source.HasProperty(prop) && dest.HasProperty(prop))
-                {
-                    var tex = source.GetTexture(prop);
-                    if (tex != null)
-                    {
-                        dest.SetTexture(prop, tex);
-                    }
-                }
-            }
-
-            // マットキャップ2nd
-            string[] matCap2ndProps = new string[]
-            {
-                "_MatCap2ndTex",
-                "_MatCap2ndBlendMask",
-                "_MatCap2ndBumpMap"
-            };
-
-            foreach (var prop in matCap2ndProps)
+            foreach (var prop in matCapProps)
             {
                 if (source.HasProperty(prop) && dest.HasProperty(prop))
                 {
@@ -2638,24 +2853,44 @@ namespace ChimeraHairMaster.Editor
         }
         
         /// <summary>
+        /// StripOverlayAndEmission で無効化する使用トグル一覧
+        /// </summary>
+        internal static readonly string[] OverlayAndEmissionToggleProps =
+        {
+            "_UseMain2ndTex",
+            "_UseMain3rdTex",
+            "_UseEmission",
+            "_UseEmission2nd"
+        };
+
+        /// <summary>
         /// lilToonのメインカラー2nd/3rd・発光設定の使用トグルを0に設定
         /// これによりlilToonのカスタムGUIがこれらのセクションを非表示にする
         /// </summary>
-        private static void StripOverlayAndEmission(Material mat)
+        internal static void StripOverlayAndEmission(Material mat)
         {
-            string[] toggleProps = new[]
-            {
-                "_UseMain2ndTex",
-                "_UseMain3rdTex",
-                "_UseEmission",
-                "_UseEmission2nd"
-            };
-
-            foreach (var prop in toggleProps)
+            foreach (var prop in OverlayAndEmissionToggleProps)
             {
                 if (mat.HasProperty(prop))
                 {
                     mat.SetFloat(prop, 0f);
+                }
+            }
+        }
+
+        /// <summary>
+        /// StripOverlayAndEmission で無効化した使用トグルを baseMaterial の値に復元する。
+        /// previewMaterial はメッシュ統合OFF時の生成でこれらが0固定されるため、
+        /// 後からメッシュ統合ONに切り替えた場合、そのままだと出力マテリアル
+        /// （previewMaterial の完全コピー）でも発光等が無効のままになる
+        /// </summary>
+        internal static void RestoreOverlayAndEmissionFromBase(Material baseMaterial, Material previewMaterial)
+        {
+            foreach (var prop in OverlayAndEmissionToggleProps)
+            {
+                if (baseMaterial.HasProperty(prop) && previewMaterial.HasProperty(prop))
+                {
+                    previewMaterial.SetFloat(prop, baseMaterial.GetFloat(prop));
                 }
             }
         }

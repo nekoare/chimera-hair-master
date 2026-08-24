@@ -249,14 +249,65 @@ msgstr "노멀맵 해상도"
 msgid "Inspector:AOAtlasResolution"
 msgstr "AO맵 해상도"
 
+msgid "Inspector:AdditionalMaskSection"
+msgstr "매트 캡/발광/반사/Glitter 마스크"
+
+msgid "Inspector:AdditionalMaskSectionHelp"
+msgstr "소재에서 사용 중인 매트 캡/발광/반사/Glitter 마스크를 통합 후 UV에 재배치한 PNG로 생성합니다. 자동으로 적용되지 않습니다. \"할당\"으로 머티리얼 설정에 적용하거나, 이미지를 편집한 뒤 수동으로 할당하세요"
+
+msgid "Inspector:GenerateAdditionalMasks"
+msgstr "마스크 텍스처 생성"
+
+msgid "Inspector:AssignToMaterial"
+msgstr "할당"
+
+msgid "Inspector:GeneratedMasksStale"
+msgstr "UV 배치 또는 소재가 변경되었습니다. 마스크를 다시 생성하세요"
+
+msgid "Inspector:SourceMatCaps"
+msgstr "원본 매트캡 이미지"
+
+msgid "Inspector:AssignRequiresPreviewMaterial"
+msgstr "할당하려면 프리뷰 머티리얼이 필요합니다(기준 머티리얼을 설정하면 자동 생성됩니다)"
+
+msgid "Inspector:MaskName:_MatCapBlendMask"
+msgstr "매트 캡/마스크"
+
+msgid "Inspector:MaskName:_MatCap2ndBlendMask"
+msgstr "매트 캡 2nd/마스크"
+
+msgid "Inspector:MaskName:_EmissionMap"
+msgstr "발광/텍스처"
+
+msgid "Inspector:MaskName:_EmissionBlendMask"
+msgstr "발광/마스크"
+
+msgid "Inspector:MaskName:_Emission2ndMap"
+msgstr "발광 2nd/텍스처"
+
+msgid "Inspector:MaskName:_Emission2ndBlendMask"
+msgstr "발광 2nd/마스크"
+
+msgid "Inspector:MaskName:_SmoothnessTex"
+msgstr "반사/부드러움"
+
+msgid "Inspector:MaskName:_MetallicGlossMap"
+msgstr "반사/금속도"
+
+msgid "Inspector:MaskName:_ReflectionColorTex"
+msgstr "반사/색"
+
+msgid "Inspector:MaskName:_GlitterColorTex"
+msgstr "Glitter/텍스처"
+
+msgid "Inspector:MaskName:_MatCapTex"
+msgstr "매트 캡"
+
+msgid "Inspector:MaskName:_MatCap2ndTex"
+msgstr "매트 캡 2nd"
+
 msgid "Inspector:ColorChangeTargets"
 msgstr "색상 변경 대상"
-
-msgid "Inspector:UVPlacements"
-msgstr "UV 배치"
-
-msgid "Inspector:UVPlacementsHelp"
-msgstr "UV 배치 변경은 EditorWindow에서 진행해 주세요."
 
 msgid "Inspector:BaseMaterial"
 msgstr "기준 Material"

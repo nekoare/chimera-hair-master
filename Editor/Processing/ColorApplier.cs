@@ -473,14 +473,17 @@ namespace ChimeraHairMaster.Editor.Processing
         }
 
         /// <summary>
-        /// MatCapテクスチャをコピー
+        /// MatCap画像をコピー。
+        /// マスク（_MatCapBlendMask等）とカスタムノーマルは各素材のUVに紐づくため
+        /// コピーすると別素材ではズレる——各素材自身の物を維持する
+        /// （previewMaterial 生成・プレビューの OverwriteMatCapTextures と同じ方針）
         /// </summary>
         internal static void CopyMatCapTextures(Material source, Material dest)
         {
             string[] matCapProps = new[]
             {
-                "_MatCapTex", "_MatCapBlendMask", "_MatCapBumpMap",
-                "_MatCap2ndTex", "_MatCap2ndBlendMask", "_MatCap2ndBumpMap"
+                "_MatCapTex",
+                "_MatCap2ndTex"
             };
 
             foreach (var prop in matCapProps)

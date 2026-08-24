@@ -249,14 +249,65 @@ msgstr "Normal Map Resolution"
 msgid "Inspector:AOAtlasResolution"
 msgstr "AO Map Resolution"
 
+msgid "Inspector:AdditionalMaskSection"
+msgstr "MatCap/Emission/Reflection/Glitter Masks"
+
+msgid "Inspector:AdditionalMaskSectionHelp"
+msgstr "Generates PNGs of the MatCap/emission/reflection/glitter masks used by the source materials, remapped to the merged UVs. They are not applied automatically — use \"Assign\" to apply them to the material settings, or edit the images and assign them manually"
+
+msgid "Inspector:GenerateAdditionalMasks"
+msgstr "Generate Mask Textures"
+
+msgid "Inspector:AssignToMaterial"
+msgstr "Assign"
+
+msgid "Inspector:GeneratedMasksStale"
+msgstr "The UV layout or source materials have changed. Please regenerate the masks"
+
+msgid "Inspector:SourceMatCaps"
+msgstr "Source MatCap Textures"
+
+msgid "Inspector:AssignRequiresPreviewMaterial"
+msgstr "Assigning requires a preview material (created automatically when a base material is set)"
+
+msgid "Inspector:MaskName:_MatCapBlendMask"
+msgstr "MatCap/Mask"
+
+msgid "Inspector:MaskName:_MatCap2ndBlendMask"
+msgstr "MatCap 2nd/Mask"
+
+msgid "Inspector:MaskName:_EmissionMap"
+msgstr "Emission/Texture"
+
+msgid "Inspector:MaskName:_EmissionBlendMask"
+msgstr "Emission/Mask"
+
+msgid "Inspector:MaskName:_Emission2ndMap"
+msgstr "Emission 2nd/Texture"
+
+msgid "Inspector:MaskName:_Emission2ndBlendMask"
+msgstr "Emission 2nd/Mask"
+
+msgid "Inspector:MaskName:_SmoothnessTex"
+msgstr "Reflection/Smoothness"
+
+msgid "Inspector:MaskName:_MetallicGlossMap"
+msgstr "Reflection/Metallic"
+
+msgid "Inspector:MaskName:_ReflectionColorTex"
+msgstr "Reflection/Color"
+
+msgid "Inspector:MaskName:_GlitterColorTex"
+msgstr "Glitter/Texture"
+
+msgid "Inspector:MaskName:_MatCapTex"
+msgstr "MatCap"
+
+msgid "Inspector:MaskName:_MatCap2ndTex"
+msgstr "MatCap 2nd"
+
 msgid "Inspector:ColorChangeTargets"
 msgstr "Color Change Targets"
-
-msgid "Inspector:UVPlacements"
-msgstr "UV Layout"
-
-msgid "Inspector:UVPlacementsHelp"
-msgstr "To change the UV layout, please use the Editor Window."
 
 msgid "Inspector:BaseMaterial"
 msgstr "Base Material"
