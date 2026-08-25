@@ -907,7 +907,7 @@ namespace ChimeraHairMaster.Editor.NDMF
                                 // マットキャップ統一時はテクスチャもbaseMaterialから上書き（Noneも含む）
                                 if (component.unifyMatCap)
                                 {
-                                    OverwriteMatCapTextures(baseMaterialForPreview, newMat);
+                                    TextureAtlasPass.OverwriteMatCapTextures(baseMaterialForPreview, newMat);
                                 }
                             }
                         }
@@ -2037,29 +2037,6 @@ namespace ChimeraHairMaster.Editor.NDMF
                     {
                         dest.SetTexture(prop, tex);
                     }
-                }
-            }
-        }
-
-        /// <summary>
-        /// マットキャップ画像を上書き（Noneも含めてsourceの値で置き換える）。
-        /// マスク/カスタムノーマルは各素材のUVに紐づくため上書き対象にしない
-        /// （previewMaterial がマスクを持たなくなったのに合わせ、実適用の
-        /// ColorApplier.CopyMatCapTextures の null スキップ挙動と結果を一致させる）
-        /// </summary>
-        private static void OverwriteMatCapTextures(Material source, Material dest)
-        {
-            string[] matCapProps = new string[]
-            {
-                "_MatCapTex",
-                "_MatCap2ndTex"
-            };
-
-            foreach (var prop in matCapProps)
-            {
-                if (source.HasProperty(prop) && dest.HasProperty(prop))
-                {
-                    dest.SetTexture(prop, source.GetTexture(prop));
                 }
             }
         }

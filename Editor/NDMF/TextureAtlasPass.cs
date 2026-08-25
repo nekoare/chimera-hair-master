@@ -299,7 +299,7 @@ namespace ChimeraHairMaster.Editor.NDMF
         /// メッシュ統合なしモード: 各RendererのマテリアルにbaseMaterialの数値設定のみを適用
         /// テクスチャは各Rendererの元マテリアル（色変換済み含む）をそのまま保持
         /// </summary>
-        private void ProcessPerRendererMaterials(ChimeraHairMaster component)
+        internal static void ProcessPerRendererMaterials(ChimeraHairMaster component)
         {
             Debug.Log($"[ChimeraHairMaster] per-rendererマテリアル処理開始（メッシュ統合なし）: {component.gameObject.name}");
 
@@ -361,6 +361,14 @@ namespace ChimeraHairMaster.Editor.NDMF
                         excludeOverlayAndEmission: true,
                         excludeMatCap: !component.unifyMatCap);
 
+                    // マットキャップ統一時はテクスチャ画像も基準マテリアルから上書き（Noneも含む）
+                    // ApplyShaderSettings はテクスチャをスキップするため、これが無いと
+                    // プレビューでは統一されて見えるのにビルド出力では各素材の画像のままになる（v1.5.12以前の不具合）
+                    if (component.unifyMatCap)
+                    {
+                        OverwriteMatCapTextures(sourceMaterial, newMat);
+                    }
+
                     newMaterials[s] = newMat;
                 }
 
@@ -369,6 +377,29 @@ namespace ChimeraHairMaster.Editor.NDMF
 
             Debug.Log($"[ChimeraHairMaster] per-rendererマテリアル処理完了: {component.gameObject.name}" +
                       (component.previewMaterial != null ? " (previewMaterial設定を継承)" : ""));
+        }
+
+        /// <summary>
+        /// マットキャップのテクスチャ画像を基準マテリアルから上書きコピーする（None も含めて統一）
+        /// マスク（_MatCapBlendMask等）とカスタムノーマル（_MatCapBumpMap等）は
+        /// 各素材のUVに紐づくため上書き対象にしない
+        /// プレビュー（ChimeraHairMasterPreview）とビルド（ProcessPerRendererMaterials）で共用
+        /// </summary>
+        internal static void OverwriteMatCapTextures(Material source, Material dest)
+        {
+            string[] matCapProps = new string[]
+            {
+                "_MatCapTex",
+                "_MatCap2ndTex"
+            };
+
+            foreach (var prop in matCapProps)
+            {
+                if (source.HasProperty(prop) && dest.HasProperty(prop))
+                {
+                    dest.SetTexture(prop, source.GetTexture(prop));
+                }
+            }
         }
 
         /// <summary>
