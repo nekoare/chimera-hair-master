@@ -216,9 +216,6 @@ msgstr "Chimera Hair Master"
 msgid "Inspector:Enabled"
 msgstr "Enabled"
 
-msgid "Inspector:Help"
-msgstr "Help"
-
 msgid "Inspector:DisabledHelp"
 msgstr "This component is disabled and will be skipped at build time."
 
@@ -824,6 +821,15 @@ msgstr "Preserve original hue"
 
 msgid "Inspector:OklabHueRetainTooltip"
 msgstr "0 = lock hue to target / 1 = keep original hue nuances"
+
+msgid "Inspector:OklabLDarkEnd"
+msgstr "Shadow brightness"
+
+msgid "Inspector:OklabLDarkEndTooltip"
+msgstr "How bright the darkest areas end up, as a fraction of the target lightness. 0.5 = darkens to half / 1 = no darkening. Raise this if bright targets such as white look silver/gray"
+
+msgid "Inspector:OklabLDarkEndHelp"
+msgstr "Sets how bright the darkest areas of the texture end up, as a fraction of the target lightness.\nRaise the value if a white target looks silver/gray, or if fine details become too dark.\n\"Auto Adjust\" fills in a recommended value for the target color."
 
 msgid "Inspector:OklabHelp"
 msgstr "Oklab is a color space where luminance and chroma are independent, making it easier to automatically align the color of multiple textures to the target."

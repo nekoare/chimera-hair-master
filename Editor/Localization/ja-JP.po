@@ -216,9 +216,6 @@ msgstr "キメラヘアマスター"
 msgid "Inspector:Enabled"
 msgstr "有効"
 
-msgid "Inspector:Help"
-msgstr "ヘルプ"
-
 msgid "Inspector:DisabledHelp"
 msgstr "コンポーネントが無効になっています。ビルド時に処理されません。"
 
@@ -316,7 +313,7 @@ msgid "Inspector:MeshCutSettings"
 msgstr "メッシュカット設定"
 
 msgid "Inspector:MeshCutHelp"
-msgstr "マスクを使って髪のメッシュを統合から削除することが出来ます。マスクは元の髪のUVを参照します。"
+msgstr "マスクを使って髪のメッシュを統合から削除することができます。マスクは元の髪のUVを参照します。"
 
 msgid "Inspector:SubmeshLabelFormat"
 msgstr "SubMesh {0}: {1}"
@@ -343,7 +340,7 @@ msgid "Inspector:GradientCurve"
 msgstr "グラデーション"
 
 msgid "Inspector:GradientHelp"
-msgstr "グラデーションモード\n元のテクスチャの明暗に対して設定したグラデーションに従って色を設定します。\nグラデーションの左端の色が一番暗かった色に，右端の色が一番明るかった色になります。\n明暗の差を出したいときに有効です。"
+msgstr "グラデーション\n元のテクスチャの明暗に対して設定したグラデーションに従って色を設定します。\nグラデーションの左端の色が一番暗かった色に、右端の色が一番明るかった色になります。\n明暗の差を出したいときに有効です。"
 
 msgid "Inspector:TargetColor"
 msgstr "この色に変更"
@@ -358,7 +355,7 @@ msgid "Inspector:AutoAdjust"
 msgstr "自動調整"
 
 msgid "Inspector:HueShiftHelp"
-msgstr "色指定モード（デフォルト）\n全体を指定した色に変更します。\n元の髪の明暗の差が小さいときに有効です。"
+msgstr "色指定（デフォルト）\n全体を指定した色に変更します。\n元の髪の明暗の差が小さいときに有効です。"
 
 msgid "Inspector:BrightnessAdjustment"
 msgstr "個別の明るさの調整"
@@ -367,7 +364,7 @@ msgid "Inspector:Reset"
 msgstr "リセット"
 
 msgid "Inspector:BrightnessAdjustmentHelp"
-msgstr "各Rendererの明るさを個別に調整できます。\n正の値で明るく、負の値で暗くなります。\n「リセット」ボタンでリセット（0に戻す）"
+msgstr "各Rendererの明るさを個別に調整できます。\n正の値で明るく、負の値で暗くなります。\n「リセット」ボタンで 0 に戻せます。"
 
 msgid "Inspector:ColorMaskSettings"
 msgstr "色合わせ無視(マスク)"
@@ -481,7 +478,7 @@ msgid "Inspector:PreviewResolution"
 msgstr "プレビュー解像度"
 
 msgid "Inspector:PreviewHelpNoMerge"
-msgstr "プレビューが有効です。Scene上で見えを確認できます。\nメインカラー2nd,3rd，発光設定の変更は元のマテリアルから操作してください。\nそれぞれのマテリアルの設定はプレビューマテリアルの数値(テクスチャを除く)に統一されます。"
+msgstr "プレビューが有効です。Scene上で見えを確認できます。\nメインカラー2nd・3rd、発光設定の変更は元のマテリアルから操作してください。\nそれぞれのマテリアルの設定はプレビューマテリアルの数値(テクスチャを除く)に統一されます。"
 
 msgid "Inspector:UnifyMatCap"
 msgstr "マットキャップを統一"
@@ -490,7 +487,7 @@ msgid "Inspector:UnifyMatCapTooltip"
 msgstr "有効にすると、プレビューマテリアルのMatCap設定(1st/2nd)で統一されます。\n無効の場合、各Rendererの元マテリアルのMatCap設定をそのまま保持します。"
 
 msgid "Inspector:PreviewHelpMerge"
-msgstr "プレビューが有効です。Scene上で結果を確認できます。\n動作が重いときは停止してください。\nプレビューではノーマルマップ，AOマップが適用されていません。実際の見え方はGestureManager等で確認してください。"
+msgstr "プレビューが有効です。Scene上で結果を確認できます。\n動作が重いときは停止してください。\nプレビューではノーマルマップ、AOマップが適用されていません。実際の見え方はGestureManager等で確認してください。"
 
 msgid "Inspector:PreviewRequiresSetup"
 msgstr "プレビューを有効にするには、対象Rendererと基準マテリアルを設定してください。"
@@ -754,7 +751,7 @@ msgid "MaskTool:Dialog:Close"
 msgstr "閉じる"
 
 msgid "MaskTool:Dialog:NotInstalledBody"
-msgstr "マスク作成支援ツールがインストールされていません。マスクツール同梱版，もしくは塗って！選んで！マスク作れるやつ v1.0以上を導入してください。"
+msgstr "マスク作成支援ツールがインストールされていません。マスクツール同梱版、もしくは「塗って！選んで！マスク作れるやつ」v1.0以上を導入してください。"
 
 msgid "MaskTool:Dialog:UpdateVpmV11Body"
 msgstr "この機能にはマスク作成支援ツール v1.1以上が必要です。同梱版パッケージを更新してください。"
@@ -766,7 +763,7 @@ msgid "MaskTool:Dialog:UpdateAssetsV11IncompatBody"
 msgstr "インストール済みの「塗って！選んで！マスク作れるやつ」はこの機能に対応していません。v1.1以上に更新してください。"
 
 msgid "MaskTool:Dialog:NotInstalledSubmeshBody"
-msgstr "この機能にはマスク作成支援ツールが必要です。マスクツール同梱版，もしくは「塗って！選んで！マスク作れるやつ」v1.1以上を導入してください。"
+msgstr "この機能にはマスク作成支援ツールが必要です。マスクツール同梱版、もしくは「塗って！選んで！マスク作れるやつ」v1.1以上を導入してください。"
 
 msgid "ColorTransformMode:Gradient"
 msgstr "グラデーション"
@@ -823,17 +820,26 @@ msgid "Inspector:OklabHueRetain"
 msgstr "元の色合いを保持"
 
 msgid "Inspector:OklabHueRetainTooltip"
-msgstr "0=色相を target に固定 / 1=元の色相のニュアンスを残す"
+msgstr "0=色相を目標色に固定 / 1=元の色相のニュアンスを残す"
+
+msgid "Inspector:OklabLDarkEnd"
+msgstr "暗部の明るさ"
+
+msgid "Inspector:OklabLDarkEndTooltip"
+msgstr "テクスチャの最も暗い部分を、目標色の明るさの何割まで落とすか。0.5=半分の明るさまで暗くなる / 1=暗部も目標色と同じ明るさ。白など明るい色の指定で銀髪っぽくグレーが残る場合は上げてください"
+
+msgid "Inspector:OklabLDarkEndHelp"
+msgstr "テクスチャの最も暗い部分を、目標色の明るさの何割まで落とすかの設定です。\n白を指定したのに銀髪っぽくグレーが残る場合や、細部の色が暗くなりすぎる場合は値を上げてください。\n「自動調整」で目標色に合わせたおすすめの値が入ります。"
 
 msgid "Inspector:OklabHelp"
-msgstr "Oklab は輝度と彩度が独立した色空間なので、複数テクスチャの色味を target に自動で揃えやすい。"
+msgstr "Oklab は輝度と彩度が独立した色空間なので、複数テクスチャの色味を目標色に自動で揃えやすい。"
 
 # ---- RGBDelta パラメータ・ヘルプ ----
 msgid "Inspector:RgbDeltaIntensity"
 msgstr "差分の強度"
 
 msgid "Inspector:RgbDeltaIntensityTooltip"
-msgstr "0=変化なし / 1=テクスチャ代表色から target への差分を完全加算"
+msgstr "0=変化なし / 1=テクスチャ代表色から目標色への差分を完全加算"
 
 msgid "Inspector:RgbDeltaSoftClipZone"
 msgstr "ソフトクリップ領域"
@@ -842,7 +848,7 @@ msgid "Inspector:RgbDeltaSoftClipZoneTooltip"
 msgstr "範囲外を端へ漸近させる領域幅（Linear RGB 空間での値）。0.05 程度が標準"
 
 msgid "Inspector:RgbDeltaHelp"
-msgstr "RGB差分モード: テクスチャ代表色 → target への差分を全ピクセルに加算します。\n色相を強制せず差を保つため、ハイライト等のニュアンスが残ります。"
+msgstr "RGB差分\nテクスチャ代表色から目標色への差分を全ピクセルに加算します。\n色相を強制せず差を保つため、ハイライト等のニュアンスが残ります。"
 
 # ---- ぼかし・シャープ調整 ----
 msgid "Inspector:BlurSharpAdjustment"
@@ -871,7 +877,7 @@ msgid "Inspector:StrandPatternSigma"
 msgstr "対象スケール"
 
 msgid "Inspector:StrandPatternHelp"
-msgstr "お手本 Renderer の質感（線の細さ・塗りの濃淡）に target を寄せます。\n「線の細さ強度」が細かいディテール（毛束の輪郭・粒度）の寄せ度合い。\n「塗りの濃淡強度」が中間スケールの変動（シェーディングのメリハリ）の寄せ度合い。\n「対象スケール」は両者の境界となる毛束サイズの目安（標準 5）。"
+msgstr "お手本 Renderer の質感（線の細さ・塗りの濃淡）に、他の Renderer のテクスチャを寄せます。\n「線の細さ強度」が細かいディテール（毛束の輪郭・粒度）の寄せ度合い。\n「塗りの濃淡強度」が中間スケールの変動（シェーディングのメリハリ）の寄せ度合い。\n「対象スケール」は両者の境界となる毛束サイズの目安（標準 5）。"
 
 # ---- テクスチャ出力: メッシュ統合有効時の警告 ----
 msgid "Inspector:MeshMergeDiscardWarning"

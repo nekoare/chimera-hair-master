@@ -216,9 +216,6 @@ msgstr "Chimera Hair Master"
 msgid "Inspector:Enabled"
 msgstr "启用"
 
-msgid "Inspector:Help"
-msgstr "帮助"
-
 msgid "Inspector:DisabledHelp"
 msgstr "组件已禁用，构建时不会执行处理。"
 
@@ -824,6 +821,15 @@ msgstr "保留原始色相"
 
 msgid "Inspector:OklabHueRetainTooltip"
 msgstr "0 = 锁定为目标色相 / 1 = 保留原始色相细节"
+
+msgid "Inspector:OklabLDarkEnd"
+msgstr "暗部亮度"
+
+msgid "Inspector:OklabLDarkEndTooltip"
+msgstr "纹理最暗部分最终降到目标亮度的多少比例。0.5=降到一半亮度 / 1=不再变暗。指定白色等亮色时若发色偏银灰，请调高此值"
+
+msgid "Inspector:OklabLDarkEndHelp"
+msgstr "设置纹理最暗部分最终降到目标亮度的多少比例。\n若指定白色后发色仍偏银灰，或细节颜色变得过暗，请调高此值。\n点击\"自动调整\"会填入适合目标颜色的推荐值。"
 
 msgid "Inspector:OklabHelp"
 msgstr "Oklab 是亮度和彩度独立的色彩空间，容易将多张贴图的颜色自动对齐到目标色。"

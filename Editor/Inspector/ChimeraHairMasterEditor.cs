@@ -28,6 +28,7 @@ namespace ChimeraHairMaster.Editor
         private SerializedProperty valuePreserveProp;
         private SerializedProperty hueShiftAlgorithmProp;
         private SerializedProperty oklabHueRetainProp;
+        private SerializedProperty oklabLDarkEndRatioProp;
         private SerializedProperty rgbDeltaIntensityProp;
         private SerializedProperty rgbDeltaSoftClipZoneProp;
         private SerializedProperty textureResolutionProp;
@@ -52,7 +53,8 @@ namespace ChimeraHairMaster.Editor
 
         #region UI State
 
-        private bool showHelp = false;
+        // ？ヘルプ: 行末の「？」ボタンで説明を個別に開閉する（同時に開くのは1つ）
+        private string activeHelpKey;
         private bool showBasicSettings = false;
         private bool showColorSettings = true;
         private bool showTextureSettings = false;
@@ -115,6 +117,7 @@ namespace ChimeraHairMaster.Editor
             valuePreserveProp = serializedObject.FindProperty("valuePreserve");
             hueShiftAlgorithmProp = serializedObject.FindProperty("hueShiftAlgorithm");
             oklabHueRetainProp = serializedObject.FindProperty("oklabHueRetain");
+            oklabLDarkEndRatioProp = serializedObject.FindProperty("oklabLDarkEndRatio");
             rgbDeltaIntensityProp = serializedObject.FindProperty("rgbDeltaIntensity");
             rgbDeltaSoftClipZoneProp = serializedObject.FindProperty("rgbDeltaSoftClipZone");
             textureResolutionProp = serializedObject.FindProperty("textureResolution");
@@ -316,12 +319,33 @@ namespace ChimeraHairMaster.Editor
             // 有効/無効トグル
             EditorGUILayout.PropertyField(isEnabledProp, new GUIContent(CHMLocales.Tr("Inspector:Enabled")));
 
-            // ヘルプ表示トグル
-            showHelp = EditorGUILayout.Toggle(CHMLocales.Tr("Inspector:Help"), showHelp);
-
             if (!isEnabledProp.boolValue)
             {
                 EditorGUILayout.HelpBox(CHMLocales.Tr("Inspector:DisabledHelp"), MessageType.Info);
+            }
+        }
+
+        // ----- ？ヘルプ（クリックで説明を開閉） -----
+        // 以前は先頭の「ヘルプ」トグルで全 HelpBox を一括表示していたが、
+        // 気づかれにくく開くと画面が埋まるため、各行末の「？」ボタンで個別に開閉する方式にした
+
+        /// <summary>行内（Horizontal 内）に「？」ボタンを置く。クリックでそのキーの説明の開閉を切り替える。</summary>
+        private void DrawHelpMark(string helpKey)
+        {
+            bool active = activeHelpKey == helpKey;
+            if (GUILayout.Button(active ? "✕" : "?", EditorStyles.miniButton, GUILayout.Width(20f)))
+            {
+                activeHelpKey = active ? null : helpKey;
+                GUI.FocusControl(null);
+            }
+        }
+
+        /// <summary>「？」で開かれた説明を HelpBox で出す。対象行（Horizontal 終了）の直後に呼ぶ。</summary>
+        private void DrawHelpBoxIfOpen(string helpKey, MessageType messageType = MessageType.Info)
+        {
+            if (activeHelpKey == helpKey)
+            {
+                EditorGUILayout.HelpBox(CHMLocales.Tr(helpKey), messageType);
             }
         }
 
@@ -374,17 +398,13 @@ namespace ChimeraHairMaster.Editor
                 EditorGUI.indentLevel++;
 
                 // 対象Renderer一覧（読み取り専用表示）
+                EditorGUILayout.BeginHorizontal();
                 EditorGUI.BeginDisabledGroup(true);
                 EditorGUILayout.PropertyField(targetRenderersProp, new GUIContent(CHMLocales.Tr("Inspector:TargetRenderers")), true);
                 EditorGUI.EndDisabledGroup();
-
-                if (showHelp)
-                {
-                    EditorGUILayout.HelpBox(
-                        CHMLocales.Tr("Inspector:TargetRenderersHelp"),
-                        MessageType.Info
-                    );
-                }
+                DrawHelpMark("Inspector:TargetRenderersHelp");
+                EditorGUILayout.EndHorizontal();
+                DrawHelpBoxIfOpen("Inspector:TargetRenderersHelp");
 
                 // PhysBone一覧
                 DrawPhysBoneList(component);
@@ -441,18 +461,14 @@ namespace ChimeraHairMaster.Editor
 
         private void DrawMeshCutSettings(ChimeraHairMaster component)
         {
+            EditorGUILayout.BeginHorizontal();
             showMeshCutSettings = EditorGUILayout.Foldout(showMeshCutSettings, CHMLocales.Tr("Inspector:MeshCutSettings"), true);
+            DrawHelpMark("Inspector:MeshCutHelp");
+            EditorGUILayout.EndHorizontal();
+            DrawHelpBoxIfOpen("Inspector:MeshCutHelp");
             if (!showMeshCutSettings) return;
 
             EditorGUI.indentLevel++;
-
-            if (showHelp)
-            {
-                EditorGUILayout.HelpBox(
-                    CHMLocales.Tr("Inspector:MeshCutHelp"),
-                    MessageType.Info
-                );
-            }
 
             for (int r = 0; r < component.targetRenderers.Count; r++)
             {
@@ -544,15 +560,11 @@ namespace ChimeraHairMaster.Editor
                 EditorGUI.indentLevel++;
 
                 // 色合わせの有効/無効トグル
+                EditorGUILayout.BeginHorizontal();
                 EditorGUILayout.PropertyField(enableColorTransformProp, new GUIContent(CHMLocales.Tr("Inspector:EnableColorTransform")));
-
-                if (showHelp)
-                {
-                    EditorGUILayout.HelpBox(
-                        CHMLocales.Tr("Inspector:EnableColorTransformHelp"),
-                        MessageType.Info
-                    );
-                }
+                DrawHelpMark("Inspector:EnableColorTransformHelp");
+                EditorGUILayout.EndHorizontal();
+                DrawHelpBoxIfOpen("Inspector:EnableColorTransformHelp");
 
                 // 色合わせが無効な場合は他の設定を表示しない
                 if (!enableColorTransformProp.boolValue)
@@ -576,11 +588,22 @@ namespace ChimeraHairMaster.Editor
                     int[] displayToEnum = { 1, 0, 2 };
                     int[] enumToDisplay = { 1, 0, 2 };
                     int currentDisplay = enumToDisplay[colorTransformModeProp.enumValueIndex];
+                    EditorGUILayout.BeginHorizontal();
                     int newDisplay = EditorGUILayout.Popup(
                         CHMLocales.Tr("Inspector:ColorTransformMode"),
                         currentDisplay,
                         modeNames);
                     colorTransformModeProp.enumValueIndex = displayToEnum[newDisplay];
+
+                    // 選択中モードの説明（？で開閉）
+                    var currentMode = (ColorTransformMode)colorTransformModeProp.enumValueIndex;
+                    string modeHelpKey =
+                        currentMode == ColorTransformMode.Gradient ? "Inspector:GradientHelp" :
+                        currentMode == ColorTransformMode.RGBDelta ? "Inspector:RgbDeltaHelp" :
+                        "Inspector:HueShiftHelp";
+                    DrawHelpMark(modeHelpKey);
+                    EditorGUILayout.EndHorizontal();
+                    DrawHelpBoxIfOpen(modeHelpKey);
                 }
 
                 ColorTransformMode transformMode = (ColorTransformMode)colorTransformModeProp.enumValueIndex;
@@ -591,14 +614,6 @@ namespace ChimeraHairMaster.Editor
 
                         // テクスチャ色ピッカー（Gradient用）
                         DrawGradientTextureColorPicker();
-
-                        if (showHelp)
-                        {
-                            EditorGUILayout.HelpBox(
-                                CHMLocales.Tr("Inspector:GradientHelp"),
-                                MessageType.Info
-                            );
-                        }
                         break;
 
                     case ColorTransformMode.HueShift:
@@ -617,10 +632,14 @@ namespace ChimeraHairMaster.Editor
                                 CHMLocales.Tr("Inspector:HueShiftAlgorithm:HSV"),
                                 CHMLocales.Tr("Inspector:HueShiftAlgorithm:Oklab")
                             };
+                            EditorGUILayout.BeginHorizontal();
                             hueShiftAlgorithmProp.enumValueIndex = EditorGUILayout.Popup(
                                 CHMLocales.Tr("Inspector:HueShiftAlgorithm"),
                                 hueShiftAlgorithmProp.enumValueIndex,
                                 algoNames);
+                            DrawHelpMark("Inspector:OklabHelp");
+                            EditorGUILayout.EndHorizontal();
+                            DrawHelpBoxIfOpen("Inspector:OklabHelp");
                         }
 
                         var algorithm = (HueShiftAlgorithm)hueShiftAlgorithmProp.enumValueIndex;
@@ -646,21 +665,23 @@ namespace ChimeraHairMaster.Editor
                                     CHMLocales.Tr("Inspector:OklabHueRetain"),
                                     CHMLocales.Tr("Inspector:OklabHueRetainTooltip")));
 
-                            if (showHelp)
+                            EditorGUILayout.BeginHorizontal();
+                            EditorGUILayout.PropertyField(oklabLDarkEndRatioProp,
+                                new GUIContent(
+                                    CHMLocales.Tr("Inspector:OklabLDarkEnd"),
+                                    CHMLocales.Tr("Inspector:OklabLDarkEndTooltip")));
+                            if (GUILayout.Button(CHMLocales.Tr("Inspector:AutoAdjust"), GUILayout.Width(70)))
                             {
-                                EditorGUILayout.HelpBox(
-                                    CHMLocales.Tr("Inspector:OklabHelp"),
-                                    MessageType.Info);
+                                var component = (ChimeraHairMaster)target;
+                                Undo.RecordObject(component, "Auto Adjust Oklab Dark End");
+                                component.UpdateOklabLDarkEndRatioFromTargetColor();
+                                serializedObject.Update();
                             }
+                            DrawHelpMark("Inspector:OklabLDarkEndHelp");
+                            EditorGUILayout.EndHorizontal();
+                            DrawHelpBoxIfOpen("Inspector:OklabLDarkEndHelp");
                         }
 
-                        if (showHelp)
-                        {
-                            EditorGUILayout.HelpBox(
-                                CHMLocales.Tr("Inspector:HueShiftHelp"),
-                                MessageType.Info
-                            );
-                        }
                         break;
 
                     case ColorTransformMode.RGBDelta:
@@ -680,12 +701,6 @@ namespace ChimeraHairMaster.Editor
                                 CHMLocales.Tr("Inspector:RgbDeltaSoftClipZone"),
                                 CHMLocales.Tr("Inspector:RgbDeltaSoftClipZoneTooltip")));
 
-                        if (showHelp)
-                        {
-                            EditorGUILayout.HelpBox(
-                                CHMLocales.Tr("Inspector:RgbDeltaHelp"),
-                                MessageType.Info);
-                        }
                         break;
                 }
 
@@ -721,7 +736,11 @@ namespace ChimeraHairMaster.Editor
 
             EditorGUILayout.BeginVertical(EditorStyles.helpBox);
 
+            EditorGUILayout.BeginHorizontal();
             showBrightnessAdjustment = EditorGUILayout.Foldout(showBrightnessAdjustment, CHMLocales.Tr("Inspector:BrightnessAdjustment"), true);
+            DrawHelpMark("Inspector:BrightnessAdjustmentHelp");
+            EditorGUILayout.EndHorizontal();
+            DrawHelpBoxIfOpen("Inspector:BrightnessAdjustmentHelp");
 
             if (!showBrightnessAdjustment)
             {
@@ -799,14 +818,6 @@ namespace ChimeraHairMaster.Editor
                 EditorGUILayout.EndHorizontal();
             }
 
-            if (showHelp)
-            {
-                EditorGUILayout.HelpBox(
-                    CHMLocales.Tr("Inspector:BrightnessAdjustmentHelp"),
-                    MessageType.Info
-                );
-            }
-
             EditorGUI.indentLevel--;
             EditorGUILayout.EndVertical();
         }
@@ -823,7 +834,11 @@ namespace ChimeraHairMaster.Editor
 
             EditorGUILayout.BeginVertical(EditorStyles.helpBox);
 
+            EditorGUILayout.BeginHorizontal();
             showBlurSharpAdjustment = EditorGUILayout.Foldout(showBlurSharpAdjustment, CHMLocales.Tr("Inspector:BlurSharpAdjustment"), true);
+            DrawHelpMark("Inspector:BlurSharpAdjustmentHelp");
+            EditorGUILayout.EndHorizontal();
+            DrawHelpBoxIfOpen("Inspector:BlurSharpAdjustmentHelp");
 
             if (!showBlurSharpAdjustment)
             {
@@ -893,13 +908,6 @@ namespace ChimeraHairMaster.Editor
                 EditorGUILayout.EndHorizontal();
             }
 
-            if (showHelp)
-            {
-                EditorGUILayout.HelpBox(
-                    CHMLocales.Tr("Inspector:BlurSharpAdjustmentHelp"),
-                    MessageType.Info);
-            }
-
             EditorGUI.indentLevel--;
             EditorGUILayout.EndVertical();
         }
@@ -939,7 +947,11 @@ namespace ChimeraHairMaster.Editor
 
             EditorGUILayout.BeginVertical(EditorStyles.helpBox);
 
+            EditorGUILayout.BeginHorizontal();
             showStrandPattern = EditorGUILayout.Foldout(showStrandPattern, CHMLocales.Tr("Inspector:StrandPattern"), true);
+            DrawHelpMark("Inspector:StrandPatternHelp");
+            EditorGUILayout.EndHorizontal();
+            DrawHelpBoxIfOpen("Inspector:StrandPatternHelp");
 
             if (!showStrandPattern)
             {
@@ -1020,13 +1032,6 @@ namespace ChimeraHairMaster.Editor
                 }
             }
 
-            if (showHelp)
-            {
-                EditorGUILayout.HelpBox(
-                    CHMLocales.Tr("Inspector:StrandPatternHelp"),
-                    MessageType.Info);
-            }
-
             EditorGUI.indentLevel--;
             EditorGUILayout.EndVertical();
         }
@@ -1042,7 +1047,11 @@ namespace ChimeraHairMaster.Editor
 
             EditorGUILayout.BeginVertical(EditorStyles.helpBox);
 
+            EditorGUILayout.BeginHorizontal();
             showColorMaskSettings = EditorGUILayout.Foldout(showColorMaskSettings, CHMLocales.Tr("Inspector:ColorMaskSettings"), true);
+            DrawHelpMark("Inspector:ColorMaskHelp");
+            EditorGUILayout.EndHorizontal();
+            DrawHelpBoxIfOpen("Inspector:ColorMaskHelp");
 
             if (!showColorMaskSettings)
             {
@@ -1051,14 +1060,6 @@ namespace ChimeraHairMaster.Editor
             }
 
             EditorGUI.indentLevel++;
-
-            if (showHelp)
-            {
-                EditorGUILayout.HelpBox(
-                    CHMLocales.Tr("Inspector:ColorMaskHelp"),
-                    MessageType.Info
-                );
-            }
 
             for (int r = 0; r < component.targetRenderers.Count; r++)
             {
@@ -1160,18 +1161,14 @@ namespace ChimeraHairMaster.Editor
             if (component.targetRenderers == null || component.targetRenderers.Count == 0)
                 return;
 
+            EditorGUILayout.BeginHorizontal();
             showPhysBoneList = EditorGUILayout.Foldout(showPhysBoneList, CHMLocales.Tr("Inspector:PhysBoneList"), true);
+            DrawHelpMark("Inspector:PhysBoneListHelp");
+            EditorGUILayout.EndHorizontal();
+            DrawHelpBoxIfOpen("Inspector:PhysBoneListHelp");
             if (!showPhysBoneList) return;
 
             EditorGUI.indentLevel++;
-
-            if (showHelp)
-            {
-                EditorGUILayout.HelpBox(
-                    CHMLocales.Tr("Inspector:PhysBoneListHelp"),
-                    MessageType.Info
-                );
-            }
 
             // アバタールートを探す（VRC_AvatarDescriptorを持つ親）
             var avatarRoot = component.GetComponentInParent<VRC.SDK3.Avatars.Components.VRCAvatarDescriptor>();
@@ -1862,18 +1859,14 @@ namespace ChimeraHairMaster.Editor
         private void DrawMeshSettings()
         {
             EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+            EditorGUILayout.BeginHorizontal();
             showMeshSettings = EditorGUILayout.Foldout(showMeshSettings, CHMLocales.Tr("Inspector:MeshSettings"), true);
+            DrawHelpMark("Inspector:MeshSettingsHelp");
+            EditorGUILayout.EndHorizontal();
+            DrawHelpBoxIfOpen("Inspector:MeshSettingsHelp");
             if (showMeshSettings)
             {
                 EditorGUI.indentLevel++;
-
-                if (showHelp)
-                {
-                    EditorGUILayout.HelpBox(
-                        CHMLocales.Tr("Inspector:MeshSettingsHelp"),
-                        MessageType.Info
-                    );
-                }
 
                 EditorGUILayout.Space(5);
                 
@@ -1896,14 +1889,11 @@ namespace ChimeraHairMaster.Editor
                 if (inheritProbeAnchorMode == MeshSettingsInheritMode.Set || 
                     inheritProbeAnchorMode == MeshSettingsInheritMode.SetOrInherit)
                 {
+                    EditorGUILayout.BeginHorizontal();
                     EditorGUILayout.PropertyField(probeAnchorProp, new GUIContent(CHMLocales.Tr("Inspector:ProbeAnchor")));
-                    if (showHelp)
-                    {
-                        EditorGUILayout.HelpBox(
-                            CHMLocales.Tr("Inspector:ProbeAnchorHelp"),
-                            MessageType.None
-                        );
-                    }
+                    DrawHelpMark("Inspector:ProbeAnchorHelp");
+                    EditorGUILayout.EndHorizontal();
+                    DrawHelpBoxIfOpen("Inspector:ProbeAnchorHelp", MessageType.None);
                 }
 
                 EditorGUILayout.Space(10);
@@ -1928,14 +1918,11 @@ namespace ChimeraHairMaster.Editor
                     inheritBoundsMode == MeshSettingsInheritMode.SetOrInherit)
                 {
                     EditorGUILayout.PropertyField(rootBoneProp, new GUIContent(CHMLocales.Tr("Inspector:RootBone")));
+                    EditorGUILayout.BeginHorizontal();
                     EditorGUILayout.PropertyField(boundsProp, new GUIContent(CHMLocales.Tr("Inspector:Bounds")));
-                    if (showHelp)
-                    {
-                        EditorGUILayout.HelpBox(
-                            CHMLocales.Tr("Inspector:BoundsHelp"),
-                            MessageType.None
-                        );
-                    }
+                    DrawHelpMark("Inspector:BoundsHelp");
+                    EditorGUILayout.EndHorizontal();
+                    DrawHelpBoxIfOpen("Inspector:BoundsHelp", MessageType.None);
 
                     // Bounds可視化用のGizmo描画ボタン
                     var component = target as ChimeraHairMaster;
@@ -2127,7 +2114,11 @@ namespace ChimeraHairMaster.Editor
         {
             EditorGUILayout.BeginVertical(EditorStyles.helpBox);
 
+            EditorGUILayout.BeginHorizontal();
             EditorGUILayout.LabelField(CHMLocales.Tr("Inspector:SaveAsTextureSection"), EditorStyles.boldLabel);
+            DrawHelpMark("Inspector:ApplyHelp");
+            EditorGUILayout.EndHorizontal();
+            DrawHelpBoxIfOpen("Inspector:ApplyHelp");
 
             // メッシュ統合有効時の注意書き
             if (component.enableMeshMerge)
@@ -2163,14 +2154,6 @@ namespace ChimeraHairMaster.Editor
                 EditorPrefs.SetBool(PREF_APPLY_TEXTURE, applyTexture);
                 EditorPrefs.SetBool(PREF_UNIFY_SETTINGS, unifySettings);
                 EditorPrefs.SetBool(PREF_APPLY_DEFORMATION, applyDeformation);
-            }
-
-            if (showHelp)
-            {
-                EditorGUILayout.HelpBox(
-                    CHMLocales.Tr("Inspector:ApplyHelp"),
-                    MessageType.Info
-                );
             }
 
             // 適用ボタン
@@ -2479,11 +2462,11 @@ namespace ChimeraHairMaster.Editor
             if (component == null) return;
 
             EditorGUILayout.Space(5);
+            EditorGUILayout.BeginHorizontal();
             EditorGUILayout.LabelField(CHMLocales.Tr("Inspector:AdditionalMaskSection"), EditorStyles.boldLabel);
-            if (showHelp)
-            {
-                EditorGUILayout.HelpBox(CHMLocales.Tr("Inspector:AdditionalMaskSectionHelp"), MessageType.Info);
-            }
+            DrawHelpMark("Inspector:AdditionalMaskSectionHelp");
+            EditorGUILayout.EndHorizontal();
+            DrawHelpBoxIfOpen("Inspector:AdditionalMaskSectionHelp");
 
             if (GUILayout.Button(CHMLocales.Tr("Inspector:GenerateAdditionalMasks")))
             {

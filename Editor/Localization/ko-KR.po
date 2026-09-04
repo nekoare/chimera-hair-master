@@ -216,9 +216,6 @@ msgstr "키메라 헤어 마스터"
 msgid "Inspector:Enabled"
 msgstr "활성화"
 
-msgid "Inspector:Help"
-msgstr "도움말"
-
 msgid "Inspector:DisabledHelp"
 msgstr "컴포넌트가 비활성화되어 있습니다. 빌드 시 처리되지 않습니다."
 
@@ -824,6 +821,15 @@ msgstr "원래 색조 유지"
 
 msgid "Inspector:OklabHueRetainTooltip"
 msgstr "0 = 색조를 target에 고정 / 1 = 원래 색조의 뉘앙스를 남김"
+
+msgid "Inspector:OklabLDarkEnd"
+msgstr "어두운 부분 밝기"
+
+msgid "Inspector:OklabLDarkEndTooltip"
+msgstr "텍스처의 가장 어두운 부분이 목표 색 밝기의 몇 배까지 떨어질지. 0.5=절반 밝기까지 어두워짐 / 1=어두워지지 않음. 흰색 등 밝은 색 지정 시 은발처럼 회색이 남으면 값을 올려 주세요"
+
+msgid "Inspector:OklabLDarkEndHelp"
+msgstr "텍스처의 가장 어두운 부분을 목표 색 밝기의 몇 배까지 낮출지 설정합니다.\n흰색을 지정했는데 은발처럼 회색이 남거나, 세부 색이 너무 어두워지는 경우 값을 올려 주세요.\n\"자동 조정\"을 누르면 목표 색에 맞는 추천 값이 입력됩니다."
 
 msgid "Inspector:OklabHelp"
 msgstr "Oklab은 휘도와 채도가 독립된 색 공간이므로 여러 텍스처의 색감을 target에 자동으로 맞추기 쉽습니다."

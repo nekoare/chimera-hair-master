@@ -158,12 +158,6 @@ namespace ChimeraHairMaster
         [Range(0f, 1f)]
         public float oklabLDarkEndRatio = 0.5f;
 
-        /// <summary>
-        /// 前回 target 色変更を検出するためのシャドウコピー（UI 非表示）
-        /// </summary>
-        [SerializeField, HideInInspector]
-        private Color _lastTargetColorForOklabAutoAdjust = Color.white;
-
         #endregion
 
         #region RGBDelta モードパラメータ
@@ -500,9 +494,8 @@ namespace ChimeraHairMaster
             // 明度保持をターゲット色のV値に基づいて設定
             UpdateValuePreserveFromTargetColor();
 
-            // Oklab 暗端比率もターゲット色から初期化
+            // Oklab 暗部の明るさもターゲット色から初期化
             UpdateOklabLDarkEndRatioFromTargetColor();
-            _lastTargetColorForOklabAutoAdjust = targetColor;
         }
 
         /// <summary>
@@ -516,28 +509,78 @@ namespace ChimeraHairMaster
         }
 
         /// <summary>
-        /// ターゲット色の V 値に基づいて Oklab algorithm の暗端 target 追従率を更新。
+        /// ターゲット色から Oklab algorithm の暗部の明るさ（oklabLDarkEndRatio）を自動計算する。
         ///
-        /// 経験則に基づく式（Oklab 線形リマップと組み合わせたときに破綻しにくい値）:
-        ///   - target.V が極端（V≈0 の暗い target / V≈1 の白い target）: dark_ratio を小さく（0.3）
-        ///     → テクスチャ元の明暗 range をより活かしたリマップになる。
-        ///       target.L が 0 付近 / 1 付近では p95 が target.L に近づくので、
-        ///       暗端も target に近い位置で良く、range 圧縮を控える。
-        ///   - target.V が中間（V≈0.5）: dark_ratio を大きく（0.9）
-        ///     → [target.L * 0.9, target.L] の狭い range に圧縮され、
-        ///       複数テクスチャの明度感が揃いやすい。
+        /// 従来の V 三角波式（0.3 + 0.6*(1-|2V-1|)）は白も純赤も「V=1 の極端色」として 0.3 を
+        /// 返し、白指定で暗部が中間グレーまで落ちて銀髪化していた。
+        /// 修正後は三角波の暗い側（V≤0.5）と中間ピーク（V=0.5 で 0.9 = 複数テクスチャの
+        /// 明度感を揃えるフラット化）は従来どおり維持し、明るい側（V>0.5）の端点だけを
+        /// 彩度（Oklab C）に応じて振り分ける:
+        ///   - 無彩色（白・明グレー）: 0.7 → ハイキーな白髪
+        ///   - ビビッド（純赤・純青）: 0.4 → 深い影のルックをほぼ維持
+        ///   - 中間彩度（パステル・金髪）: smoothstep でブレンド
+        /// 端点の値は Unity 上での目視チューニングで決定（2026-08-26）。
         ///
-        /// 式:  0.3 + 0.6 * (1 - |2V - 1|)
-        ///   - |2V - 1| は V=0.5 で 0、V=0 / V=1 で 1 になる三角波
-        ///   - 結果として V=0.5 で 0.9、V=0 / V=1 で 0.3 の山形カーブ
-        ///
-        /// ユーザーが手動微調整したい場合は、このメソッドを呼ばずに oklabLDarkEndRatio を直接設定する
-        /// （OnValidate で target 色変更時に再計算されるので注意）。
+        /// 自動計算はセットアップ時とインスペクタの「自動調整」ボタンでのみ実行される。
+        /// スライダーで手動設定した値が target 色変更で上書きされることはない
+        /// （以前は OnValidate で自動再計算していたが、スライダー露出に伴い廃止）。
         /// </summary>
         public void UpdateOklabLDarkEndRatioFromTargetColor()
         {
             Color.RGBToHSV(targetColor, out _, out _, out float v);
-            oklabLDarkEndRatio = 0.3f + 0.6f * (1f - Mathf.Abs(2f * v - 1f));
+
+            if (v <= 0.5f)
+            {
+                // 暗い側は従来式のまま（0.3 + 1.2V と同値）
+                oklabLDarkEndRatio = Mathf.Lerp(OklabDarkEndAtDark, OklabDarkEndAtMid, v * 2f);
+                return;
+            }
+
+            GetOklabLC(targetColor, out _, out float targetC);
+            float vividness = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(targetC / OklabChromaBlendRef));
+            float brightEnd = Mathf.Lerp(OklabDarkEndAtBrightAchromatic, OklabDarkEndAtBrightVivid, vividness);
+            oklabLDarkEndRatio = Mathf.Lerp(OklabDarkEndAtMid, brightEnd, v * 2f - 1f);
+        }
+
+        /// <summary>V=0（暗い target）での暗部の明るさ（従来値を維持）</summary>
+        private const float OklabDarkEndAtDark = 0.3f;
+
+        /// <summary>V=0.5（中間 target）での暗部の明るさ（従来値を維持。フラット化で明度感を揃える）</summary>
+        private const float OklabDarkEndAtMid = 0.9f;
+
+        /// <summary>V=1 かつ無彩色（白など）での暗部の明るさ</summary>
+        private const float OklabDarkEndAtBrightAchromatic = 0.7f;
+
+        /// <summary>V=1 かつビビッド（純赤など）での暗部の明るさ</summary>
+        private const float OklabDarkEndAtBrightVivid = 0.4f;
+
+        /// <summary>この彩度（Oklab C）以上でビビッド側の端点に完全に切り替わる</summary>
+        private const float OklabChromaBlendRef = 0.2f;
+
+        /// <summary>
+        /// sRGB 色の Oklab L（明度）と C（彩度）を計算する。
+        /// Editor 側 OklabConverter と同じ標準の Oklab 行列だが、
+        /// Runtime アセンブリから Editor を参照できないため必要最小限をここに持つ
+        /// </summary>
+        private static void GetOklabLC(Color srgb, out float lightness, out float chroma)
+        {
+            float r = SrgbChannelToLinear(srgb.r);
+            float g = SrgbChannelToLinear(srgb.g);
+            float b = SrgbChannelToLinear(srgb.b);
+
+            float l = Mathf.Pow(0.4122214708f * r + 0.5363325363f * g + 0.0514459929f * b, 1f / 3f);
+            float m = Mathf.Pow(0.2119034982f * r + 0.6806995451f * g + 0.1073969566f * b, 1f / 3f);
+            float s = Mathf.Pow(0.0883024619f * r + 0.2817188376f * g + 0.6299787005f * b, 1f / 3f);
+
+            lightness = 0.2104542553f * l + 0.7936177850f * m - 0.0040720468f * s;
+            float a = 1.9779984951f * l - 2.4285922050f * m + 0.4505937099f * s;
+            float bb = 0.0259040371f * l + 0.7827717662f * m - 0.8086757660f * s;
+            chroma = Mathf.Sqrt(a * a + bb * bb);
+        }
+
+        private static float SrgbChannelToLinear(float c)
+        {
+            return c <= 0.04045f ? c / 12.92f : Mathf.Pow((c + 0.055f) / 1.055f, 2.4f);
         }
 
         // ----------------------- Material selection sync -----------------------
@@ -581,13 +624,6 @@ namespace ChimeraHairMaster
         private void OnValidate()
         {
             SyncMaterialSelectionsFromRenderers();
-
-            // target 色が変わったら Oklab 暗端比率を自動更新
-            if (_lastTargetColorForOklabAutoAdjust != targetColor)
-            {
-                _lastTargetColorForOklabAutoAdjust = targetColor;
-                UpdateOklabLDarkEndRatioFromTargetColor();
-            }
 
             UnityEditor.EditorUtility.SetDirty(this);
         }
