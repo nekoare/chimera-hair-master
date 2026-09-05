@@ -272,8 +272,10 @@ namespace ChimeraHairMaster.Editor.Processing
                         }
 
                         // 色合わせ無視マスクを適用
+                        // ※ 出力はマテリアル単位（matId で重複排除）のため、(r, s) 単位ではなく
+                        //   マテリアルを共有する全 (r, s) のマスクを合成して解決する
                         {
-                            var masked = ColorMaskApplier.TryApply(component, r, s, mainTex, processedTex, compressResult: false);
+                            var masked = ColorMaskApplier.TryApplyForSharedMaterial(component, mat, mainTex, processedTex, compressResult: false);
                             if (masked != null)
                             {
                                 Object.DestroyImmediate(processedTex);

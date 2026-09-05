@@ -464,6 +464,16 @@ namespace ChimeraHairMaster
         [HideInInspector]
         public int previewMaterialHash = 0;
 
+        /// <summary>
+        /// 色合わせ無視マスクの内容ハッシュ（変更検知用）
+        /// 同じPNGアセットへの上書き保存（塗り直し）は InstanceID が変わらず
+        /// コンポーネントの変更イベントも発火しないため、Inspector がポーリングで
+        /// この値を更新することでNDMFプレビューの再評価を起こす
+        /// </summary>
+        [SerializeField]
+        [HideInInspector]
+        public int colorMaskContentsHash = 0;
+
         #endregion
 
         #region Unity Lifecycle

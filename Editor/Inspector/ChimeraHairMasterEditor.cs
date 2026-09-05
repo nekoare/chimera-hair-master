@@ -217,7 +217,7 @@ namespace ChimeraHairMaster.Editor
         private const double MaterialHashCheckInterval = 0.3;
 
         /// <summary>
-        /// エディタ更新時にマテリアルハッシュをチェック
+        /// エディタ更新時にマテリアルハッシュと色合わせ無視マスクの内容ハッシュをチェック
         /// </summary>
         private void OnEditorUpdate()
         {
@@ -226,23 +226,41 @@ namespace ChimeraHairMaster.Editor
             var component = target as ChimeraHairMaster;
             if (component == null) return;
             if (!component.previewEnabled) return;
-            if (component.previewMaterial == null) return;
 
             // ComputeHash は SerializedObject 生成 + 全プロパティ走査で重いためスロットリング
             if (EditorApplication.timeSinceStartup < _nextMaterialHashCheckTime) return;
             _nextMaterialHashCheckTime = EditorApplication.timeSinceStartup + MaterialHashCheckInterval;
 
+            bool changed = false;
+
             // マテリアルのハッシュを計算
-            int currentHash = MaterialHasher.ComputeHash(component.previewMaterial);
+            if (component.previewMaterial != null)
+            {
+                int currentHash = MaterialHasher.ComputeHash(component.previewMaterial);
+                if (component.previewMaterialHash != currentHash)
+                {
+                    component.previewMaterialHash = currentHash;
+                    changed = true;
+                }
+            }
+
+            // 色合わせ無視マスクの内容ハッシュを計算
+            // （同じPNGアセットへの上書き保存はコンポーネントの変更イベントを発火しないため、
+            //   ここで検知してNDMFプレビューの再評価を起こす）
+            int maskHash = ColorMaskApplier.ComputeMaskContentsHash(component);
+            if (component.colorMaskContentsHash != maskHash)
+            {
+                component.colorMaskContentsHash = maskHash;
+                changed = true;
+            }
 
             // ハッシュが変わっていたらコンポーネントを更新
-            if (component.previewMaterialHash != currentHash)
+            if (changed)
             {
                 // ハッシュは派生キャッシュのため Undo 対象にしない
                 // （Undo.RecordObject すると、マテリアル編集のたびにユーザーの Undo 履歴が
                 // 「ハッシュ更新の取り消し」で埋まる。Undo でマテリアル側が戻れば
                 // 次のチェックでハッシュも自動的に追従する）
-                component.previewMaterialHash = currentHash;
                 EditorUtility.SetDirty(component);
 
                 // シーンビューを強制的に再描画

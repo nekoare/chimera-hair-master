@@ -1059,21 +1059,48 @@ namespace ChimeraHairMaster.Editor.Processing
         /// <returns>マスク適用後のテクスチャ</returns>
         public static Texture2D? ApplyColorMask(Texture2D originalTexture, Texture2D transformedTexture, Texture2D mask, bool compressResult = true)
         {
-            if (originalTexture == null || transformedTexture == null || mask == null)
+            if (mask == null) return null;
+            return ApplyColorMask(originalTexture, transformedTexture, new[] { mask }, compressResult);
+        }
+
+        /// <summary>
+        /// 色合わせ無視マスクを適用（複数マスク対応）
+        /// 複数マスクは各ピクセルの最小値で合成する（黒=維持が優先）。
+        /// いずれかのマスクで維持指定された領域は必ず元の色が維持される
+        /// </summary>
+        public static Texture2D? ApplyColorMask(Texture2D originalTexture, Texture2D transformedTexture, IReadOnlyList<Texture2D> masks, bool compressResult = true)
+        {
+            if (originalTexture == null || transformedTexture == null || masks == null)
                 return null;
+
+            var validMasks = new List<Texture2D>(masks.Count);
+            foreach (var m in masks)
+            {
+                if (m != null) validMasks.Add(m);
+            }
+            if (validMasks.Count == 0) return null;
 
             var readableOriginal = GetReadableTexture(originalTexture);
             var readableTransformed = GetReadableTexture(transformedTexture);
-            var readableMask = GetReadableTexture(mask);
+
+            int maskCount = validMasks.Count;
+            var readableMasks = new Texture2D[maskCount];
+            var maskPixels = new Color[maskCount][];
+            var maskWidths = new int[maskCount];
+            var maskHeights = new int[maskCount];
+            for (int i = 0; i < maskCount; i++)
+            {
+                readableMasks[i] = GetReadableTexture(validMasks[i]);
+                maskPixels[i] = readableMasks[i].GetPixels();
+                maskWidths[i] = readableMasks[i].width;
+                maskHeights[i] = readableMasks[i].height;
+            }
 
             int width = readableTransformed.width;
             int height = readableTransformed.height;
 
             Color[] originalPixels = readableOriginal.GetPixels();
             Color[] transformedPixels = readableTransformed.GetPixels();
-            Color[] maskPixels = readableMask.GetPixels();
-            int maskWidth = readableMask.width;
-            int maskHeight = readableMask.height;
 
             bool originalSizeMatch = (readableOriginal.width == width && readableOriginal.height == height);
 
@@ -1087,9 +1114,14 @@ namespace ChimeraHairMaster.Editor.Processing
                     float v = (float)y / height;
 
                     // マスクをサンプリング（テクスチャサイズが異なる場合はリサンプル）
-                    int mx = Mathf.Clamp((int)(u * maskWidth), 0, maskWidth - 1);
-                    int my = Mathf.Clamp((int)(v * maskHeight), 0, maskHeight - 1);
-                    float maskValue = maskPixels[my * maskWidth + mx].grayscale;
+                    // 複数マスクは最小値で合成（黒=維持が優先）
+                    float maskValue = 1f;
+                    for (int i = 0; i < maskCount; i++)
+                    {
+                        int mx = Mathf.Clamp((int)(u * maskWidths[i]), 0, maskWidths[i] - 1);
+                        int my = Mathf.Clamp((int)(v * maskHeights[i]), 0, maskHeights[i] - 1);
+                        maskValue = Mathf.Min(maskValue, maskPixels[i][my * maskWidths[i] + mx].grayscale);
+                    }
 
                     // 元テクスチャをサンプリング（サイズが異なる場合はリサンプル）
                     Color origPixel;
@@ -1124,7 +1156,10 @@ namespace ChimeraHairMaster.Editor.Processing
             // 一時テクスチャをクリーンアップ
             if (readableOriginal != originalTexture) Object.DestroyImmediate(readableOriginal);
             if (readableTransformed != transformedTexture) Object.DestroyImmediate(readableTransformed);
-            if (readableMask != mask) Object.DestroyImmediate(readableMask);
+            for (int i = 0; i < maskCount; i++)
+            {
+                if (readableMasks[i] != validMasks[i]) Object.DestroyImmediate(readableMasks[i]);
+            }
 
             return output;
         }

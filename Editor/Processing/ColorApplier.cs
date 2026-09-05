@@ -149,8 +149,11 @@ namespace ChimeraHairMaster.Editor.Processing
                     }
 
                     // 色合わせ無視マスクを適用
+                    // ※ 出力PNGは元テクスチャ名由来のパスに上書き保存され、別マテリアルでも
+                    //   同一 _MainTex なら同じファイルを取り合うため、(r, s) やマテリアル単位ではなく
+                    //   テクスチャを共有する全 (r, s) のマスクを合成して解決する
                     {
-                        var masked = ColorMaskApplier.TryApply(component, r, s, mainTex, processedTex, compressResult: false);
+                        var masked = ColorMaskApplier.TryApplyForSharedMainTex(component, mainTex, processedTex, compressResult: false);
                         if (masked != null)
                         {
                             Object.DestroyImmediate(processedTex);

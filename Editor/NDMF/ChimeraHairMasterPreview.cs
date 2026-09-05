@@ -284,6 +284,9 @@ namespace ChimeraHairMaster.Editor.NDMF
                         hash = hash * 31 + entry.submeshIndex;
                         hash = hash * 31 + (entry.mask != null ? entry.mask.GetInstanceID() : 0);
                     }
+                    // 同一アセットへの上書き保存（塗り直し）は InstanceID が変わらないため内容ハッシュも見る。
+                    // 再評価のトリガーは Inspector のポーリング（colorMaskContentsHash 更新）が担う
+                    hash = hash * 31 + Processing.ColorMaskApplier.ComputeMaskContentsHash(component);
                 }
 
                 // 毛束パターン統一設定（有効時のみ内部パラメータを hash に寄与）
