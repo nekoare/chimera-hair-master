@@ -342,6 +342,77 @@ namespace ChimeraHairMaster
 
         #endregion
 
+        #region FakeShadow設定
+
+        /// <summary>
+        /// FakeShadowを有効にするかどうか
+        /// 髪が顔に落とす影をステンシルと専用シェーダーでセットアップする
+        /// </summary>
+        [SerializeField]
+        public bool enableFakeShadow = false;
+
+        /// <summary>
+        /// FakeShadowを受ける顔のRenderer（未設定時はインスペクタが "Body" を自動検出）
+        /// </summary>
+        [SerializeField]
+        public SkinnedMeshRenderer fakeShadowFaceRenderer;
+
+        /// <summary>
+        /// 影を落とす顔マテリアルのインデックス一覧（複数選択可）
+        /// 選択したマテリアルはステンシル書き込みを行うクローンに差し替えられる
+        /// </summary>
+        [SerializeField]
+        public List<int> fakeShadowFaceMaterialIndexes = new List<int>();
+
+        /// <summary>
+        /// 影の色（乗算ブレンドで顔に落ちる）
+        /// </summary>
+        [SerializeField]
+        public Color fakeShadowColor = new Color(1f, 0.88f, 0.88f, 1f);
+
+        /// <summary>
+        /// 影の向き（頂点をずらす方向。シェーダーのライト方向に加算される）
+        /// </summary>
+        [SerializeField]
+        public Vector2 fakeShadowDirection = new Vector2(0.2f, -0.2f);
+
+        /// <summary>
+        /// 影のずらし量
+        /// </summary>
+        [SerializeField]
+        public float fakeShadowOffset = 0.004f;
+
+        /// <summary>
+        /// ステンシル値（1〜255。顔への書き込みと影の参照で共有する）
+        /// </summary>
+        [SerializeField]
+        [Range(1, 255)]
+        public int fakeShadowStencilRef = 48;
+
+        /// <summary>
+        /// 影マテリアルの深度バイアス（x=_OffsetFactor, y=_OffsetUnits）
+        /// </summary>
+        [SerializeField]
+        public Vector2 fakeShadowDepthBias = new Vector2(-1f, -1f);
+
+        /// <summary>
+        /// FakeShadowの対象から除外する髪Renderer一覧（未登録＝影を落とす）。
+        /// rendererIndexではなく参照で保持するため、対象Rendererの並べ替え・削除でズレない。
+        /// renderQueue調整は除外髪にも適用される（他の髪の影が除外髪の上に乗るのを防ぐため）
+        /// </summary>
+        [SerializeField]
+        public List<SkinnedMeshRenderer> fakeShadowExcludedRenderers = new List<SkinnedMeshRenderer>();
+
+        /// <summary>指定Rendererが FakeShadow の対象から除外されているか</summary>
+        public bool IsFakeShadowExcluded(SkinnedMeshRenderer renderer)
+        {
+            return renderer != null
+                && fakeShadowExcludedRenderers != null
+                && fakeShadowExcludedRenderers.Contains(renderer);
+        }
+
+        #endregion
+
         #region メッシュ変形設定
 
         /// <summary>

@@ -23,8 +23,9 @@ namespace ChimeraHairMaster.Editor.Processing
         /// </summary>
         /// <param name="component">対象 CHM コンポーネント</param>
         /// <param name="applyDeformation">true なら rendererDeformations を適用した変形済みメッシュを Prefab 内 Renderer に設定</param>
+        /// <param name="includeFakeShadow">true ならFakeShadowの影レンダラーを Prefab に同梱し、顔のステンシル設定をシーン上のアバターに適用する（元アバター非破壊の例外・呼び出し側で確認済みであること）</param>
         /// <returns>生成された Prefab アセット、失敗時 null</returns>
-        public static GameObject? Export(ChimeraHairMaster component, bool applyDeformation)
+        public static GameObject? Export(ChimeraHairMaster component, bool applyDeformation, bool includeFakeShadow = false)
         {
             if (!Validate(component, out var avatarRoot)) return null;
 
@@ -57,7 +58,11 @@ namespace ChimeraHairMaster.Editor.Processing
             // アバター root を Instantiate
             var tempRoot = Object.Instantiate(avatarRoot!);
             tempRoot.name = avatarRoot!.name;
+            // Prefab ルートにアバターのワールド姿勢（回転・スケール）が焼き付かないよう正規化する。
+            // 子のローカル値は不変のため、アバター直下にローカル原点で置けば元の髪と同じ位置になる
             tempRoot.transform.localPosition = Vector3.zero;
+            tempRoot.transform.localRotation = Quaternion.identity;
+            tempRoot.transform.localScale = Vector3.one;
 
             try
             {
@@ -77,6 +82,14 @@ namespace ChimeraHairMaster.Editor.Processing
                 var validTempRenderers = tempRenderers.OfType<SkinnedMeshRenderer>().ToList();
                 HierarchyDependencyResolver.CleanUp(tempRoot, validTempRenderers);
 
+                // FakeShadowを Prefab に同梱（影レンダラーのみ。顔はシーン側で後述）。
+                // 除外判定は元Rendererで行うため、targetRenderers と index 並行の tempRenderers を渡す
+                int? fakeShadowStencilRef = null;
+                if (includeFakeShadow)
+                {
+                    fakeShadowStencilRef = SetupFakeShadowForExport(component, tempRenderers);
+                }
+
                 // ModularAvatar が入っていれば、各 Armature root に MA Merge Armature を自動付与
                 AddMergeArmatureComponents(validTempRenderers, avatarRoot!);
 
@@ -86,6 +99,14 @@ namespace ChimeraHairMaster.Editor.Processing
                 {
                     Debug.LogError("[CHM] Prefab 保存に失敗しました");
                     return null;
+                }
+
+                // FakeShadowの顔側セットアップ（Prefab には顔が入らないため、シーン上のアバターの
+                // 顔マテリアルをステンシル書き込みクローンに差し替える。Undo可）
+                if (fakeShadowStencilRef.HasValue)
+                {
+                    FakeShadowSceneSetup.ApplySceneFaceMaterials(component, fakeShadowStencilRef.Value);
+                    Debug.Log($"[CHM] FakeShadowを同梱しました（ステンシル値 {fakeShadowStencilRef.Value}・顔設定はシーン側に適用）");
                 }
 
                 // CHM コンポーネント無効化（既存 Apply と同様）
@@ -99,13 +120,19 @@ namespace ChimeraHairMaster.Editor.Processing
                 EditorGUIUtility.PingObject(prefab);
                 EditorUtility.FocusProjectWindow();
 
-                // アバターがシーン上にあれば、生成 Prefab Instance をそのシーンのルート直下に配置
+                // アバターがシーン上にあれば、生成 Prefab Instance をアバター直下に自動配置する
                 if (avatarRoot.scene.IsValid())
                 {
                     var instance = PrefabUtility.InstantiatePrefab(prefab) as GameObject;
                     if (instance != null)
                     {
                         UnityEngine.SceneManagement.SceneManager.MoveGameObjectToScene(instance, avatarRoot.scene);
+                        instance.transform.SetParent(avatarRoot.transform, false);
+                        // Prefab 内の子はアバターローカル値を保持しているため、
+                        // ルートをローカル原点に合わせれば元の髪と同じ位置に一致する
+                        instance.transform.localPosition = Vector3.zero;
+                        instance.transform.localRotation = Quaternion.identity;
+                        instance.transform.localScale = Vector3.one;
                         Undo.RegisterCreatedObjectUndo(instance, "CHM Prefab を配置");
                         EditorGUIUtility.PingObject(instance);
                         Selection.activeGameObject = instance;
@@ -122,6 +149,92 @@ namespace ChimeraHairMaster.Editor.Processing
             finally
             {
                 if (tempRoot != null) Object.DestroyImmediate(tempRoot);
+            }
+        }
+
+        // ========== FakeShadowの同梱 ==========
+
+        /// <summary>
+        /// エクスポート用一時RendererにFakeShadowの影レンダラーを追加する。
+        /// 影マテリアルはシーンセットアップと共通の固定フォルダにアセット保存される。
+        /// tempRenderers は component.targetRenderers と index 並行であること（除外判定を元Rendererで行う）。
+        /// 使用したステンシル値を返す（設定不備・シェーダー欠落時は警告してnull＝同梱スキップ）
+        /// </summary>
+        private static int? SetupFakeShadowForExport(ChimeraHairMaster component, List<SkinnedMeshRenderer?> tempRenderers)
+        {
+            if (!FakeShadowSetup.Validate(component, out var reason))
+            {
+                Debug.LogWarning($"[CHM] FakeShadowの同梱をスキップ: {reason}");
+                return null;
+            }
+
+            int stencilRef = FakeShadowSetup.ResolveStencilRef(component);
+            int shadowQueue = FakeShadowSetup.ComputeShadowRenderQueue(component);
+            var shadowMaterial = FakeShadowSceneSetup.CreateOrUpdateShadowMaterialAsset(component, shadowQueue, stencilRef);
+            if (shadowMaterial == null)
+            {
+                Debug.LogWarning($"[CHM] FakeShadowの同梱をスキップ: シェーダー '{FakeShadowSetup.ShadowShaderName}' が見つかりません（lilToonを確認してください）");
+                return null;
+            }
+
+            var processedMaterials = new HashSet<Material>();
+            bool bumpedAnyHairMaterial = false;
+            int createdCount = 0;
+            for (int i = 0; i < tempRenderers.Count; i++)
+            {
+                var renderer = tempRenderers[i];
+                if (renderer == null || renderer.sharedMesh == null) continue;
+
+                // 元アバターに既存の "(CHM FakeShadow)" 子があるとアバター複製に含まれているため作り直す
+                RemoveShadowChildren(renderer);
+
+                // 髪本体を影の上に描くための queue 引き上げ（一時Rendererが参照する
+                // マテリアルを直接調整。エクスポート用クローンならPrefab側のみに効く）。
+                // 除外髪にも適用する（他の髪の影が除外髪の上に乗るのを防ぐため）
+                foreach (var material in renderer.sharedMaterials)
+                {
+                    if (material == null || material == shadowMaterial) continue;
+                    if (!processedMaterials.Add(material)) continue;
+                    if (material.renderQueue > shadowQueue) continue;
+                    material.renderQueue = shadowQueue + 1;
+                    EditorUtility.SetDirty(material);
+                    bumpedAnyHairMaterial = true;
+                }
+
+                // 除外指定された髪には影レンダラーを作らない（判定は元Rendererで行う）
+                var originalRenderer = i < component.targetRenderers.Count ? component.targetRenderers[i] : null;
+                if (component.IsFakeShadowExcluded(originalRenderer)) continue;
+
+                // MA BlendshapeSync は付けない（Prefab配置後にパス参照が解決できないため）
+                FakeShadowSetup.CreateShadowRenderer(renderer, shadowMaterial, setupBlendShapeSync: false);
+                createdCount++;
+            }
+            FakeShadowSetup.WarnIfQueueBumpEntersTransparentRange(shadowQueue, bumpedAnyHairMaterial);
+
+            if (createdCount == 0)
+            {
+                Debug.LogWarning("[CHM] FakeShadow: すべての髪が除外されているため影レンダラーを同梱しませんでした");
+            }
+
+            return stencilRef;
+        }
+
+        /// <summary>既存の "(CHM FakeShadow)" 子レンダラーを削除する（一時オブジェクト用・Undo不要）</summary>
+        private static void RemoveShadowChildren(SkinnedMeshRenderer renderer)
+        {
+            string shadowName = FakeShadowSetup.GetShadowRendererName(renderer);
+            var toRemove = new List<GameObject>();
+            foreach (Transform child in renderer.transform)
+            {
+                if (child.name == shadowName && child.GetComponent<SkinnedMeshRenderer>() != null)
+                {
+                    toRemove.Add(child.gameObject);
+                }
+            }
+
+            foreach (var go in toRemove)
+            {
+                Object.DestroyImmediate(go);
             }
         }
 

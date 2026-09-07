@@ -17,9 +17,17 @@ namespace ChimeraHairMaster.Editor.NDMF
         /// </summary>
         internal static readonly List<GameObject> GameObjectsToCleanup = new List<GameObject>();
 
+        /// <summary>
+        /// このビルドで生成した統合Renderer（コンポーネント → 統合Renderer）
+        /// 後続のFakeShadowPassが統合後の髪Rendererを参照するために使用
+        /// </summary>
+        internal static readonly Dictionary<ChimeraHairMaster, SkinnedMeshRenderer> MergedRenderers
+            = new Dictionary<ChimeraHairMaster, SkinnedMeshRenderer>();
+
         protected override void Execute(BuildContext context)
         {
             GameObjectsToCleanup.Clear();
+            MergedRenderers.Clear();
 
             var components = context.AvatarRootObject.GetComponentsInChildren<ChimeraHairMaster>(true);
 
@@ -75,6 +83,8 @@ namespace ChimeraHairMaster.Editor.NDMF
             );
 
             Debug.Log($"[ChimeraHairMaster] 統合Renderer作成完了: 頂点数={mergeResult.MergedMesh.vertexCount}, ボーン数={mergeResult.Bones.Length}");
+
+            MergedRenderers[component] = mergedRenderer;
 
             // 元のRendererを処理：残すサブメッシュがあればそのメッシュを割り当て、無ければ削除
             for (int r = 0; r < component.targetRenderers.Count; r++)

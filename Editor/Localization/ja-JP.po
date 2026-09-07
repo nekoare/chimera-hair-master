@@ -526,10 +526,10 @@ msgid "Inspector:PrefabExportSection"
 msgstr "Prefab出力"
 
 msgid "Inspector:PrefabExportInfo"
-msgstr "色合わせ・マテリアル設定・変形情報を反映した髪パーツのPrefabを生成します。\n生成されたPrefabをアバター直下に配置してください。"
+msgstr "色合わせ・マテリアル設定・変形情報を反映した髪パーツのPrefabを生成します。\n生成されたPrefabは自動でアバター直下に配置されます。"
 
 msgid "Inspector:PrefabExportInfoNoColor"
-msgstr "マテリアル設定・変形情報を反映した髪パーツのPrefabを生成します。\n生成されたPrefabをアバター直下に配置してください。"
+msgstr "マテリアル設定・変形情報を反映した髪パーツのPrefabを生成します。\n生成されたPrefabは自動でアバター直下に配置されます。"
 
 msgid "Inspector:PrefabExportMeshMergeIgnored"
 msgstr "メッシュ統合設定は無視されます（Renderer個別で出力します）。"
@@ -904,3 +904,67 @@ msgstr "適用する"
 
 msgid "Inspector:Confirm:Cancel"
 msgstr "キャンセル"
+
+msgid "Inspector:FakeShadowSettings"
+msgstr "FakeShadow設定"
+
+msgid "Inspector:FakeShadowHelp"
+msgstr "lilToonのFakeShadowシェーダーを用いて髪が顔に落とす影を追加します。\n顔のマテリアルはビルド時、エクスポート時にクローンへ差し替えられます。\n顔が既にステンシル（まつ毛の透け表現など）を使っている場合は、詳細設定のステンシル値を既存の設定に合わせてください。\n影はNDMFプレビューにも表示されます。"
+
+msgid "Inspector:FakeShadowEnable"
+msgstr "FakeShadowを有効にする"
+
+msgid "Inspector:FakeShadowFaceRenderer"
+msgstr "顔のRenderer"
+
+
+msgid "Inspector:FakeShadowFaceMaterials"
+msgstr "影を受ける顔マテリアル"
+
+msgid "Inspector:FakeShadowColor"
+msgstr "影の色"
+
+msgid "Inspector:FakeShadowDirection"
+msgstr "影の向き"
+
+msgid "Inspector:FakeShadowOffset"
+msgstr "影のずらし量"
+
+msgid "Inspector:FakeShadowAdvanced"
+msgstr "詳細設定"
+
+msgid "Inspector:FakeShadowStencilRef"
+msgstr "ステンシル値"
+
+msgid "Inspector:FakeShadowDepthBias"
+msgstr "深度バイアス"
+
+msgid "Inspector:FakeShadowFaceMissing"
+msgstr "顔のRendererを設定してください。"
+
+msgid "Inspector:FakeShadowNoFaceMaterial"
+msgstr "影を受ける顔マテリアルを1つ以上選択してください。"
+
+msgid "Inspector:FakeShadowNonLilToonFace"
+msgstr "選択した顔マテリアルにステンシル設定がありません（lilToon系シェーダーのみ対応）。"
+
+msgid "Inspector:FakeShadowApplyButton"
+msgstr "FakeShadow設定をエクスポート"
+
+msgid "Inspector:FakeShadowApplyConfirm"
+msgstr "FakeShadowをシーンのアバターへ直接セットアップします。\n・各髪の子に影レンダラーを追加（マテリアルは Assets/ChimeraHairMaster/Generated/FakeShadow に保存）\n・顔マテリアルはステンシル書き込み版のクローンに差し替え（クローンは元マテリアルと同じフォルダに保存。既に書き込み済みの場合は変更しません）\n・髪マテリアルの renderQueue を必要に応じて直接変更（同じマテリアルを使う他のアバターにも影響します）\n・適用後は「FakeShadowを有効にする」がOFFになります（プレビュー/ビルドとの二重適用防止）\n操作は Undo で戻せます。実行しますか？"
+
+msgid "Inspector:FakeShadowExportTexture"
+msgstr "FakeShadowもセットアップする"
+
+msgid "Inspector:FakeShadowExportPrefab"
+msgstr "FakeShadowを含める"
+
+msgid "Inspector:FakeShadowPrefabConfirm"
+msgstr "FakeShadowを含めてPrefabを出力します。\n・影レンダラーと影マテリアルはPrefabに含まれます\n・顔はPrefabに含まれないため、シーン上のアバターの顔マテリアルがステンシル書き込み版のクローンに置き換わります（Undoで戻せます）\n・髪マテリアルのrenderQueueを必要に応じて調整します\n実行しますか？"
+
+msgid "Inspector:FakeShadowHairRenderers"
+msgstr "影を落とす髪"
+
+msgid "Inspector:FakeShadowHairMergeNote"
+msgstr "メッシュ統合ON時、統合された髪はまとめて影の対象になります（この選択は統合されず残る髪にのみ有効です）。"

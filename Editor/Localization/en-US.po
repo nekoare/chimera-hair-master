@@ -526,10 +526,10 @@ msgid "Inspector:PrefabExportSection"
 msgstr "Prefab Export"
 
 msgid "Inspector:PrefabExportInfo"
-msgstr "Generates a hair Prefab with color matching, material settings, and deformation applied.\nPlace the generated Prefab under the avatar root."
+msgstr "Generates a hair Prefab with color matching, material settings, and deformation applied.\nThe generated Prefab is automatically placed under the avatar root."
 
 msgid "Inspector:PrefabExportInfoNoColor"
-msgstr "Generates a hair Prefab with material settings and deformation applied.\nPlace the generated Prefab under the avatar root."
+msgstr "Generates a hair Prefab with material settings and deformation applied.\nThe generated Prefab is automatically placed under the avatar root."
 
 msgid "Inspector:PrefabExportMeshMergeIgnored"
 msgstr "Mesh merge settings will be ignored (renderers are exported individually)."
@@ -904,3 +904,67 @@ msgstr "Apply"
 
 msgid "Inspector:Confirm:Cancel"
 msgstr "Cancel"
+
+msgid "Inspector:FakeShadowSettings"
+msgstr "FakeShadow Settings"
+
+msgid "Inspector:FakeShadowHelp"
+msgstr "Adds a shadow cast by the hair onto the face using lilToon's FakeShadow shader.\nFace materials are swapped for clones at build time and on export.\nIf the face already uses stencils (e.g. eyelash transparency), match the Stencil Ref in Advanced to the existing setup.\nThe shadow is also shown in the NDMF preview."
+
+msgid "Inspector:FakeShadowEnable"
+msgstr "Enable FakeShadow"
+
+msgid "Inspector:FakeShadowFaceRenderer"
+msgstr "Face Renderer"
+
+
+msgid "Inspector:FakeShadowFaceMaterials"
+msgstr "Face materials receiving the shadow"
+
+msgid "Inspector:FakeShadowColor"
+msgstr "Shadow Color"
+
+msgid "Inspector:FakeShadowDirection"
+msgstr "Shadow Direction"
+
+msgid "Inspector:FakeShadowOffset"
+msgstr "Shadow Offset"
+
+msgid "Inspector:FakeShadowAdvanced"
+msgstr "Advanced"
+
+msgid "Inspector:FakeShadowStencilRef"
+msgstr "Stencil Ref"
+
+msgid "Inspector:FakeShadowDepthBias"
+msgstr "Depth Bias"
+
+msgid "Inspector:FakeShadowFaceMissing"
+msgstr "Assign the face Renderer."
+
+msgid "Inspector:FakeShadowNoFaceMaterial"
+msgstr "Select at least one face material to receive the shadow."
+
+msgid "Inspector:FakeShadowNonLilToonFace"
+msgstr "The selected face materials have no stencil properties (only lilToon-family shaders are supported)."
+
+msgid "Inspector:FakeShadowApplyButton"
+msgstr "Export FakeShadow Setup"
+
+msgid "Inspector:FakeShadowApplyConfirm"
+msgstr "Sets up the FakeShadow directly on the avatar in the scene.\n- Adds a shadow renderer as a child of each hair renderer (materials are saved to Assets/ChimeraHairMaster/Generated/FakeShadow)\n- Swaps face materials for stencil-writing clones saved next to the original materials (materials that already write stencils are left untouched)\n- Adjusts hair material renderQueue in place when needed (this affects other avatars sharing the same materials)\n- \"Enable FakeShadow\" is turned OFF afterwards (prevents double application with preview/build)\nEverything can be reverted with Undo. Proceed?"
+
+msgid "Inspector:FakeShadowExportTexture"
+msgstr "Also set up FakeShadow"
+
+msgid "Inspector:FakeShadowExportPrefab"
+msgstr "Include FakeShadow"
+
+msgid "Inspector:FakeShadowPrefabConfirm"
+msgstr "Exports the prefab with the FakeShadow included.\n- Shadow renderers and the shadow material are included in the prefab\n- The face is not part of the prefab, so the face materials on the avatar in the scene are swapped for stencil-writing clones (revertible with Undo)\n- Hair material renderQueue is adjusted in place when needed\nProceed?"
+
+msgid "Inspector:FakeShadowHairRenderers"
+msgstr "Hair casting the shadow"
+
+msgid "Inspector:FakeShadowHairMergeNote"
+msgstr "When mesh merging is ON, merged hair casts the shadow as one unit (this selection only affects hair left unmerged)."

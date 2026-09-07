@@ -64,6 +64,8 @@ namespace ChimeraHairMaster.Editor
         private bool showBlurSharpAdjustment = false;
         private bool showStrandPattern = false;
         private bool showColorMaskSettings = false;
+        private bool showFakeShadowSettings = false;
+        private bool showFakeShadowAdvanced = false;
         private bool showPhysBoneList = false;
         private Dictionary<int, bool> physBoneFoldouts = new Dictionary<int, bool>();
 
@@ -72,6 +74,8 @@ namespace ChimeraHairMaster.Editor
         private const string PREF_UNIFY_SETTINGS = "CHM_UnifySettings";
         private const string PREF_APPLY_DEFORMATION = "CHM_ApplyDeformation";
         private const string PREF_PREFAB_APPLY_DEFORMATION = "CHM_PrefabApplyDeformation";
+        private const string PREF_APPLY_FAKESHADOW = "CHM_ApplyFakeShadow";
+        private const string PREF_PREFAB_INCLUDE_FAKESHADOW = "CHM_PrefabIncludeFakeShadow";
 
         // メッシュ変形UI
         private MeshDeformationInspectorUI meshDeformationUI;
@@ -307,6 +311,10 @@ namespace ChimeraHairMaster.Editor
                     UnityEditor.SceneView.RepaintAll();
                 }
             }
+
+            // FakeShadowセクション
+            DrawFakeShadowSettings();
+            EditorGUILayout.Space(10);
 
             // メッシュ変形セクション
             DrawMeshDeformationSection();
@@ -1168,6 +1176,286 @@ namespace ChimeraHairMaster.Editor
 
             EditorGUI.indentLevel--;
             EditorGUILayout.EndVertical();
+        }
+
+        /// <summary>
+        /// FakeShadow設定セクション
+        /// </summary>
+        private void DrawFakeShadowSettings()
+        {
+            var component = target as ChimeraHairMaster;
+            if (component == null) return;
+
+            // ヘッダーは他のトップレベルセクション（基本設定・色合わせ設定）と同じく
+            // フルワイドの foldoutHeader を単独で描画する（Horizontal に入れると
+            // ヘッダー背景の枠が途中で切れた箱に見える）。？は中身の先頭行に置く
+            showFakeShadowSettings = EditorGUILayout.Foldout(showFakeShadowSettings, CHMLocales.Tr("Inspector:FakeShadowSettings"), true, EditorStyles.foldoutHeader);
+            if (!showFakeShadowSettings) return;
+
+            EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+            EditorGUI.indentLevel++;
+
+            // 有効トグル（ONにした時に顔Rendererを自動検出）
+            EditorGUILayout.BeginHorizontal();
+            EditorGUI.BeginChangeCheck();
+            bool fakeShadowEnabled = EditorGUILayout.Toggle(CHMLocales.Tr("Inspector:FakeShadowEnable"), component.enableFakeShadow);
+            if (EditorGUI.EndChangeCheck())
+            {
+                Undo.RecordObject(component, "Toggle FakeShadow");
+                component.enableFakeShadow = fakeShadowEnabled;
+                if (fakeShadowEnabled && component.fakeShadowFaceRenderer == null)
+                {
+                    AutoAssignFakeShadowFaceRenderer(component);
+                }
+                EditorUtility.SetDirty(component);
+            }
+            DrawHelpMark("Inspector:FakeShadowHelp");
+            EditorGUILayout.EndHorizontal();
+            DrawHelpBoxIfOpen("Inspector:FakeShadowHelp");
+
+            if (component.enableFakeShadow)
+            {
+                // 顔Renderer（有効化時に "Body" を自動検出済み。変えたい場合は直接差し替える）
+                EditorGUI.BeginChangeCheck();
+                var newFaceRenderer = (SkinnedMeshRenderer)EditorGUILayout.ObjectField(
+                    CHMLocales.Tr("Inspector:FakeShadowFaceRenderer"),
+                    component.fakeShadowFaceRenderer,
+                    typeof(SkinnedMeshRenderer),
+                    true);
+                if (EditorGUI.EndChangeCheck())
+                {
+                    Undo.RecordObject(component, "Change FakeShadow Face Renderer");
+                    component.fakeShadowFaceRenderer = newFaceRenderer;
+                    EditorUtility.SetDirty(component);
+                }
+
+                if (component.fakeShadowFaceRenderer == null)
+                {
+                    EditorGUILayout.HelpBox(CHMLocales.Tr("Inspector:FakeShadowFaceMissing"), MessageType.Warning);
+                }
+                else
+                {
+                    DrawFakeShadowFaceMaterialSelection(component);
+                }
+
+                EditorGUILayout.Space(3);
+                DrawFakeShadowHairSelection(component);
+
+                // 影の見た目
+                EditorGUI.BeginChangeCheck();
+                var newShadowColor = EditorGUILayout.ColorField(CHMLocales.Tr("Inspector:FakeShadowColor"), component.fakeShadowColor);
+                var newDirection = EditorGUILayout.Vector2Field(CHMLocales.Tr("Inspector:FakeShadowDirection"), component.fakeShadowDirection);
+                var newOffset = EditorGUILayout.Slider(CHMLocales.Tr("Inspector:FakeShadowOffset"), component.fakeShadowOffset, 0f, 0.05f);
+                if (EditorGUI.EndChangeCheck())
+                {
+                    Undo.RecordObject(component, "Change FakeShadow Settings");
+                    component.fakeShadowColor = newShadowColor;
+                    component.fakeShadowDirection = newDirection;
+                    component.fakeShadowOffset = newOffset;
+                    EditorUtility.SetDirty(component);
+                }
+
+                // 詳細設定
+                showFakeShadowAdvanced = EditorGUILayout.Foldout(showFakeShadowAdvanced, CHMLocales.Tr("Inspector:FakeShadowAdvanced"), true);
+                if (showFakeShadowAdvanced)
+                {
+                    EditorGUI.indentLevel++;
+                    EditorGUI.BeginChangeCheck();
+                    var newStencilRef = EditorGUILayout.IntSlider(CHMLocales.Tr("Inspector:FakeShadowStencilRef"), component.fakeShadowStencilRef, 1, 255);
+                    var newDepthBias = EditorGUILayout.Vector2Field(CHMLocales.Tr("Inspector:FakeShadowDepthBias"), component.fakeShadowDepthBias);
+                    if (EditorGUI.EndChangeCheck())
+                    {
+                        Undo.RecordObject(component, "Change FakeShadow Advanced Settings");
+                        component.fakeShadowStencilRef = newStencilRef;
+                        component.fakeShadowDepthBias = newDepthBias;
+                        EditorUtility.SetDirty(component);
+                    }
+                    EditorGUI.indentLevel--;
+                }
+
+                // シーンへ直接セットアップ（NDMF不要の焼き込み。Prefab出力/PNG出力後の最終工程向け）
+                EditorGUILayout.Space(3);
+                if (GUILayout.Button(CHMLocales.Tr("Inspector:FakeShadowApplyButton")))
+                {
+                    if (EditorUtility.DisplayDialog(
+                            CHMLocales.Tr("Inspector:FakeShadowSettings"),
+                            CHMLocales.Tr("Inspector:FakeShadowApplyConfirm"),
+                            "OK",
+                            "Cancel"))
+                    {
+                        var result = FakeShadowSceneSetup.Apply(component);
+                        if (result != null)
+                        {
+                            UnityEditor.SceneView.RepaintAll();
+                        }
+                    }
+                }
+            }
+
+            EditorGUI.indentLevel--;
+            EditorGUILayout.EndVertical();
+        }
+
+        /// <summary>
+        /// 影を受ける顔マテリアルのチェックボックス一覧を表示
+        /// </summary>
+        private void DrawFakeShadowFaceMaterialSelection(ChimeraHairMaster component)
+        {
+            var faceRenderer = component.fakeShadowFaceRenderer;
+            if (faceRenderer.sharedMesh == null) return;
+
+            var materials = faceRenderer.sharedMaterials;
+            if (materials == null || materials.Length == 0) return;
+
+            EditorGUILayout.LabelField(CHMLocales.Tr("Inspector:FakeShadowFaceMaterials"), EditorStyles.boldLabel);
+            EditorGUI.indentLevel++;
+
+            for (int i = 0; i < materials.Length; i++)
+            {
+                string materialName = materials[i] != null
+                    ? materials[i].name
+                    : string.Format(CHMLocales.Tr("Inspector:MaterialFallback"), i);
+
+                bool selected = component.fakeShadowFaceMaterialIndexes != null
+                    && component.fakeShadowFaceMaterialIndexes.Contains(i);
+
+                EditorGUI.BeginChangeCheck();
+                bool newSelected = EditorGUILayout.ToggleLeft($"[{i}] {materialName}", selected);
+                if (EditorGUI.EndChangeCheck())
+                {
+                    Undo.RecordObject(component, "Change FakeShadow Face Materials");
+                    component.fakeShadowFaceMaterialIndexes ??= new List<int>();
+                    if (newSelected)
+                    {
+                        if (!component.fakeShadowFaceMaterialIndexes.Contains(i))
+                            component.fakeShadowFaceMaterialIndexes.Add(i);
+                    }
+                    else
+                    {
+                        component.fakeShadowFaceMaterialIndexes.Remove(i);
+                    }
+                    component.fakeShadowFaceMaterialIndexes.Sort();
+                    EditorUtility.SetDirty(component);
+                }
+            }
+
+            EditorGUI.indentLevel--;
+
+            if (component.fakeShadowFaceMaterialIndexes == null || component.fakeShadowFaceMaterialIndexes.Count == 0)
+            {
+                EditorGUILayout.HelpBox(CHMLocales.Tr("Inspector:FakeShadowNoFaceMaterial"), MessageType.Warning);
+            }
+            else
+            {
+                // 選択したマテリアルにステンシルプロパティがない（lilToon系でない）場合の警告
+                bool anyStencilCapable = component.fakeShadowFaceMaterialIndexes.Any(
+                    i => i >= 0 && i < materials.Length && materials[i] != null && materials[i].HasProperty("_StencilRef"));
+                if (!anyStencilCapable)
+                {
+                    EditorGUILayout.HelpBox(CHMLocales.Tr("Inspector:FakeShadowNonLilToonFace"), MessageType.Warning);
+                }
+            }
+        }
+
+        /// <summary>
+        /// 影を落とす髪Rendererのチェックボックス一覧を表示（チェックOFF＝除外リストに登録）。
+        /// renderQueue調整は除外髪にも適用されるため、除外＝影レンダラーを作らないという意味のみ
+        /// </summary>
+        private void DrawFakeShadowHairSelection(ChimeraHairMaster component)
+        {
+            if (component.targetRenderers == null || component.targetRenderers.Count == 0) return;
+
+            EditorGUILayout.LabelField(CHMLocales.Tr("Inspector:FakeShadowHairRenderers"), EditorStyles.boldLabel);
+
+            if (component.enableMeshMerge)
+            {
+                EditorGUILayout.HelpBox(CHMLocales.Tr("Inspector:FakeShadowHairMergeNote"), MessageType.Info);
+            }
+
+            EditorGUI.indentLevel++;
+            for (int i = 0; i < component.targetRenderers.Count; i++)
+            {
+                var renderer = component.targetRenderers[i];
+                if (renderer == null) continue;
+
+                bool included = !component.IsFakeShadowExcluded(renderer);
+                EditorGUI.BeginChangeCheck();
+                bool newIncluded = EditorGUILayout.ToggleLeft(renderer.name, included);
+                if (EditorGUI.EndChangeCheck())
+                {
+                    Undo.RecordObject(component, "Change FakeShadow Hair Selection");
+                    component.fakeShadowExcludedRenderers ??= new List<SkinnedMeshRenderer>();
+                    if (newIncluded)
+                    {
+                        component.fakeShadowExcludedRenderers.Remove(renderer);
+                    }
+                    else if (!component.fakeShadowExcludedRenderers.Contains(renderer))
+                    {
+                        component.fakeShadowExcludedRenderers.Add(renderer);
+                    }
+                    EditorUtility.SetDirty(component);
+                }
+            }
+            EditorGUI.indentLevel--;
+        }
+
+        /// <summary>
+        /// シーン上でFakeShadowセットアップ済みか（対象髪Rendererに "(CHM FakeShadow)" 子があるか）
+        /// </summary>
+        private static bool HasSceneFakeShadow(ChimeraHairMaster component)
+        {
+            if (component.targetRenderers == null) return false;
+
+            foreach (var renderer in component.targetRenderers)
+            {
+                if (renderer == null) continue;
+                string shadowName = FakeShadowSetup.GetShadowRendererName(renderer);
+                foreach (Transform child in renderer.transform)
+                {
+                    if (child.name == shadowName && child.GetComponent<SkinnedMeshRenderer>() != null)
+                    {
+                        return true;
+                    }
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// アバター内から "Body" / "body" のRendererを顔として自動検出する
+        /// </summary>
+        private static void AutoAssignFakeShadowFaceRenderer(ChimeraHairMaster component)
+        {
+            GameObject avatarRoot = null;
+#if CHM_VRCSDK3_AVATARS
+            var descriptor = component.GetComponentInParent<VRC.SDK3.Avatars.Components.VRCAvatarDescriptor>();
+            if (descriptor != null) avatarRoot = descriptor.gameObject;
+#endif
+            if (avatarRoot == null && component.transform.root != null)
+            {
+                avatarRoot = component.transform.root.gameObject;
+            }
+            if (avatarRoot == null) return;
+
+            SkinnedMeshRenderer lowercaseBody = null;
+            foreach (var renderer in avatarRoot.GetComponentsInChildren<SkinnedMeshRenderer>(true))
+            {
+                if (renderer.gameObject.name == "Body")
+                {
+                    component.fakeShadowFaceRenderer = renderer;
+                    return;
+                }
+                if (lowercaseBody == null && renderer.gameObject.name == "body")
+                {
+                    lowercaseBody = renderer;
+                }
+            }
+
+            if (lowercaseBody != null)
+            {
+                component.fakeShadowFaceRenderer = lowercaseBody;
+            }
         }
 
         /// <summary>
@@ -2150,6 +2438,7 @@ namespace ChimeraHairMaster.Editor
             bool applyTexture = EditorPrefs.GetBool(PREF_APPLY_TEXTURE, true);
             bool unifySettings = EditorPrefs.GetBool(PREF_UNIFY_SETTINGS, true);
             bool applyDeformation = EditorPrefs.GetBool(PREF_APPLY_DEFORMATION, false);
+            bool applyFakeShadow = EditorPrefs.GetBool(PREF_APPLY_FAKESHADOW, true);
 
             EditorGUI.BeginChangeCheck();
             applyTexture = EditorGUILayout.ToggleLeft(CHMLocales.Tr("Inspector:ApplyTexture"), applyTexture);
@@ -2167,11 +2456,19 @@ namespace ChimeraHairMaster.Editor
                     applyDeformation);
             }
 
+            // FakeShadowが有効な場合のみ表示
+            if (component.enableFakeShadow)
+            {
+                applyFakeShadow = EditorGUILayout.ToggleLeft(
+                    CHMLocales.Tr("Inspector:FakeShadowExportTexture"), applyFakeShadow);
+            }
+
             if (EditorGUI.EndChangeCheck())
             {
                 EditorPrefs.SetBool(PREF_APPLY_TEXTURE, applyTexture);
                 EditorPrefs.SetBool(PREF_UNIFY_SETTINGS, unifySettings);
                 EditorPrefs.SetBool(PREF_APPLY_DEFORMATION, applyDeformation);
+                EditorPrefs.SetBool(PREF_APPLY_FAKESHADOW, applyFakeShadow);
             }
 
             // 適用ボタン
@@ -2199,6 +2496,13 @@ namespace ChimeraHairMaster.Editor
                     if (applyDeformation && hasDeformation)
                     {
                         ApplyDeformationToRenderers(component);
+                    }
+
+                    // FakeShadowのシーンセットアップ
+                    // （変形焼き込みでメッシュが差し替わった後に実行する。影は差し替え後のメッシュを共有）
+                    if (component.enableFakeShadow && applyFakeShadow)
+                    {
+                        FakeShadowSceneSetup.Apply(component);
                     }
 
                     serializedObject.Update();
@@ -2272,6 +2576,24 @@ namespace ChimeraHairMaster.Editor
                 }
             }
 
+            // FakeShadowが有効、またはシーンセットアップ済み（髪に "(CHM FakeShadow)" 子あり）の場合に表示。
+            // シーンセットアップは適用後に enableFakeShadow を OFF にするため、トグルだけを
+            // 条件にすると「セットアップ済みの影をPrefabにも入れたい」ケースで選択肢が出せない。
+            // なお複製内の "(CHM FakeShadow)" 子は CleanUp で除去されるため、同梱は常に設定からの
+            // 作り直しになる（影マテリアルはシーンと同一アセットを共用するので同じ影になる）
+            bool prefabIncludeFakeShadow = EditorPrefs.GetBool(PREF_PREFAB_INCLUDE_FAKESHADOW, true);
+            bool fakeShadowAvailable = component.enableFakeShadow || HasSceneFakeShadow(component);
+            if (fakeShadowAvailable)
+            {
+                EditorGUI.BeginChangeCheck();
+                prefabIncludeFakeShadow = EditorGUILayout.ToggleLeft(
+                    CHMLocales.Tr("Inspector:FakeShadowExportPrefab"), prefabIncludeFakeShadow);
+                if (EditorGUI.EndChangeCheck())
+                {
+                    EditorPrefs.SetBool(PREF_PREFAB_INCLUDE_FAKESHADOW, prefabIncludeFakeShadow);
+                }
+            }
+
             bool canExport = CanGeneratePreview(component);
             GUI.enabled = canExport;
             bool exportClicked = GUILayout.Button(CHMLocales.Tr("Inspector:PrefabExportButton"), GUILayout.Height(28));
@@ -2292,7 +2614,20 @@ namespace ChimeraHairMaster.Editor
             if (exportClicked)
             {
                 bool deformation = prefabApplyDeformation && hasDeformation;
-                Processing.PrefabExporter.Export(component, deformation);
+                bool includeFakeShadow = fakeShadowAvailable && prefabIncludeFakeShadow;
+
+                // FakeShadow同梱時は、顔マテリアルがシーン側で置き換わる旨を確認してから実行
+                // （キャンセルで出力自体を中止。含めたくない場合はチェックを外す）
+                if (includeFakeShadow && !EditorUtility.DisplayDialog(
+                        CHMLocales.Tr("Inspector:PrefabExportSection"),
+                        CHMLocales.Tr("Inspector:FakeShadowPrefabConfirm"),
+                        "OK",
+                        "Cancel"))
+                {
+                    GUIUtility.ExitGUI();
+                }
+
+                Processing.PrefabExporter.Export(component, deformation, includeFakeShadow);
                 serializedObject.Update();
                 GUIUtility.ExitGUI();
             }

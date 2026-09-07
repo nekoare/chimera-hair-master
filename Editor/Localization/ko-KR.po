@@ -526,10 +526,10 @@ msgid "Inspector:PrefabExportSection"
 msgstr "Prefab 출력"
 
 msgid "Inspector:PrefabExportInfo"
-msgstr "색상 매칭・Material 설정・변형 정보를 반영한 머리 Prefab을 생성합니다.\n생성된 Prefab을 아바타 루트 아래에 배치해 주세요."
+msgstr "색상 매칭・Material 설정・변형 정보를 반영한 머리 Prefab을 생성합니다.\n생성된 Prefab은 아바타 루트 아래에 자동으로 배치됩니다."
 
 msgid "Inspector:PrefabExportInfoNoColor"
-msgstr "Material 설정・변형 정보를 반영한 머리 Prefab을 생성합니다.\n생성된 Prefab을 아바타 루트 아래에 배치해 주세요."
+msgstr "Material 설정・변형 정보를 반영한 머리 Prefab을 생성합니다.\n생성된 Prefab은 아바타 루트 아래에 자동으로 배치됩니다."
 
 msgid "Inspector:PrefabExportMeshMergeIgnored"
 msgstr "메시 통합 설정은 무시됩니다(Renderer 개별로 출력)."
@@ -904,3 +904,67 @@ msgstr "적용"
 
 msgid "Inspector:Confirm:Cancel"
 msgstr "취소"
+
+msgid "Inspector:FakeShadowSettings"
+msgstr "FakeShadow 설정"
+
+msgid "Inspector:FakeShadowHelp"
+msgstr "lilToon의 FakeShadow 셰이더로 머리카락이 얼굴에 드리우는 그림자를 추가합니다.\n얼굴 머티리얼은 빌드 시, 내보내기 시 클론으로 교체됩니다.\n얼굴이 이미 스텐실(속눈썹 비침 등)을 사용 중이라면 고급 설정의 스텐실 값을 기존 설정에 맞춰 주세요.\n그림자는 NDMF 미리보기에도 표시됩니다."
+
+msgid "Inspector:FakeShadowEnable"
+msgstr "FakeShadow 사용"
+
+msgid "Inspector:FakeShadowFaceRenderer"
+msgstr "얼굴 Renderer"
+
+
+msgid "Inspector:FakeShadowFaceMaterials"
+msgstr "그림자를 받을 얼굴 머티리얼"
+
+msgid "Inspector:FakeShadowColor"
+msgstr "그림자 색"
+
+msgid "Inspector:FakeShadowDirection"
+msgstr "그림자 방향"
+
+msgid "Inspector:FakeShadowOffset"
+msgstr "그림자 오프셋"
+
+msgid "Inspector:FakeShadowAdvanced"
+msgstr "고급 설정"
+
+msgid "Inspector:FakeShadowStencilRef"
+msgstr "스텐실 값"
+
+msgid "Inspector:FakeShadowDepthBias"
+msgstr "깊이 바이어스"
+
+msgid "Inspector:FakeShadowFaceMissing"
+msgstr "얼굴 Renderer를 설정해 주세요."
+
+msgid "Inspector:FakeShadowNoFaceMaterial"
+msgstr "그림자를 받을 얼굴 머티리얼을 1개 이상 선택해 주세요."
+
+msgid "Inspector:FakeShadowNonLilToonFace"
+msgstr "선택한 얼굴 머티리얼에 스텐실 설정이 없습니다(lilToon 계열 셰이더만 지원)."
+
+msgid "Inspector:FakeShadowApplyButton"
+msgstr "FakeShadow 설정 내보내기"
+
+msgid "Inspector:FakeShadowApplyConfirm"
+msgstr "FakeShadow를 씬의 아바타에 직접 설정합니다.\n- 각 머리카락의 자식으로 그림자 렌더러를 추가(머티리얼은 Assets/ChimeraHairMaster/Generated/FakeShadow에 저장)\n- 얼굴 머티리얼을 스텐실 쓰기 클론으로 교체하고 원본 머티리얼과 같은 폴더에 저장(이미 쓰기 설정이 있으면 변경하지 않음)\n- 필요 시 머리카락 머티리얼의 renderQueue를 직접 조정(같은 머티리얼을 쓰는 다른 아바타에도 영향)\n- 완료 후 'FakeShadow 사용'이 OFF가 됩니다(미리보기/빌드와의 중복 적용 방지)\n모든 조작은 Undo로 되돌릴 수 있습니다. 실행할까요?"
+
+msgid "Inspector:FakeShadowExportTexture"
+msgstr "FakeShadow도 함께 설정"
+
+msgid "Inspector:FakeShadowExportPrefab"
+msgstr "FakeShadow 포함"
+
+msgid "Inspector:FakeShadowPrefabConfirm"
+msgstr "FakeShadow를 포함하여 Prefab을 출력합니다.\n- 그림자 렌더러와 그림자 머티리얼은 Prefab에 포함됩니다\n- 얼굴은 Prefab에 포함되지 않으므로, 씬의 아바타 얼굴 머티리얼이 스텐실 쓰기 클론으로 교체됩니다(Undo로 되돌릴 수 있음)\n- 필요 시 머리카락 머티리얼의 renderQueue를 직접 조정합니다\n실행할까요?"
+
+msgid "Inspector:FakeShadowHairRenderers"
+msgstr "그림자를 드리울 머리카락"
+
+msgid "Inspector:FakeShadowHairMergeNote"
+msgstr "메시 통합이 ON일 때 통합된 머리카락은 한꺼번에 그림자를 드리웁니다(이 선택은 통합되지 않고 남은 머리카락에만 적용됩니다)."

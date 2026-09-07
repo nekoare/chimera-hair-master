@@ -582,7 +582,11 @@ namespace ChimeraHairMaster.Editor.NDMF
 
                     if (targetRenderers.Count > 0)
                     {
-                        resultSet.Add(RenderGroup.For(targetRenderers).WithData((avatar, enabledComponents)));
+                        // データ等価性はグループ維持/ノード再利用の判定に使われる（内容の変更検知は
+                        // Observe が担うため、ここは構成が同じかどうかの比較でよい）
+                        resultSet.Add(RenderGroup.For(targetRenderers).WithData(
+                            (avatar, enabledComponents),
+                            (a, b) => a.Item1 == b.Item1 && a.Item2.SequenceEqual(b.Item2)));
                     }
                 }
                 catch (Exception ex)
@@ -2133,7 +2137,10 @@ namespace ChimeraHairMaster.Editor.NDMF
                     if (_remappedMeshes != null && proxy is SkinnedMeshRenderer smr)
                     {
                         int originalId = original.GetInstanceID();
-                        if (_remappedMeshes.TryGetValue(originalId, out var mesh) && smr.sharedMesh != mesh)
+                        // 後段のFakeShadowフィルタが影サブメッシュ追記版に差し替えている場合は
+                        // 書き戻さない（毎フレーム相互に上書きし合うのを防ぐ）
+                        if (_remappedMeshes.TryGetValue(originalId, out var mesh) && smr.sharedMesh != mesh
+                            && !FakeShadowPreview.IsShadowAppendedVariant(smr.sharedMesh, mesh))
                         {
                             smr.sharedMesh = mesh;
                         }

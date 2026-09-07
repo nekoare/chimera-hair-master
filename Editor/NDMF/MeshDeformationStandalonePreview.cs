@@ -57,8 +57,12 @@ namespace ChimeraHairMaster.Editor.NDMF
 
                     if (targetRenderers.Count > 0)
                     {
+                        // データ等価性はグループ維持/ノード再利用の判定に使われる（内容の変更検知は
+                        // Observe が担うため、ここは構成が同じかどうかの比較でよい）
                         resultSet.Add(RenderGroup.For(targetRenderers)
-                            .WithData((avatar, components.ToArray())));
+                            .WithData(
+                                (avatar, components.ToArray()),
+                                (a, b) => a.Item1 == b.Item1 && a.Item2.SequenceEqual(b.Item2)));
                     }
                 }
                 catch (Exception ex)

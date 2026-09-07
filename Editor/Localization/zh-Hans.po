@@ -526,10 +526,10 @@ msgid "Inspector:PrefabExportSection"
 msgstr "Prefab导出"
 
 msgid "Inspector:PrefabExportInfo"
-msgstr "生成已反映颜色匹配、Material设置和变形信息的头发Prefab。\n请将生成的Prefab放置到Avatar根节点下。"
+msgstr "生成已反映颜色匹配、Material设置和变形信息的头发Prefab。\n生成的Prefab会自动放置到Avatar根节点下。"
 
 msgid "Inspector:PrefabExportInfoNoColor"
-msgstr "生成已反映Material设置和变形信息的头发Prefab。\n请将生成的Prefab放置到Avatar根节点下。"
+msgstr "生成已反映Material设置和变形信息的头发Prefab。\n生成的Prefab会自动放置到Avatar根节点下。"
 
 msgid "Inspector:PrefabExportMeshMergeIgnored"
 msgstr "Mesh合并设置将被忽略（按Renderer分别导出）。"
@@ -904,3 +904,67 @@ msgstr "应用"
 
 msgid "Inspector:Confirm:Cancel"
 msgstr "取消"
+
+msgid "Inspector:FakeShadowSettings"
+msgstr "FakeShadow 设置"
+
+msgid "Inspector:FakeShadowHelp"
+msgstr "使用 lilToon 的 FakeShadow 着色器为脸部添加头发投下的阴影。\n脸部材质会在构建时、导出时替换为克隆。\n如果脸部已在使用模板（如睫毛透视），请在高级设置中将模板值调整为与现有设置一致。\n阴影也会显示在 NDMF 预览中。"
+
+msgid "Inspector:FakeShadowEnable"
+msgstr "启用FakeShadow"
+
+msgid "Inspector:FakeShadowFaceRenderer"
+msgstr "脸部 Renderer"
+
+
+msgid "Inspector:FakeShadowFaceMaterials"
+msgstr "接受阴影的脸部材质"
+
+msgid "Inspector:FakeShadowColor"
+msgstr "阴影颜色"
+
+msgid "Inspector:FakeShadowDirection"
+msgstr "阴影方向"
+
+msgid "Inspector:FakeShadowOffset"
+msgstr "阴影偏移量"
+
+msgid "Inspector:FakeShadowAdvanced"
+msgstr "高级设置"
+
+msgid "Inspector:FakeShadowStencilRef"
+msgstr "模板值 (Stencil)"
+
+msgid "Inspector:FakeShadowDepthBias"
+msgstr "深度偏移"
+
+msgid "Inspector:FakeShadowFaceMissing"
+msgstr "请设置脸部 Renderer。"
+
+msgid "Inspector:FakeShadowNoFaceMaterial"
+msgstr "请至少选择一个接受阴影的脸部材质。"
+
+msgid "Inspector:FakeShadowNonLilToonFace"
+msgstr "所选脸部材质没有模板属性（仅支持 lilToon 系着色器）。"
+
+msgid "Inspector:FakeShadowApplyButton"
+msgstr "导出 FakeShadow 设置"
+
+msgid "Inspector:FakeShadowApplyConfirm"
+msgstr "将FakeShadow直接设置到场景中的模型上。\n- 在每个头发下添加阴影渲染器（材质保存到 Assets/ChimeraHairMaster/Generated/FakeShadow）\n- 脸部材质替换为带模板写入的克隆，保存在原材质所在文件夹（已在写入模板的材质不会被更改）\n- 必要时直接调整头发材质的 renderQueue（会影响使用相同材质的其他模型）\n- 完成后「启用FakeShadow」将变为OFF（防止与预览/构建重复应用）\n所有操作可用 Undo 撤销。是否执行？"
+
+msgid "Inspector:FakeShadowExportTexture"
+msgstr "同时设置FakeShadow"
+
+msgid "Inspector:FakeShadowExportPrefab"
+msgstr "包含FakeShadow"
+
+msgid "Inspector:FakeShadowPrefabConfirm"
+msgstr "将包含FakeShadow输出 Prefab。\n- 阴影渲染器和阴影材质会包含在 Prefab 中\n- 脸部不包含在 Prefab 中，因此场景中模型的脸部材质会被替换为带模板写入的克隆（可用 Undo 撤销）\n- 必要时会直接调整头发材质的 renderQueue\n是否执行？"
+
+msgid "Inspector:FakeShadowHairRenderers"
+msgstr "投射阴影的头发"
+
+msgid "Inspector:FakeShadowHairMergeNote"
+msgstr "网格合并开启时，被合并的头发会作为整体投射阴影（此选择仅对未被合并的头发有效）。"
