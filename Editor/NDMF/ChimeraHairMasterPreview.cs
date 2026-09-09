@@ -764,6 +764,8 @@ namespace ChimeraHairMaster.Editor.NDMF
             Material? baseMaterialForPreview = null;
             bool autoBaseMaterial = false;
             Dictionary<Texture2D, Texture2D>? newColorCacheTextures = null;
+            // キャッシュミス時のみ: 元テクスチャ → それを使う (renderer, submesh) 一覧（共有テクスチャの領域ごと合成用）
+            Dictionary<Texture2D, List<(SkinnedMeshRenderer renderer, int submeshIndex, float blurSharp)>>? slotUsers = null;
             bool colorCacheSaved = false;
             Processing.StrandPatternApplier.RefData? strandRef = null;
 
@@ -843,6 +845,7 @@ namespace ChimeraHairMaster.Editor.NDMF
                         }
 
                         newColorCacheTextures = new Dictionary<Texture2D, Texture2D>();
+                        slotUsers = CollectSlotTextureUsers(component);
                     }
                 }
 
@@ -970,7 +973,7 @@ namespace ChimeraHairMaster.Editor.NDMF
                             // キャッシュまたは新規変換で色変換済みテクスチャを取得
                             Texture2D? baseTex = GetOrCreateColorTransformedTexture(
                                 tex, cachedColorTransforms, newColorCacheTextures, settings,
-                                renderer, new[] { submeshIndex }, blurSharp);
+                                renderer, new[] { submeshIndex }, blurSharp, GetSharers(slotUsers, tex));
                             if (baseTex == null) continue;
 
                             Texture2D currentTex = baseTex;
@@ -1021,7 +1024,7 @@ namespace ChimeraHairMaster.Editor.NDMF
                             {
                                 Texture2D? baseTex = GetOrCreateColorTransformedTexture(
                                     tex, cachedColorTransforms, newColorCacheTextures, settings,
-                                    renderer, new[] { submeshIndex }, blurSharp);
+                                    renderer, new[] { submeshIndex }, blurSharp, GetSharers(slotUsers, tex));
 
                                 if (baseTex != null)
                                 {
@@ -1103,7 +1106,10 @@ namespace ChimeraHairMaster.Editor.NDMF
         }
 
         /// <summary>
-        /// 色変換済みテクスチャをキャッシュから取得、またはキャッシュミス時に新規生成してキャッシュに保存
+        /// 色変換済みテクスチャをキャッシュから取得、またはキャッシュミス時に新規生成してキャッシュに保存。
+        /// sharers（同じテクスチャを使う統合対象の (renderer, submesh) 群）が 2 件以上で UV が重ならなければ、
+        /// 領域ごとに自分の代表色・明るさ分布で変換して 1 枚に合成する（ビルドの ColorTransformPass と同じ結果）。
+        /// それ以外は従来どおり、最初に要求した (renderer, submesh) の領域統計でテクスチャ全体を変換する。
         /// </summary>
         private static Texture2D? GetOrCreateColorTransformedTexture(
             Texture2D originalTex,
@@ -1112,11 +1118,11 @@ namespace ChimeraHairMaster.Editor.NDMF
             Processing.ColorTransformSettings? settings,
             SkinnedMeshRenderer? renderer = null,
             IReadOnlyCollection<int>? submeshIndices = null,
-            float blurSharp = 0f)
+            float blurSharp = 0f,
+            IReadOnlyList<(SkinnedMeshRenderer renderer, int submeshIndex, float blurSharp)>? sharers = null)
         {
             // キャッシュヒット: 既存の変換済みテクスチャを返す
             // blurSharp は colorHash に含まれているので、変更時はキャッシュ全体が無効化される
-            // 同じ colorHash 内で異なる blurSharp が混在すると先勝ちになるが、実用上は稀
             if (cachedTransforms != null && cachedTransforms.TryGetValue(originalTex, out var cached))
             {
                 return cached;
@@ -1131,6 +1137,44 @@ namespace ChimeraHairMaster.Editor.NDMF
             // 色変換を実行
             if (settings == null) return null;
 
+            Texture2D? processedTex = null;
+
+            // 共有テクスチャ: 領域ごと変換→合成（UV 非重複のときのみ）
+            if (sharers != null && sharers.Count >= 2)
+            {
+                processedTex = TryTransformSharedTexture(originalTex, settings, sharers);
+                if (processedTex != null)
+                {
+                    CHMLog.Verbose($"[ChimeraHairMaster] 共有テクスチャ '{originalTex.name}' を {sharers.Count} 領域で合成");
+                }
+            }
+
+            // 従来: 要求元の (renderer, submesh) の領域統計でテクスチャ全体を変換
+            if (processedTex == null)
+            {
+                processedTex = TransformRegion(originalTex, settings, renderer, submeshIndices, blurSharp, uvMask: null);
+            }
+
+            if (processedTex != null && newCacheTextures != null)
+            {
+                newCacheTextures[originalTex] = processedTex;
+            }
+
+            return processedTex;
+        }
+
+        /// <summary>
+        /// 1 領域分の色変換（領域統計 → ブラー/シャープ → 色変換 → dilation）。非圧縮の新規テクスチャを返す。
+        /// uvMask が null なら renderer/submeshIndices から生成する。
+        /// </summary>
+        internal static Texture2D? TransformRegion(
+            Texture2D originalTex,
+            Processing.ColorTransformSettings settings,
+            SkinnedMeshRenderer? renderer,
+            IReadOnlyCollection<int>? submeshIndices,
+            float blurSharp,
+            bool[]? uvMask)
+        {
             // テクスチャ毎の Oklab/RGBDelta 事前計算（Renderer/Submesh 情報があれば）
             // ※ 代表色抽出は元テクスチャから（ブラー/シャープ前）
             var perTextureSettings = renderer != null && submeshIndices != null
@@ -1138,8 +1182,7 @@ namespace ChimeraHairMaster.Editor.NDMF
                 : settings;
 
             // UV マスク（ブラー/シャープ前処理と dilation で共用）
-            bool[]? uvMask = null;
-            if (renderer != null && submeshIndices != null)
+            if (uvMask == null && renderer != null && submeshIndices != null)
             {
                 uvMask = Processing.MeshUVRasterizer.Rasterize(
                     renderer, submeshIndices, originalTex.width, originalTex.height);
@@ -1169,12 +1212,115 @@ namespace ChimeraHairMaster.Editor.NDMF
                 }
             }
 
-            if (processedTex != null && newCacheTextures != null)
+            return processedTex;
+        }
+
+        /// <summary>
+        /// 同じテクスチャを使う (renderer, submesh) 群を領域ごとに変換して 1 枚に合成する。
+        /// UV が重なる／いずれかの変換に失敗した場合は null（呼び出し側は従来処理に落とす）。
+        /// </summary>
+        internal static Texture2D? TryTransformSharedTexture(
+            Texture2D originalTex,
+            Processing.ColorTransformSettings settings,
+            IReadOnlyList<(SkinnedMeshRenderer renderer, int submeshIndex, float blurSharp)> sharers)
+        {
+            if (sharers == null || sharers.Count < 2) return null;
+
+            var masks = new List<bool[]>(sharers.Count);
+            foreach (var s in sharers)
             {
-                newCacheTextures[originalTex] = processedTex;
+                masks.Add(Processing.MeshUVRasterizer.Rasterize(
+                    s.renderer, new[] { s.submeshIndex }, originalTex.width, originalTex.height));
+            }
+            if (Processing.SharedMaterialCompositor.HasOverlap(masks)) return null;
+
+            var regions = new List<Processing.SharedMaterialCompositor.Region>(sharers.Count);
+            try
+            {
+                for (int i = 0; i < sharers.Count; i++)
+                {
+                    var s = sharers[i];
+                    var tex = TransformRegion(originalTex, settings, s.renderer, new[] { s.submeshIndex }, s.blurSharp, masks[i]);
+                    if (tex == null) return null;
+                    regions.Add(new Processing.SharedMaterialCompositor.Region(masks[i], tex));
+                }
+                return Processing.SharedMaterialCompositor.Composite(regions);
+            }
+            finally
+            {
+                foreach (var region in regions) Object.DestroyImmediate(region.Processed);
+            }
+        }
+
+        /// <summary>
+        /// 統合対象の (renderer, submesh) がどのテクスチャを色変換対象として使うかを集める（元テクスチャ → 使用者一覧）。
+        /// ProcessComponent のスロット選択（colorChangeTargets → 無ければ _MainTex）と同じ規則で列挙する。
+        /// 同じテクスチャを 2 件以上が使う場合、GetOrCreateColorTransformedTexture が領域ごと変換→合成に切り替える。
+        /// </summary>
+        internal static Dictionary<Texture2D, List<(SkinnedMeshRenderer renderer, int submeshIndex, float blurSharp)>> CollectSlotTextureUsers(
+            ChimeraHairMaster component)
+        {
+            var users = new Dictionary<Texture2D, List<(SkinnedMeshRenderer renderer, int submeshIndex, float blurSharp)>>();
+            if (component.targetRenderers == null) return users;
+
+            void Add(Texture2D tex, SkinnedMeshRenderer renderer, int submeshIndex, float blurSharp)
+            {
+                if (!users.TryGetValue(tex, out var list))
+                {
+                    list = new List<(SkinnedMeshRenderer renderer, int submeshIndex, float blurSharp)>();
+                    users[tex] = list;
+                }
+                // 同じ (renderer, submesh) が複数スロットで同じテクスチャを使っていても 1 件として扱う
+                foreach (var u in list)
+                {
+                    if (u.renderer == renderer && u.submeshIndex == submeshIndex) return;
+                }
+                list.Add((renderer, submeshIndex, blurSharp));
             }
 
-            return processedTex;
+            for (int r = 0; r < component.targetRenderers.Count; r++)
+            {
+                var renderer = component.targetRenderers[r];
+                if (renderer == null) continue;
+                float blurSharp = Processing.ColorApplier.GetRendererBlurSharp(component, r);
+                var materials = renderer.sharedMaterials;
+
+                for (int s = 0; s < materials.Length; s++)
+                {
+                    var mat = materials[s];
+                    if (mat == null || !component.IsSubmeshIncluded(r, s)) continue;
+
+                    bool any = false;
+                    if (component.colorChangeTargets != null)
+                    {
+                        foreach (var slot in component.colorChangeTargets)
+                        {
+                            if (!slot.applyColorChange) continue;
+                            if (!mat.HasProperty(slot.propertyName)) continue;
+                            var tex = mat.GetTexture(slot.propertyName) as Texture2D;
+                            if (tex == null) continue;
+                            Add(tex, renderer, s, blurSharp);
+                            any = true;
+                        }
+                    }
+
+                    if (!any && mat.HasProperty("_MainTex") && !component.IsColorChangeExplicitlyDisabled("_MainTex"))
+                    {
+                        var tex = mat.GetTexture("_MainTex") as Texture2D;
+                        if (tex != null) Add(tex, renderer, s, blurSharp);
+                    }
+                }
+            }
+
+            return users;
+        }
+
+        private static IReadOnlyList<(SkinnedMeshRenderer renderer, int submeshIndex, float blurSharp)>? GetSharers(
+            Dictionary<Texture2D, List<(SkinnedMeshRenderer renderer, int submeshIndex, float blurSharp)>>? slotUsers,
+            Texture2D tex)
+        {
+            if (slotUsers == null) return null;
+            return slotUsers.TryGetValue(tex, out var list) ? list : null;
         }
 
         /// <summary>

@@ -14,6 +14,9 @@ namespace ChimeraHairMaster.Editor
     {
         private static MeshDeformationSceneEditor _sceneEditor;
 
+        // 「変形のリセット」折りたたみの開閉状態（既定は閉じる）
+        private bool _showResetSection = false;
+
         private int _selectedRendererIndex = 0;
         private float _inflateAmount = 0f;
         private int _lastSelectionHash = 0;
@@ -96,10 +99,8 @@ namespace ChimeraHairMaster.Editor
                 }
             }
 
-            EditorGUILayout.Space(5);
-
-            // リセット → エクスポート の順
-            DrawResetButton(component);
+            // リセット（折りたたみ） → 出力 の順。各セクションが先頭に区切り線を引く
+            DrawResetSection(component);
             DrawExportButtons(component);
 
             EditorGUI.indentLevel--;
@@ -178,17 +179,19 @@ namespace ChimeraHairMaster.Editor
                 MeshDeformationSceneEditor.EditMode.Lattice, currentMode,
                 new Color(0.5f, 1f, 0.5f));
 
-            // ラティス編集中のみ「戻す」ボタンを直下に表示
+            // ラティス編集中のみ「戻す」ボタンを直下に表示（右寄せの小さめボタン。モード切替と区別するため赤にしない）
             if (currentMode == MeshDeformationSceneEditor.EditMode.Lattice && SceneEditor.HasLattice)
             {
-                EditorGUILayout.Space(5);
-                GUI.backgroundColor = new Color(1f, 0.5f, 0.5f);
+                EditorGUILayout.Space(3);
+                EditorGUILayout.BeginHorizontal();
+                GUILayout.FlexibleSpace();
                 if (GUILayout.Button(new GUIContent(CHMLocales.Tr("MeshDeformInspector:Lattice:Revert"),
-                    CHMLocales.Tr("MeshDeformInspector:Lattice:RevertTooltip"))))
+                        CHMLocales.Tr("MeshDeformInspector:Lattice:RevertTooltip")),
+                    GUILayout.MinWidth(150f), GUILayout.ExpandWidth(false)))
                 {
                     SceneEditor.CancelLattice();
                 }
-                GUI.backgroundColor = Color.white;
+                EditorGUILayout.EndHorizontal();
             }
         }
 
@@ -451,6 +454,9 @@ namespace ChimeraHairMaster.Editor
                 : null;
             bool supportsBlendshape = RendererMeshAccess.SupportsBlendshapes(exportTargetRenderer);
 
+            DrawSeparator();
+            EditorGUILayout.LabelField(CHMLocales.Tr("MeshDeformInspector:Export:Section"), EditorStyles.boldLabel);
+
             // 出力設定: Blendshape として出力するかのトグル + 名前
             using (new EditorGUI.DisabledScope(!supportsBlendshape))
             {
@@ -601,59 +607,169 @@ namespace ChimeraHairMaster.Editor
             }
         }
 
-        private void DrawResetButton(IMeshDeformationTarget component)
+        /// <summary>
+        /// 区切り線（セクションの先頭で使う）
+        /// </summary>
+        private static void DrawSeparator()
+        {
+            EditorGUILayout.Space(4);
+            var rect = EditorGUILayout.GetControlRect(false, 1f);
+            EditorGUI.DrawRect(rect, new Color(0.5f, 0.5f, 0.5f, 0.4f));
+            EditorGUILayout.Space(4);
+        }
+
+        /// <summary>
+        /// 「変形のリセット」折りたたみ（既定は閉じる）。
+        /// いずれかの Renderer に戻せる変形（保存済みデルタ、またはドメインリロード後の原本メッシュ参照）がある時だけ表示する。
+        /// 中には「この髪の変形をリセット」と「すべての変形をリセット」を置き、該当しない方は無効表示にする。
+        /// </summary>
+        private void DrawResetSection(IMeshDeformationTarget component)
         {
             var deformation = component.RendererDeformations?.Find(
                 d => d.rendererIndex == _selectedRendererIndex);
 
-            bool hasDeltas = deformation != null && deformation.deltas.Count > 0;
             bool hasOrphanedMesh = component.DeformOriginalMesh != null;
-            if (!hasDeltas && !hasOrphanedMesh) return;
+            bool hasThis = (deformation != null && deformation.deltas.Count > 0) || hasOrphanedMesh;
+            bool hasAny = hasOrphanedMesh
+                || (component.RendererDeformations != null
+                    && component.RendererDeformations.Exists(d => d != null && d.deltas != null && d.deltas.Count > 0));
+            if (!hasThis && !hasAny) return;
 
-            GUI.backgroundColor = new Color(1f, 0.5f, 0.5f);
-            if (GUILayout.Button(CHMLocales.Tr("MeshDeformInspector:Reset:Button")))
+            DrawSeparator();
+            _showResetSection = EditorGUILayout.Foldout(_showResetSection, CHMLocales.Tr("MeshDeformInspector:Reset:Section"), true);
+            if (!_showResetSection) return;
+
+            using (new EditorGUI.DisabledScope(!hasThis))
             {
-                if (EditorUtility.DisplayDialog(
-                    CHMLocales.Tr("MeshDeformInspector:Reset:ConfirmTitle"),
-                    CHMLocales.Tr("MeshDeformInspector:Reset:ConfirmMessage"),
-                    CHMLocales.Tr("MeshDeformInspector:Reset:ConfirmOk"), CHMLocales.Tr("MeshDeformInspector:Export:Cancel")))
-                {
-                    if (SceneEditor.CurrentMode != MeshDeformationSceneEditor.EditMode.Off
-                        && SceneEditor.ActiveRendererIndex == _selectedRendererIndex)
-                    {
-                        SceneEditor.ResetDeltas();
-                    }
-                    else
-                    {
-                        Undo.RegisterCompleteObjectUndo(component.UndoTarget, "Reset Mesh Deformation");
-
-                        if (deformation != null)
-                            deformation.deltas.Clear();
-
-                        if (component.DeformOriginalMesh != null)
-                        {
-                            if (_selectedRendererIndex >= 0
-                                && _selectedRendererIndex < component.DeformTargetRenderers.Count)
-                            {
-                                var renderer = component.DeformTargetRenderers[_selectedRendererIndex];
-                                if (renderer != null)
-                                {
-                                    var holder = RendererMeshAccess.GetMeshHolder(renderer);
-                                    if (holder != null)
-                                        Undo.RecordObject(holder, "Reset Mesh Deformation");
-                                    RendererMeshAccess.SetSharedMesh(renderer, component.DeformOriginalMesh);
-                                }
-                            }
-                            component.DeformOriginalMesh = null;
-                        }
-
-                        component.DeformEditingRendererIndex = -1;
-                    }
-                }
+                DrawResetThisButton(component, deformation);
             }
-            GUI.backgroundColor = Color.white;
+            using (new EditorGUI.DisabledScope(!hasAny))
+            {
+                DrawResetAllButton(component);
+            }
 
             EditorGUILayout.Space(3);
+        }
+
+        /// <summary>
+        /// 選択中の Renderer だけを戻す。編集セッション中の Renderer ならセッション側で戻す。
+        /// </summary>
+        private void DrawResetThisButton(IMeshDeformationTarget component, RendererDeformation deformation)
+        {
+            if (!GUILayout.Button(CHMLocales.Tr("MeshDeformInspector:Reset:Button"))) return;
+
+            if (!EditorUtility.DisplayDialog(
+                CHMLocales.Tr("MeshDeformInspector:Reset:ConfirmTitle"),
+                CHMLocales.Tr("MeshDeformInspector:Reset:ConfirmMessage"),
+                CHMLocales.Tr("MeshDeformInspector:Reset:ConfirmOk"), CHMLocales.Tr("MeshDeformInspector:Export:Cancel")))
+                return;
+
+            if (SceneEditor.CurrentMode != MeshDeformationSceneEditor.EditMode.Off
+                && SceneEditor.ActiveRendererIndex == _selectedRendererIndex)
+            {
+                SceneEditor.ResetDeltas();
+                return;
+            }
+
+            Undo.RegisterCompleteObjectUndo(component.UndoTarget, "Reset Mesh Deformation");
+
+            if (deformation != null)
+                deformation.deltas.Clear();
+
+            if (component.DeformOriginalMesh != null)
+            {
+                if (_selectedRendererIndex >= 0
+                    && _selectedRendererIndex < component.DeformTargetRenderers.Count)
+                {
+                    var renderer = component.DeformTargetRenderers[_selectedRendererIndex];
+                    if (renderer != null)
+                    {
+                        var holder = RendererMeshAccess.GetMeshHolder(renderer);
+                        if (holder != null)
+                            Undo.RecordObject(holder, "Reset Mesh Deformation");
+                        RendererMeshAccess.SetSharedMesh(renderer, component.DeformOriginalMesh);
+                    }
+                }
+                component.DeformOriginalMesh = null;
+            }
+
+            component.DeformEditingRendererIndex = -1;
+        }
+
+        /// <summary>
+        /// 「すべての変形をリセット」ボタン（赤）。確認ダイアログを挟んで ResetAllDeformations を呼ぶ。
+        /// </summary>
+        private void DrawResetAllButton(IMeshDeformationTarget component)
+        {
+            GUI.backgroundColor = new Color(1f, 0.5f, 0.5f);
+            bool pressed = GUILayout.Button(CHMLocales.Tr("MeshDeformInspector:ResetAll:Button"));
+            GUI.backgroundColor = Color.white;
+            if (!pressed) return;
+
+            if (EditorUtility.DisplayDialog(
+                CHMLocales.Tr("MeshDeformInspector:Reset:ConfirmTitle"),
+                CHMLocales.Tr("MeshDeformInspector:ResetAll:ConfirmMessage"),
+                CHMLocales.Tr("MeshDeformInspector:Reset:ConfirmOk"), CHMLocales.Tr("MeshDeformInspector:Export:Cancel")))
+            {
+                ResetAllDeformations(component);
+            }
+        }
+
+
+        /// <summary>
+        /// 全 Renderer の変形データをリセットする。
+        /// 編集セッション中の Renderer はセッション側の ResetDeltas で戻す（保存済みデルタも空になる）。
+        /// それ以外は保存済みデルタを直接クリアし、ドメインリロードで残った原本メッシュ参照があれば
+        /// 編集中だった Renderer に戻す（DrawResetThisButton の非セッション経路と同じ扱い）。
+        /// </summary>
+        private void ResetAllDeformations(IMeshDeformationTarget component)
+        {
+            bool sessionActive = SceneEditor.CurrentMode != MeshDeformationSceneEditor.EditMode.Off;
+            int activeIndex = sessionActive ? SceneEditor.ActiveRendererIndex : -1;
+
+            if (sessionActive)
+            {
+                SceneEditor.ResetDeltas();
+            }
+
+            Undo.RegisterCompleteObjectUndo(component.UndoTarget, "Reset All Mesh Deformations");
+
+            if (component.RendererDeformations != null)
+            {
+                foreach (var deformation in component.RendererDeformations)
+                {
+                    if (deformation == null || deformation.deltas == null) continue;
+                    if (deformation.rendererIndex == activeIndex) continue; // セッション側で済み
+                    deformation.deltas.Clear();
+                }
+            }
+
+            if (!sessionActive)
+            {
+                if (component.DeformOriginalMesh != null)
+                {
+                    int index = component.DeformEditingRendererIndex;
+                    if (index < 0 || index >= component.DeformTargetRenderers.Count)
+                        index = _selectedRendererIndex;
+
+                    if (index >= 0 && index < component.DeformTargetRenderers.Count)
+                    {
+                        var renderer = component.DeformTargetRenderers[index];
+                        if (renderer != null)
+                        {
+                            var holder = RendererMeshAccess.GetMeshHolder(renderer);
+                            if (holder != null)
+                                Undo.RecordObject(holder, "Reset All Mesh Deformations");
+                            RendererMeshAccess.SetSharedMesh(renderer, component.DeformOriginalMesh);
+                        }
+                    }
+                    component.DeformOriginalMesh = null;
+                }
+
+                component.DeformEditingRendererIndex = -1;
+            }
+
+            EditorUtility.SetDirty(component.UndoTarget);
         }
 
         #endregion

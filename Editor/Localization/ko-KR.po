@@ -372,6 +372,15 @@ msgstr "색상 매칭 무시(마스크)"
 msgid "Inspector:ColorMaskHelp"
 msgstr "마스크를 사용해서 색상 매칭을 부분적으로 무시할 수 있습니다.\n마스크는 원본 헤어의 UV를 참조합니다.\n검은 부분은 색상 매칭이 적용되지 않고 원래 색이 유지됩니다."
 
+msgid "Inspector:MaterialSwapSettings"
+msgstr "색이 맞지 않을 때?"
+
+msgid "Inspector:MaterialSwapHelp"
+msgstr "헤어 텍스처에 따라 색상 매칭을 해도 색이 맞지 않을 수 있습니다.\n그럴 때는 텍스처 색을 목표 색에 가깝게 만든 다른 머티리얼을 준비해서 여기서 원본 머티리얼과 교체하세요.\n교체한 머티리얼에도 색상 매칭이 적용됩니다.\n교체는 Renderer에 직접 반영되며 Undo로 되돌릴 수 있습니다."
+
+msgid "Inspector:MaterialSlotLabelFormat"
+msgstr "SubMesh {0}"
+
 msgid "Inspector:PhysBoneList"
 msgstr "관련 PhysBone"
 
@@ -706,7 +715,7 @@ msgid "MeshDeformInspector:Export:Cancel"
 msgstr "취소"
 
 msgid "MeshDeformInspector:Reset:Button"
-msgstr "변형 초기화"
+msgstr "이 헤어의 변형 초기화"
 
 msgid "MeshDeformInspector:Reset:ConfirmTitle"
 msgstr "변형 초기화 확인"
@@ -716,6 +725,18 @@ msgstr "이 Renderer의 변형 데이터를 모두 초기화하시겠습니까?"
 
 msgid "MeshDeformInspector:Reset:ConfirmOk"
 msgstr "초기화"
+
+msgid "MeshDeformInspector:ResetAll:Button"
+msgstr "모든 변형 초기화"
+
+msgid "MeshDeformInspector:ResetAll:ConfirmMessage"
+msgstr "모든 Renderer의 변형 데이터를 초기화하시겠습니까?"
+
+msgid "MeshDeformInspector:Reset:Section"
+msgstr "변형 초기화"
+
+msgid "MeshDeformInspector:Export:Section"
+msgstr "출력"
 
 msgid "Scene:Mode:UVIsland"
 msgstr "UV 아일랜드 편집"

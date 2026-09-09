@@ -64,6 +64,7 @@ namespace ChimeraHairMaster.Editor
         private bool showBlurSharpAdjustment = false;
         private bool showStrandPattern = false;
         private bool showColorMaskSettings = false;
+        private bool showMaterialSwapSettings = false;
         private bool showFakeShadowSettings = false;
         private bool showFakeShadowAdvanced = false;
         private bool showPhysBoneList = false;
@@ -255,6 +256,15 @@ namespace ChimeraHairMaster.Editor
             if (component.colorMaskContentsHash != maskHash)
             {
                 component.colorMaskContentsHash = maskHash;
+                changed = true;
+            }
+
+            // 対象 Renderer のマテリアルスロット差し替えを検知
+            // （「色が合わないとき？」や SkinnedMeshRenderer の欄から差し替えた時に NDMF プレビューを再評価させる）
+            int slotHash = RendererMaterialSwapper.ComputeSlotMaterialsHash(component);
+            if (component.rendererMaterialsHash != slotHash)
+            {
+                component.rendererMaterialsHash = slotHash;
                 changed = true;
             }
 
@@ -746,6 +756,10 @@ namespace ChimeraHairMaster.Editor
                 EditorGUILayout.Space(10);
                 DrawColorMaskUI();
 
+                // 色が合わないとき？（マテリアル差し替え）
+                EditorGUILayout.Space(10);
+                DrawMaterialSwapUI();
+
                 EditorGUI.indentLevel--;
                 EditorGUILayout.EndVertical();
             }
@@ -1056,6 +1070,73 @@ namespace ChimeraHairMaster.Editor
                     settings.sigma = newSigma;
                     EditorUtility.SetDirty(component);
                 }
+            }
+
+            EditorGUI.indentLevel--;
+            EditorGUILayout.EndVertical();
+        }
+
+        /// <summary>
+        /// 「色が合わないとき？」: Renderer のマテリアルスロットを別マテリアルへ差し替える UI。
+        /// テクスチャの相性で色合わせが合わない時に、手調整したマテリアルへ差し替えて再度色合わせさせる用途。
+        /// 差し替えは Renderer に直接反映される（Undo 対応・アセットは変更しない）。差し替え後も色合わせは適用される。
+        /// </summary>
+        private void DrawMaterialSwapUI()
+        {
+            var component = (ChimeraHairMaster)target;
+            if (component.targetRenderers == null || component.targetRenderers.Count == 0)
+                return;
+
+            EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+
+            EditorGUILayout.BeginHorizontal();
+            showMaterialSwapSettings = EditorGUILayout.Foldout(showMaterialSwapSettings, CHMLocales.Tr("Inspector:MaterialSwapSettings"), true);
+            DrawHelpMark("Inspector:MaterialSwapHelp");
+            EditorGUILayout.EndHorizontal();
+            DrawHelpBoxIfOpen("Inspector:MaterialSwapHelp");
+
+            if (!showMaterialSwapSettings)
+            {
+                EditorGUILayout.EndVertical();
+                return;
+            }
+
+            EditorGUI.indentLevel++;
+
+            for (int r = 0; r < component.targetRenderers.Count; r++)
+            {
+                var renderer = component.targetRenderers[r];
+                if (renderer == null || renderer.sharedMesh == null) continue;
+
+                EditorGUILayout.LabelField(renderer.name, EditorStyles.boldLabel);
+
+                EditorGUI.indentLevel++;
+
+                int submeshCount = renderer.sharedMesh.subMeshCount;
+                var materials = renderer.sharedMaterials;
+
+                for (int s = 0; s < submeshCount; s++)
+                {
+                    // 統合対象外のサブメッシュはスキップ（マスク UI と同じ）
+                    if (!component.IsSubmeshIncluded(r, s)) continue;
+
+                    var current = s < materials.Length ? materials[s] : null;
+
+                    EditorGUI.BeginChangeCheck();
+                    var assigned = (Material)EditorGUILayout.ObjectField(
+                        string.Format(CHMLocales.Tr("Inspector:MaterialSlotLabelFormat"), s), current, typeof(Material), false);
+                    if (EditorGUI.EndChangeCheck())
+                    {
+                        // null のドロップは無視される（空スロットを作らない）
+                        if (RendererMaterialSwapper.TryReplaceSlot(renderer, s, assigned))
+                        {
+                            materials = renderer.sharedMaterials;
+                        }
+                    }
+                }
+
+                EditorGUI.indentLevel--;
+                EditorGUILayout.Space(3);
             }
 
             EditorGUI.indentLevel--;

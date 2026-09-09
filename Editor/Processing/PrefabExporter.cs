@@ -322,13 +322,13 @@ namespace ChimeraHairMaster.Editor.Processing
             StrandPatternApplier.RefData? strandRef = StrandPatternApplier.PrepareRefData(component, settings, pixelCache);
             try
             {
+                // マテリアル単位でグループ化（走査順維持）。出力は clone マテリアルごとに 1 枚（連番PNG）
+                var groupOrder = new List<Material>();
+                var groups = new Dictionary<Material, List<(int rendererIndex, int submeshIndex, Material material)>>();
                 for (int r = 0; r < component.targetRenderers.Count; r++)
                 {
                     var renderer = component.targetRenderers[r];
                     if (renderer == null) continue;
-
-                    float brightnessOffset = ColorApplier.GetRendererBrightnessOffset(component, r);
-                    float blurSharp = ColorApplier.GetRendererBlurSharp(component, r);
                     var materials = renderer.sharedMaterials;
 
                     for (int s = 0; s < materials.Length; s++)
@@ -336,86 +336,47 @@ namespace ChimeraHairMaster.Editor.Processing
                         var mat = materials[s];
                         if (mat == null) continue;
                         if (!component.IsSubmeshIncluded(r, s)) continue;
-
-                        int matId = mat.GetInstanceID();
-                        if (processed.ContainsKey(matId)) continue;
-
                         if (!mat.HasProperty("_MainTex")) continue;
-                        var mainTex = mat.GetTexture("_MainTex") as Texture2D;
-                        if (mainTex == null) continue;
+                        if (mat.GetTexture("_MainTex") as Texture2D == null) continue;
                         // _MainTex の色変更が明示的に OFF なら処理しない（NDMFビルドと一致させる）
                         if (component.IsColorChangeExplicitlyDisabled("_MainTex")) continue;
 
-                        var perTextureSettings = MeshUVSampler.PrepareSettingsWithUVStats(
-                            settings, renderer, new[] { s }, mainTex, pixelCache);
-
-                        bool[] uvMask = MeshUVRasterizer.Rasterize(
-                            renderer, new[] { s }, mainTex.width, mainTex.height);
-
-                        bool applyStrand = strandRef != null && strandRef.IsValid && r != strandRef.RefIndex;
-                        // PNG出力は各段を非圧縮で通し、圧縮は再インポート時にインポーターが1回だけ行う
-
-                        Texture2D colorTransformInput = mainTex;
-                        Texture2D? preprocessed = null;
-                        if (Mathf.Abs(blurSharp) > 0.001f)
+                        if (!groups.TryGetValue(mat, out var members))
                         {
-                            preprocessed = TextureBlurSharpener.Process(mainTex, blurSharp, uvMask);
-                            if (preprocessed != null) colorTransformInput = preprocessed;
+                            members = new List<(int rendererIndex, int submeshIndex, Material material)>();
+                            groups[mat] = members;
+                            groupOrder.Add(mat);
                         }
-
-                        var processedTex = ColorProcessor.ProcessTexture(colorTransformInput, perTextureSettings, compressResult: false);
-                        if (preprocessed != null) Object.DestroyImmediate(preprocessed);
-                        if (processedTex == null) continue;
-
-                        if (Mathf.Abs(brightnessOffset) > 0.001f)
-                        {
-                            var offsetApplied = ColorProcessor.ApplyBrightnessOffset(processedTex, brightnessOffset, compressResult: false);
-                            if (offsetApplied != null)
-                            {
-                                Object.DestroyImmediate(processedTex);
-                                processedTex = offsetApplied;
-                            }
-                        }
-
-                        var dilated = ColorProcessor.DilateTexture(processedTex, uvMask, 8, compressResult: false);
-                        if (dilated != null)
-                        {
-                            Object.DestroyImmediate(processedTex);
-                            processedTex = dilated;
-                        }
-
-                        // 色合わせ無視マスクを適用
-                        // ※ 出力はマテリアル単位（matId で重複排除）のため、(r, s) 単位ではなく
-                        //   マテリアルを共有する全 (r, s) のマスクを合成して解決する
-                        {
-                            var masked = ColorMaskApplier.TryApplyForSharedMaterial(component, mat, mainTex, processedTex, compressResult: false);
-                            if (masked != null)
-                            {
-                                Object.DestroyImmediate(processedTex);
-                                processedTex = masked;
-                            }
-                        }
-
-                        // 塗り感統一: お手本 Renderer 以外の _MainTex に inline 適用
-                        if (applyStrand)
-                        {
-                            // applyStrand が true の時点で strandRef は非null（applyStrand = strandRef != null && ...）
-                            var composed = StrandPatternApplier.TryComposeStrand(processedTex, renderer, new[] { s }, strandRef!, compressResult: false);
-                            if (composed != null)
-                            {
-                                Object.DestroyImmediate(processedTex);
-                                processedTex = composed;
-                            }
-                        }
-
-                        var savedTexture = SaveTextureAsPngUnique(mainTex, processedTex);
-                        Object.DestroyImmediate(processedTex);
-
-                        if (savedTexture != null)
-                        {
-                            processed[matId] = savedTexture;
-                        }
+                        members.Add((r, s, mat));
                     }
+                }
+
+                int sharedCount = 0;
+                foreach (var mat in groupOrder)
+                {
+                    var mainTex = mat.GetTexture("_MainTex") as Texture2D;
+                    if (mainTex == null) continue;
+
+                    // 領域統計 → ブラー/シャープ → 色変換 → 明度 → dilation → マスク → 塗り感統一。
+                    // UV 非重複なら領域ごと処理して 1 枚に合成、それ以外は従来どおり先頭 (r, s) のみ処理。
+                    // PNG出力は各段を非圧縮で通し、圧縮は再インポート時にインポーターが1回だけ行う
+                    var processedTex = ColorApplier.ProcessMainTexGroup(component, groups[mat], mainTex, settings, pixelCache, strandRef,
+                        ColorApplier.MaskScope.SharedMaterial, out bool shared);
+                    if (processedTex == null) continue;
+                    if (shared) sharedCount++;
+
+                    var savedTexture = SaveTextureAsPngUnique(mainTex, processedTex);
+                    Object.DestroyImmediate(processedTex);
+
+                    if (savedTexture != null)
+                    {
+                        processed[mat.GetInstanceID()] = savedTexture;
+                    }
+                }
+
+                if (sharedCount > 0)
+                {
+                    Debug.Log($"[CHM] Prefab出力: UV非重複で 1 枚に合成した共有マテリアル {sharedCount} 件");
                 }
             }
             finally

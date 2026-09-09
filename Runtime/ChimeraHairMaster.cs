@@ -545,6 +545,16 @@ namespace ChimeraHairMaster
         [HideInInspector]
         public int colorMaskContentsHash = 0;
 
+        /// <summary>
+        /// 対象 Renderer のマテリアルスロット構成のハッシュ（差し替え検知用）
+        /// 「色が合わないとき？」や SkinnedMeshRenderer の欄からマテリアルを差し替えても
+        /// コンポーネント自体は変わらないため、Inspector がポーリングでこの値を更新して
+        /// NDMFプレビューの再評価を起こす
+        /// </summary>
+        [SerializeField]
+        [HideInInspector]
+        public int rendererMaterialsHash = 0;
+
         #endregion
 
         #region Unity Lifecycle

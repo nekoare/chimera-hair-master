@@ -330,6 +330,10 @@ namespace ChimeraHairMaster.Editor.NDMF
                 return;
             }
 
+            // 同じ入力マテリアルには同じ出力を割り当てる（ColorTransformPass が合成した共有マテリアルを
+            // ここで再分割しない。色合わせOFFで元マテリアルを共有している場合も 1 つに揃う）
+            var settingsApplied = new Dictionary<Material, Material>();
+
             // 各Rendererのマテリアルを処理
             for (int r = 0; r < component.targetRenderers.Count; r++)
             {
@@ -346,6 +350,12 @@ namespace ChimeraHairMaster.Editor.NDMF
                     if (mat == null || !component.IsSubmeshIncluded(r, s))
                     {
                         newMaterials[s] = mat;
+                        continue;
+                    }
+
+                    if (settingsApplied.TryGetValue(mat, out var reused))
+                    {
+                        newMaterials[s] = reused;
                         continue;
                     }
 
@@ -369,6 +379,7 @@ namespace ChimeraHairMaster.Editor.NDMF
                         OverwriteMatCapTextures(sourceMaterial, newMat);
                     }
 
+                    settingsApplied[mat] = newMat;
                     newMaterials[s] = newMat;
                 }
 

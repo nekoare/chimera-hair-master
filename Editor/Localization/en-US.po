@@ -372,6 +372,15 @@ msgstr "Color Matching Ignore (Mask)"
 msgid "Inspector:ColorMaskHelp"
 msgstr "Use a mask to skip color matching in specific areas.\nThe mask uses the original hair's UVs.\nBlack areas keep their original color and are not recolored."
 
+msgid "Inspector:MaterialSwapSettings"
+msgstr "When colors don't match?"
+
+msgid "Inspector:MaterialSwapHelp"
+msgstr "Depending on the hair texture, color matching may not give you the color you want.\nIn that case, prepare another material whose texture is closer to the target color, and swap it in here in place of the original.\nColor matching is applied to the swapped material as well.\nThe swap is applied to the Renderer directly and can be undone."
+
+msgid "Inspector:MaterialSlotLabelFormat"
+msgstr "SubMesh {0}"
+
 msgid "Inspector:PhysBoneList"
 msgstr "Related PhysBones"
 
@@ -706,7 +715,7 @@ msgid "MeshDeformInspector:Export:Cancel"
 msgstr "Cancel"
 
 msgid "MeshDeformInspector:Reset:Button"
-msgstr "Reset Deformation"
+msgstr "Reset This Hair's Deformation"
 
 msgid "MeshDeformInspector:Reset:ConfirmTitle"
 msgstr "Confirm Reset"
@@ -716,6 +725,18 @@ msgstr "Reset all deformation data on this Renderer?"
 
 msgid "MeshDeformInspector:Reset:ConfirmOk"
 msgstr "Reset"
+
+msgid "MeshDeformInspector:ResetAll:Button"
+msgstr "Reset All Deformations"
+
+msgid "MeshDeformInspector:ResetAll:ConfirmMessage"
+msgstr "Reset deformation data on all Renderers?"
+
+msgid "MeshDeformInspector:Reset:Section"
+msgstr "Reset Deformation"
+
+msgid "MeshDeformInspector:Export:Section"
+msgstr "Export"
 
 msgid "Scene:Mode:UVIsland"
 msgstr "UV Island Editing"

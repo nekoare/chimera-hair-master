@@ -19,6 +19,22 @@ namespace ChimeraHairMaster.Editor.NDMF
         internal static Dictionary<ChimeraHairMaster, Dictionary<Texture2D, Texture2D>> ProcessedTextureCache
             = new Dictionary<ChimeraHairMaster, Dictionary<Texture2D, Texture2D>>();
 
+        /// <summary>
+        /// (renderer, submesh, slot) 1 件分の処理結果（最終圧縮前・マテリアル割り当て前）
+        /// </summary>
+        private sealed class SlotResult
+        {
+            public int RendererIndex;
+            public int SubmeshIndex;
+            public Material OriginalMaterial;
+            public string PropertyName;
+            public Texture2D OriginalTexture;
+            public bool[] UvMask;
+            public Texture2D Processed;
+            /// <summary>textureCache の実体を指している（直接圧縮・破棄禁止。圧縮時はコピーする）</summary>
+            public bool IsSharedCacheEntry;
+        }
+
         protected override void Execute(BuildContext context)
         {
             // キャッシュをクリア
@@ -30,11 +46,15 @@ namespace ChimeraHairMaster.Editor.NDMF
             {
                 if (!component.isEnabled) continue;
 
-                ProcessColorTransform(context, component);
+                ProcessComponent(component);
             }
         }
 
-        private void ProcessColorTransform(BuildContext context, ChimeraHairMaster component)
+        /// <summary>
+        /// 1 コンポーネント分の色変換を実行し、各 Renderer のマテリアルを差し替える。
+        /// BuildContext に依存しないためテストから直接呼べる。
+        /// </summary>
+        internal static void ProcessComponent(ChimeraHairMaster component)
         {
             // このコンポーネント用のキャッシュを初期化
             var textureCache = new Dictionary<Texture2D, Texture2D>();
@@ -81,7 +101,9 @@ namespace ChimeraHairMaster.Editor.NDMF
             {
                 strandRef = StrandPatternApplier.PrepareRefData(component, baseSettings, pixelCache);
 
-                // 各Rendererのテクスチャを処理（統合対象のサブメッシュのみ）
+                // 各Rendererのテクスチャを処理（統合対象のサブメッシュのみ）。
+                // マテリアル生成・圧縮・割り当ては AssignMaterials でまとめて行う
+                var results = new List<SlotResult>();
                 foreach (var kvp in submeshesByRenderer)
                 {
                     int rendererIndex = kvp.Key;
@@ -94,8 +116,11 @@ namespace ChimeraHairMaster.Editor.NDMF
                     float brightnessOffset = GetRendererBrightnessOffset(component, rendererIndex);
                     float blurSharp = GetRendererBlurSharp(component, rendererIndex);
 
-                    ProcessRendererTextures(context, component, rendererIndex, renderer, submeshIndices, baseSettings, textureCache, textureCacheSig, pixelCache, brightnessOffset, blurSharp, strandRef);
+                    results.AddRange(CollectSlotResults(component, rendererIndex, renderer, submeshIndices, baseSettings,
+                        textureCache, textureCacheSig, pixelCache, brightnessOffset, blurSharp, strandRef));
                 }
+
+                AssignMaterials(component, includedSubmeshes, results);
 
                 Debug.Log($"[ChimeraHairMaster] 色変換処理完了: {component.gameObject.name}, 処理テクスチャ数: {textureCache.Count}");
             }
@@ -112,7 +137,7 @@ namespace ChimeraHairMaster.Editor.NDMF
         /// 基準色（ソース色）を決定
         /// 最初のRendererのテクスチャから色を抽出
         /// </summary>
-        private Color DetermineSourceColor(ChimeraHairMaster component)
+        private static Color DetermineSourceColor(ChimeraHairMaster component)
         {
             if (component.targetRenderers.Count > 0 && component.targetRenderers[0] != null)
             {
@@ -135,7 +160,7 @@ namespace ChimeraHairMaster.Editor.NDMF
         /// <summary>
         /// Renderer単位の明度オフセットを取得
         /// </summary>
-        private float GetRendererBrightnessOffset(ChimeraHairMaster component, int rendererIndex)
+        private static float GetRendererBrightnessOffset(ChimeraHairMaster component, int rendererIndex)
         {
             if (component.rendererBrightnessAdjustments == null) return 0f;
 
@@ -153,7 +178,7 @@ namespace ChimeraHairMaster.Editor.NDMF
         /// <summary>
         /// Renderer単位のブラー／シャープ強度を取得
         /// </summary>
-        private float GetRendererBlurSharp(ChimeraHairMaster component, int rendererIndex)
+        private static float GetRendererBlurSharp(ChimeraHairMaster component, int rendererIndex)
         {
             if (component.rendererBlurSharpAdjustments == null) return 0f;
 
@@ -168,8 +193,11 @@ namespace ChimeraHairMaster.Editor.NDMF
             return 0f;
         }
 
-        private void ProcessRendererTextures(
-            BuildContext context,
+        /// <summary>
+        /// 1 Renderer 分の統合対象サブメッシュについて、色変更対象スロットごとの処理結果を集める。
+        /// ここではマテリアルを作らず、最終圧縮もしない（AssignMaterials が担当）。
+        /// </summary>
+        private static List<SlotResult> CollectSlotResults(
             ChimeraHairMaster component,
             int rendererIndex,
             SkinnedMeshRenderer renderer,
@@ -178,12 +206,12 @@ namespace ChimeraHairMaster.Editor.NDMF
             Dictionary<Texture2D, Texture2D> textureCache,
             Dictionary<Texture2D, int> textureCacheSig,
             MeshUVSampler.PixelCache pixelCache,
-            float brightnessOffset = 0f,
-            float blurSharp = 0f,
-            StrandPatternApplier.RefData strandRef = null)
+            float brightnessOffset,
+            float blurSharp,
+            StrandPatternApplier.RefData strandRef)
         {
+            var results = new List<SlotResult>();
             var materials = renderer.sharedMaterials;
-            var newMaterials = new Material[materials.Length];
 
             // 明度オフセットがある場合はログ出力
             if (Mathf.Abs(brightnessOffset) > 0.001f)
@@ -194,22 +222,10 @@ namespace ChimeraHairMaster.Editor.NDMF
             for (int i = 0; i < materials.Length; i++)
             {
                 var material = materials[i];
-                if (material == null)
-                {
-                    newMaterials[i] = null;
-                    continue;
-                }
+                if (material == null) continue;
 
                 // 統合対象外のサブメッシュはスキップ（元のマテリアルをそのまま使用）
-                if (!submeshIndices.Contains(i))
-                {
-                    newMaterials[i] = material;
-                    continue;
-                }
-
-                // マテリアルを複製
-                var newMaterial = new Material(material);
-                newMaterial.name = material.name + "_CHM";
+                if (!submeshIndices.Contains(i)) continue;
 
                 // ※ previewMaterial の数値設定・輪郭線シェーダの反映は、この後段の
                 //   TextureAtlasPass.ProcessPerRendererMaterials（merge-OFF時に実行）で行う。
@@ -219,9 +235,9 @@ namespace ChimeraHairMaster.Editor.NDMF
                 foreach (var slot in component.colorChangeTargets)
                 {
                     if (!slot.applyColorChange) continue;
-                    if (!newMaterial.HasProperty(slot.propertyName)) continue;
+                    if (!material.HasProperty(slot.propertyName)) continue;
 
-                    var texture = newMaterial.GetTexture(slot.propertyName) as Texture2D;
+                    var texture = material.GetTexture(slot.propertyName) as Texture2D;
                     if (texture == null) continue;
 
                     // Renderer単位のキャッシュキー（明度オフセット・ブラー/シャープ込み）
@@ -336,35 +352,222 @@ namespace ChimeraHairMaster.Editor.NDMF
                         }
                     }
 
-                    // 最終圧縮（merge=false のみ）: 中間は全段非圧縮のため、ここで元フォーマットに1回だけ Best 圧縮する。
-                    // ※ 共有キャッシュ実体を破壊しないよう、キャッシュと同一参照ならコピーしてから圧縮する
-                    //   （そうしないと後続の cache 命中 renderer が圧縮済みをデコードしてブロックノイズが再発する）。
-                    if (!component.enableMeshMerge && processedTexture != null)
-                    {
-                        bool isSharedCacheEntry = useSharedCache
-                            && textureCache.TryGetValue(texture, out var sharedEntry)
-                            && ReferenceEquals(sharedEntry, processedTexture);
-                        if (isSharedCacheEntry)
-                        {
-                            // キャッシュは非圧縮のまま保持し、圧縮はこの renderer 専用コピーに対して行う
-                            processedTexture = ColorProcessor.CopyTexture(processedTexture, compressResult: false);
-                        }
-                        ColorProcessor.CompressToMatch(processedTexture, texture.format);
-                    }
+                    if (processedTexture == null) continue;
 
-                    // 処理済みテクスチャを設定
-                    if (processedTexture != null)
+                    // 共有キャッシュの実体をそのまま持っているか（後段で圧縮する際はコピーが必要）
+                    bool isSharedCacheEntry = useSharedCache
+                        && textureCache.TryGetValue(texture, out var sharedEntry)
+                        && ReferenceEquals(sharedEntry, processedTexture);
+
+                    results.Add(new SlotResult
                     {
-                        newMaterial.SetTexture(slot.propertyName, processedTexture);
-                    }
+                        RendererIndex = rendererIndex,
+                        SubmeshIndex = i,
+                        OriginalMaterial = material,
+                        PropertyName = slot.propertyName,
+                        OriginalTexture = texture,
+                        UvMask = uvMask,
+                        Processed = processedTexture,
+                        IsSharedCacheEntry = isSharedCacheEntry,
+                    });
                 }
-
-                newMaterials[i] = newMaterial;
             }
 
-            // 新しいマテリアルを適用
-            renderer.sharedMaterials = newMaterials;
+            return results;
         }
 
+        /// <summary>
+        /// 処理結果を元マテリアル単位にまとめ、Renderer にマテリアルを割り当てる。
+        /// 統合OFFで同じ元マテリアルを 2 つ以上の (r, s) が共有し、全スロットで UV 使用領域が重ならなければ
+        /// 1 マテリアル・1 テクスチャに合成する。それ以外は従来どおり (r, s) ごとに分割する。
+        /// 統合ONは後段でアトラス化されるため共有しない（従来どおり）。
+        /// </summary>
+        private static void AssignMaterials(
+            ChimeraHairMaster component,
+            List<(int rendererIndex, int submeshIndex)> includedSubmeshes,
+            List<SlotResult> results)
+        {
+            bool allowShare = !component.enableMeshMerge;
+
+            // 元マテリアル → 参照する (r, s)（走査順維持）
+            var groupOrder = new List<Material>();
+            var groups = new Dictionary<Material, List<(int r, int s)>>();
+            foreach (var (r, s) in includedSubmeshes)
+            {
+                var renderer = component.targetRenderers[r];
+                if (renderer == null) continue;
+                var mats = renderer.sharedMaterials;
+                if (s >= mats.Length || mats[s] == null) continue;
+
+                if (!groups.TryGetValue(mats[s], out var members))
+                {
+                    members = new List<(int r, int s)>();
+                    groups[mats[s]] = members;
+                    groupOrder.Add(mats[s]);
+                }
+                members.Add((r, s));
+            }
+
+            var assigned = new Dictionary<(int r, int s), Material>();
+            int sharedCount = 0;
+            int splitCount = 0;
+
+            foreach (var original in groupOrder)
+            {
+                var members = groups[original];
+                var groupResults = results.Where(x => x.OriginalMaterial == original).ToList();
+                bool share = allowShare && members.Count >= 2 && CanShareGroup(groupResults, members.Count);
+
+                if (members.Count >= 2)
+                {
+                    var memberNames = string.Join(", ", members.Select(m => $"{component.targetRenderers[m.r].name}[{m.s}]"));
+                    string outcome = share ? "1 マテリアルに合成"
+                        : !allowShare ? "統合ONのため分割（従来どおり）"
+                        : "UV重複のため分割（従来どおり）";
+                    Debug.Log($"[ChimeraHairMaster] 共有マテリアル '{original.name}' ({memberNames}) → {outcome}");
+                }
+
+                if (share)
+                {
+                    var newMaterial = new Material(original);
+                    newMaterial.name = original.name + "_CHM";
+
+                    foreach (var propertyName in groupResults.Select(x => x.PropertyName).Distinct().ToList())
+                    {
+                        var slotResults = groupResults.Where(x => x.PropertyName == propertyName).ToList();
+                        var tex = FinalizeSharedSlot(slotResults);
+                        if (tex != null)
+                        {
+                            newMaterial.SetTexture(propertyName, tex);
+                        }
+                    }
+
+                    foreach (var m in members)
+                    {
+                        assigned[m] = newMaterial;
+                    }
+                    sharedCount++;
+                }
+                else
+                {
+                    foreach (var (r, s) in members)
+                    {
+                        var newMaterial = new Material(original);
+                        newMaterial.name = original.name + "_CHM";
+
+                        foreach (var x in groupResults.Where(x => x.RendererIndex == r && x.SubmeshIndex == s))
+                        {
+                            var tex = FinalizeSingleSlot(x, component.enableMeshMerge);
+                            if (tex != null)
+                            {
+                                newMaterial.SetTexture(x.PropertyName, tex);
+                            }
+                        }
+
+                        assigned[(r, s)] = newMaterial;
+                    }
+                    if (members.Count >= 2) splitCount++;
+                }
+            }
+
+            // Renderer へ書き戻し（統合対象外スロットは元のまま）
+            for (int r = 0; r < component.targetRenderers.Count; r++)
+            {
+                var renderer = component.targetRenderers[r];
+                if (renderer == null) continue;
+
+                var mats = renderer.sharedMaterials;
+                var newMats = new Material[mats.Length];
+                bool changed = false;
+                for (int s = 0; s < mats.Length; s++)
+                {
+                    if (assigned.TryGetValue((r, s), out var m))
+                    {
+                        newMats[s] = m;
+                        changed = true;
+                    }
+                    else
+                    {
+                        newMats[s] = mats[s];
+                    }
+                }
+                if (changed)
+                {
+                    renderer.sharedMaterials = newMats;
+                }
+            }
+
+            Debug.Log($"[ChimeraHairMaster] 共有マテリアル: 共有 {sharedCount} 件 / 分割 {splitCount} 件 / 対象マテリアル {groupOrder.Count} 種: {component.gameObject.name}");
+        }
+
+        /// <summary>
+        /// 全スロットで合成可能なら true（スロットごとに Region を組んで CanComposite で判定）。
+        /// 同じ元マテリアルなのでスロットのテクスチャは全メンバー共通。あるスロットの結果が
+        /// メンバー数と一致しない（一部で処理失敗）場合は、欠けた領域が土台のままになるため共有しない。
+        /// </summary>
+        private static bool CanShareGroup(List<SlotResult> groupResults, int memberCount)
+        {
+            foreach (var propertyName in groupResults.Select(x => x.PropertyName).Distinct())
+            {
+                var regions = groupResults
+                    .Where(x => x.PropertyName == propertyName)
+                    .Select(x => new SharedMaterialCompositor.Region(x.UvMask, x.Processed))
+                    .ToList();
+                if (regions.Count != memberCount) return false;
+                if (!SharedMaterialCompositor.CanComposite(regions)) return false;
+            }
+            return true;
+        }
+
+        /// <summary>
+        /// 従来どおり 1 (r, s) 分を確定する。
+        /// 統合OFFのみ: 中間は全段非圧縮のため、ここで元フォーマットに1回だけ Best 圧縮する。
+        /// 共有キャッシュ実体を破壊しないよう、キャッシュと同一参照ならコピーしてから圧縮する
+        /// （そうしないと後続の cache 命中 renderer が圧縮済みをデコードしてブロックノイズが再発する）。
+        /// </summary>
+        private static Texture2D FinalizeSingleSlot(SlotResult x, bool meshMergeEnabled)
+        {
+            var tex = x.Processed;
+            if (!meshMergeEnabled)
+            {
+                if (x.IsSharedCacheEntry)
+                {
+                    // キャッシュは非圧縮のまま保持し、圧縮はこの renderer 専用コピーに対して行う
+                    tex = ColorProcessor.CopyTexture(tex, compressResult: false);
+                }
+                ColorProcessor.CompressToMatch(tex, x.OriginalTexture.format);
+            }
+            return tex;
+        }
+
+        /// <summary>
+        /// 共有グループの 1 スロット分を合成して確定する（統合OFF専用）。
+        /// 領域ごとの中間テクスチャは破棄する（キャッシュ実体は残す）。
+        /// </summary>
+        private static Texture2D FinalizeSharedSlot(List<SlotResult> slotResults)
+        {
+            if (slotResults.Count == 1) return FinalizeSingleSlot(slotResults[0], meshMergeEnabled: false);
+
+            var regions = slotResults
+                .Select(x => new SharedMaterialCompositor.Region(x.UvMask, x.Processed))
+                .ToList();
+            var composite = SharedMaterialCompositor.Composite(regions);
+            if (composite == null)
+            {
+                // CanShareGroup で弾いているので到達しない想定。万一の場合は先頭を従来処理で返す
+                return FinalizeSingleSlot(slotResults[0], meshMergeEnabled: false);
+            }
+
+            foreach (var x in slotResults)
+            {
+                if (!x.IsSharedCacheEntry)
+                {
+                    Object.DestroyImmediate(x.Processed);
+                }
+            }
+
+            ColorProcessor.CompressToMatch(composite, slotResults[0].OriginalTexture.format);
+            return composite;
+        }
     }
 }

@@ -372,6 +372,15 @@ msgstr "忽略色调统一(遮罩)"
 msgid "Inspector:ColorMaskHelp"
 msgstr "可用遮罩局部忽略色调统一。\n遮罩参照原头发的UV。\n黑色区域不会进行色调统一，保留原色。"
 
+msgid "Inspector:MaterialSwapSettings"
+msgstr "颜色不匹配时？"
+
+msgid "Inspector:MaterialSwapHelp"
+msgstr "根据头发贴图的不同，色调统一后颜色仍可能不理想。\n此时请准备一个贴图颜色更接近目标色的材质，在这里替换原材质。\n替换后的材质同样会进行色调统一。\n替换会直接应用到 Renderer，可以撤销。"
+
+msgid "Inspector:MaterialSlotLabelFormat"
+msgstr "SubMesh {0}"
+
 msgid "Inspector:PhysBoneList"
 msgstr "相关PhysBone"
 
@@ -706,7 +715,7 @@ msgid "MeshDeformInspector:Export:Cancel"
 msgstr "取消"
 
 msgid "MeshDeformInspector:Reset:Button"
-msgstr "重置变形"
+msgstr "重置该头发的变形"
 
 msgid "MeshDeformInspector:Reset:ConfirmTitle"
 msgstr "确认重置变形"
@@ -716,6 +725,18 @@ msgstr "是否重置该Renderer的所有变形数据？"
 
 msgid "MeshDeformInspector:Reset:ConfirmOk"
 msgstr "重置"
+
+msgid "MeshDeformInspector:ResetAll:Button"
+msgstr "重置所有变形"
+
+msgid "MeshDeformInspector:ResetAll:ConfirmMessage"
+msgstr "是否重置所有Renderer的变形数据？"
+
+msgid "MeshDeformInspector:Reset:Section"
+msgstr "重置变形"
+
+msgid "MeshDeformInspector:Export:Section"
+msgstr "输出"
 
 msgid "Scene:Mode:UVIsland"
 msgstr "UV岛编辑"

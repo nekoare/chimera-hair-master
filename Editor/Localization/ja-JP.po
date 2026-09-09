@@ -372,6 +372,15 @@ msgstr "色合わせ無視(マスク)"
 msgid "Inspector:ColorMaskHelp"
 msgstr "マスクを使って色合わせを部分的に無視できます。\nマスクは元の髪のUVを参照します。\n黒い部分は色合わせが適用されず、元の色が維持されます。"
 
+msgid "Inspector:MaterialSwapSettings"
+msgstr "色が合わないとき？"
+
+msgid "Inspector:MaterialSwapHelp"
+msgstr "髪のテクスチャによっては、色合わせしても色が合わないことがあります。\nその場合は、元のテクスチャの色を目的の色に近づけた別のマテリアルを用意し、ここで元のマテリアルと入れ替えてください。\n入れ替えたマテリアルにも色合わせが適用されます。\n入れ替えは Renderer に直接反映され、Undo で戻せます。"
+
+msgid "Inspector:MaterialSlotLabelFormat"
+msgstr "SubMesh {0}"
+
 msgid "Inspector:PhysBoneList"
 msgstr "関連PhysBone"
 
@@ -706,7 +715,7 @@ msgid "MeshDeformInspector:Export:Cancel"
 msgstr "キャンセル"
 
 msgid "MeshDeformInspector:Reset:Button"
-msgstr "変形をリセット"
+msgstr "この髪の変形をリセット"
 
 msgid "MeshDeformInspector:Reset:ConfirmTitle"
 msgstr "変形リセット確認"
@@ -716,6 +725,18 @@ msgstr "このRendererの変形データをすべてリセットしますか？"
 
 msgid "MeshDeformInspector:Reset:ConfirmOk"
 msgstr "リセット"
+
+msgid "MeshDeformInspector:ResetAll:Button"
+msgstr "すべての変形をリセット"
+
+msgid "MeshDeformInspector:ResetAll:ConfirmMessage"
+msgstr "すべてのRendererの変形データをリセットしますか？"
+
+msgid "MeshDeformInspector:Reset:Section"
+msgstr "変形のリセット"
+
+msgid "MeshDeformInspector:Export:Section"
+msgstr "出力"
 
 msgid "Scene:Mode:UVIsland"
 msgstr "UVアイランド編集"
