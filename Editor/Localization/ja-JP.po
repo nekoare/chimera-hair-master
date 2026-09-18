@@ -609,6 +609,9 @@ msgstr "Z分割"
 msgid "MeshDeformInspector:Vertex:ToolsHeader"
 msgstr "選択中の頂点ツール"
 
+msgid "MeshDeformInspector:Vertex:AffectedCount"
+msgstr "影響頂点数: {0}"
+
 msgid "MeshDeformInspector:Vertex:Shrink"
 msgstr "収縮 ←"
 
@@ -679,7 +682,7 @@ msgid "MeshDeformInspector:Advanced:ZTest"
 msgstr "Z-test(遮蔽非表示)"
 
 msgid "MeshDeformInspector:Advanced:ZTestTooltip"
-msgstr "他のメッシュの裏に隠れている頂点を非表示にする"
+msgstr "他のメッシュの裏に隠れている頂点を非表示にし、クリック選択の対象からも除外する"
 
 msgid "MeshDeformInspector:Export:SaveMesh"
 msgstr "メッシュを保存"

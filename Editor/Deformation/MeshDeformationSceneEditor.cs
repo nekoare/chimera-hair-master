@@ -56,19 +56,49 @@ namespace ChimeraHairMaster.Editor.Deformation
         public int ActiveRendererIndex { get; set; } = -1;
 
         /// <summary>
-        /// ブラシ半径（ワールド空間）
+        /// ブラシ半径（ワールド空間）。変更で影響範囲プレビューを再計算する
         /// </summary>
-        public float BrushRadius { get; set; } = 0.05f;
+        private float _brushRadius = 0.05f;
+        public float BrushRadius
+        {
+            get => _brushRadius;
+            set
+            {
+                if (Mathf.Approximately(_brushRadius, value)) return;
+                _brushRadius = value;
+                MarkPreviewDirty();
+            }
+        }
 
         /// <summary>
-        /// フォールオフタイプ
+        /// フォールオフタイプ。変更で影響範囲プレビューを再計算する
         /// </summary>
-        public FalloffType Falloff { get; set; } = FalloffType.Smooth;
+        private FalloffType _falloff = FalloffType.Smooth;
+        public FalloffType Falloff
+        {
+            get => _falloff;
+            set
+            {
+                if (_falloff == value) return;
+                _falloff = value;
+                MarkPreviewDirty();
+            }
+        }
 
         /// <summary>
-        /// 距離メトリック
+        /// 距離メトリック。変更で影響範囲プレビューを再計算する
         /// </summary>
-        public DistanceMetric Metric { get; set; } = DistanceMetric.Euclidean;
+        private DistanceMetric _metric = DistanceMetric.Euclidean;
+        public DistanceMetric Metric
+        {
+            get => _metric;
+            set
+            {
+                if (_metric == value) return;
+                _metric = value;
+                MarkPreviewDirty();
+            }
+        }
 
         /// <summary>
         /// 対称編集の有効軸（変更時にマッピングキャッシュをクリア）
@@ -84,6 +114,7 @@ namespace ChimeraHairMaster.Editor.Deformation
                 {
                     _symmetryX = value;
                     _symmetryMap = null;
+                    MarkPreviewDirty();
                     if (value) InitSymmetryOffsetFromBounds(0);
                 }
             }
@@ -97,6 +128,7 @@ namespace ChimeraHairMaster.Editor.Deformation
                 {
                     _symmetryY = value;
                     _symmetryMap = null;
+                    MarkPreviewDirty();
                     if (value) InitSymmetryOffsetFromBounds(1);
                 }
             }
@@ -110,6 +142,7 @@ namespace ChimeraHairMaster.Editor.Deformation
                 {
                     _symmetryZ = value;
                     _symmetryMap = null;
+                    MarkPreviewDirty();
                     if (value) InitSymmetryOffsetFromBounds(2);
                 }
             }
@@ -137,17 +170,17 @@ namespace ChimeraHairMaster.Editor.Deformation
         public float SymmetryOffsetX
         {
             get => _symmetryOffsetX;
-            set { if (!Mathf.Approximately(_symmetryOffsetX, value)) { _symmetryOffsetX = value; _symmetryMap = null; } }
+            set { if (!Mathf.Approximately(_symmetryOffsetX, value)) { _symmetryOffsetX = value; _symmetryMap = null; MarkPreviewDirty(); } }
         }
         public float SymmetryOffsetY
         {
             get => _symmetryOffsetY;
-            set { if (!Mathf.Approximately(_symmetryOffsetY, value)) { _symmetryOffsetY = value; _symmetryMap = null; } }
+            set { if (!Mathf.Approximately(_symmetryOffsetY, value)) { _symmetryOffsetY = value; _symmetryMap = null; MarkPreviewDirty(); } }
         }
         public float SymmetryOffsetZ
         {
             get => _symmetryOffsetZ;
-            set { if (!Mathf.Approximately(_symmetryOffsetZ, value)) { _symmetryOffsetZ = value; _symmetryMap = null; } }
+            set { if (!Mathf.Approximately(_symmetryOffsetZ, value)) { _symmetryOffsetZ = value; _symmetryMap = null; MarkPreviewDirty(); } }
         }
 
         /// <summary>対称オフセットをVector3で取得</summary>
@@ -216,6 +249,12 @@ namespace ChimeraHairMaster.Editor.Deformation
         // ドラッグ開始時のデルタスナップショット（絶対差分計算用）
         private Dictionary<int, Vector3> _dragStartDeltas = new Dictionary<int, Vector3>();
 
+        // ドラッグ前の影響範囲プレビュー（頂点モード）。
+        // 選択・半径・減衰・距離方式・対称設定の変更で dirty にし、必要になった時に 1 回だけ再計算する
+        private readonly Dictionary<int, float> _previewWeights = new Dictionary<int, float>();
+        private readonly Dictionary<int, float> _previewSymmetryWeights = new Dictionary<int, float>();
+        private bool _previewDirty = true;
+
         // 対称マッピング
         private Dictionary<int, int> _symmetryMap;
 
@@ -229,6 +268,11 @@ namespace ChimeraHairMaster.Editor.Deformation
         private const float DRAG_THRESHOLD = 6f;
         private Vector2 _mouseDownPos;
         private bool _mouseDownForSelection = false;
+
+        // ホバー中の候補頂点（頂点モード）。MouseMove を間引いて更新し、クリックで拾われる頂点を先に示す
+        private int _hoverVertex = -1;
+        private double _lastHoverUpdateTime;
+        private const double HOVER_UPDATE_INTERVAL = 0.05; // 秒（約 20fps）
 
 
         #endregion
@@ -310,6 +354,8 @@ namespace ChimeraHairMaster.Editor.Deformation
             _selectedIslandIndices.Clear();
             _symmetryMap = null;
             _geodesicCalculator = null;
+            ClearPreviewWeights();
+            _hoverVertex = -1;
 
             // GPU instanced頂点描画の初期化
             _dotRenderer = new VertexDotRenderer();
@@ -349,6 +395,8 @@ namespace ChimeraHairMaster.Editor.Deformation
             _selectedVertices.Clear();
             _selectedIslandIndex = -1;
             _selectedIslandIndices.Clear();
+            ClearPreviewWeights();
+            _hoverVertex = -1;
 
             // モード固有の初期化
             if (newMode == EditMode.UVIsland)
@@ -440,9 +488,12 @@ namespace ChimeraHairMaster.Editor.Deformation
             _isBoxSelecting = false;
             _mouseDownForSelection = false;
             _falloffWeights.Clear();
+            _symmetryFalloffWeights.Clear();
             _dragStartDeltas.Clear();
             _dragStartDistances.Clear();
             _visibleVertices = null;
+            ClearPreviewWeights();
+            _hoverVertex = -1;
 
             // GPU描画リソースの解放
             _dotRenderer?.Dispose();
@@ -478,6 +529,9 @@ namespace ChimeraHairMaster.Editor.Deformation
 
             // Undo/Redo発生をInspectorUI側に通知（スライダー等のリセット用）
             OperationVersion++;
+
+            // 頂点位置が変わったので影響範囲プレビューを再計算
+            MarkPreviewDirty();
 
             // ラティスモード中なら制御点もUndoStateから復元
             if (CurrentMode == EditMode.Lattice && _lattice != null && _latticeUndoState != null
@@ -698,6 +752,45 @@ namespace ChimeraHairMaster.Editor.Deformation
 
                 _mouseDownForSelection = false;
             }
+            else if (e.type == EventType.MouseMove)
+            {
+                UpdateHoverVertex(e, sceneView);
+            }
+            else if (e.type == EventType.MouseLeaveWindow)
+            {
+                if (_hoverVertex >= 0)
+                {
+                    _hoverVertex = -1;
+                    sceneView.Repaint();
+                }
+            }
+        }
+
+        /// <summary>
+        /// ホバー中の候補頂点を更新する（頂点モードのみ。全メッシュ走査を避けるため約 20fps に間引く）
+        /// </summary>
+        private void UpdateHoverVertex(Event e, UnityEditor.SceneView sceneView)
+        {
+            if (CurrentMode != EditMode.Vertex || _isDragging || _isBoxSelecting)
+            {
+                if (_hoverVertex >= 0)
+                {
+                    _hoverVertex = -1;
+                    sceneView.Repaint();
+                }
+                return;
+            }
+
+            double now = EditorApplication.timeSinceStartup;
+            if (now - _lastHoverUpdateTime < HOVER_UPDATE_INTERVAL) return;
+            _lastHoverUpdateTime = now;
+
+            int picked = e.alt ? -1 : PickVertexAtScreenPoint(e.mousePosition);
+            if (picked != _hoverVertex)
+            {
+                _hoverVertex = picked;
+                sceneView.Repaint();
+            }
         }
 
         /// <summary>
@@ -764,26 +857,14 @@ namespace ChimeraHairMaster.Editor.Deformation
             UpdateHandleFromSelection();
         }
 
+        // クリック選択・ホバーで頂点を拾う画面距離（ピクセル）
+        private const float VERTEX_PICK_SCREEN_DISTANCE = 20f;
+
         private void SelectVertexAtMouse(Event e)
         {
             if (_bakedVerticesWorld == null) return;
 
-            float minDist = 20f;
-            int closest = -1;
-
-            for (int i = 0; i < _bakedVerticesWorld.Length; i++)
-            {
-                if (!IsVertexVisible(i)) continue;
-
-                var screenPos = HandleUtility.WorldToGUIPoint(_bakedVerticesWorld[i]);
-                float dist = Vector2.Distance(screenPos, e.mousePosition);
-
-                if (dist < minDist)
-                {
-                    minDist = dist;
-                    closest = i;
-                }
-            }
+            int closest = PickVertexAtScreenPoint(e.mousePosition);
 
             if (closest >= 0)
             {
@@ -792,6 +873,35 @@ namespace ChimeraHairMaster.Editor.Deformation
                 UpdateHandleFromSelection();
                 e.Use();
             }
+        }
+
+        /// <summary>
+        /// 画面座標に最も近い可視頂点を返す（無ければ -1）。
+        /// 背面カリングで不可視の頂点は候補にしない。Z-test ON のときは、他の三角形の裏に
+        /// 隠れている頂点も候補から外す（表示されていない頂点をクリックで掴む事故を防ぐ）。
+        /// Z-test OFF は隠れた頂点も表示されている状態なので、従来通り画面距離の最寄りを返す
+        /// </summary>
+        private int PickVertexAtScreenPoint(Vector2 screenPos)
+        {
+            if (_bakedVerticesWorld == null || _workingMesh == null) return -1;
+
+            bool[] visibleMask = null;
+            if (BackfaceCulling && _visibleVertices != null && _visibleVertices.Length == _bakedVerticesWorld.Length)
+                visibleMask = _visibleVertices;
+
+            int[] triangles = null;
+            if (ZTest)
+            {
+                _cachedWorkingTriangles ??= _workingMesh.triangles;
+                triangles = _cachedWorkingTriangles;
+            }
+
+            return MeshVertexPicker.PickVisibleVertex(
+                _bakedVerticesWorld, triangles, visibleMask,
+                p => HandleUtility.WorldToGUIPoint(p),
+                screenPos, VERTEX_PICK_SCREEN_DISTANCE,
+                p => HandleUtility.GUIPointToWorldRay(HandleUtility.WorldToGUIPoint(p)),
+                testOcclusion: ZTest);
         }
 
         private void SelectIslandAtMouse(Event e)
@@ -919,6 +1029,9 @@ namespace ChimeraHairMaster.Editor.Deformation
             {
                 EndDrag();
             }
+
+            // 選択が変わったので影響範囲プレビューを再計算（空になった場合も含む）
+            MarkPreviewDirty();
 
             if (_selectedVertices.Count == 0) return;
 
@@ -1140,8 +1253,12 @@ namespace ChimeraHairMaster.Editor.Deformation
         {
             _isDragging = false;
             _falloffWeights.Clear();
+            _symmetryFalloffWeights.Clear();
             _dragStartDeltas.Clear();
             _dragStartDistances.Clear();
+
+            // 頂点位置が変わったので影響範囲プレビューを再計算
+            MarkPreviewDirty();
 
             // ドラッグ終了: 最終状態をコンポーネントに書き出す
             SaveDeltasToComponent();
@@ -1275,38 +1392,17 @@ namespace ChimeraHairMaster.Editor.Deformation
 
         /// <summary>
         /// 対称側のフォールオフウェイトをドラッグ開始時に事前計算する
+        /// （選択中心をベース頂点からミラーし、主側に含まれる頂点は二重適用防止で除外）
         /// </summary>
         private void ComputeSymmetryFalloffWeights()
         {
             _symmetryFalloffWeights.Clear();
             if (!SymmetryX && !SymmetryY && !SymmetryZ) return;
-            if (_selectedVertices.Count == 0) return;
             if (_baseVertices == null) return;
 
-            // 選択中心を計算（ベース頂点から）
-            var center = Vector3.zero;
-            foreach (int vi in _selectedVertices)
-            {
-                if (vi < _baseVertices.Length)
-                    center += _baseVertices[vi];
-            }
-            center /= _selectedVertices.Count;
-
-            // 選択中心をミラー
-            var mirrorCenter = MirrorPosition(center);
-
-            // ミラー中心からブラシ半径内の全頂点のフォールオフを計算
-            for (int i = 0; i < _baseVertices.Length; i++)
-            {
-                // 元の影響範囲内の頂点はスキップ（二重適用防止）
-                if (_falloffWeights.ContainsKey(i)) continue;
-
-                float dist = Vector3.Distance(_baseVertices[i], mirrorCenter);
-                if (dist > BrushRadius) continue;
-
-                float t = Mathf.Clamp01(dist / BrushRadius);
-                _symmetryFalloffWeights[i] = EvaluateFalloff(t);
-            }
+            FalloffWeightCalculator.ComputeMirrored(
+                _baseVertices, _selectedVertices, BrushRadius, Falloff,
+                MirrorPosition, _falloffWeights, _symmetryFalloffWeights);
         }
 
         /// <summary>
@@ -1374,53 +1470,123 @@ namespace ChimeraHairMaster.Editor.Deformation
             var renderer = GetActiveRenderer();
             if (renderer == null) return;
 
-            var vertices = _workingMesh.vertices;
+            if (Metric == DistanceMetric.Geodesic) EnsureGeodesicCalculator();
 
-            // 選択中心を計算
-            var center = Vector3.zero;
-            foreach (int vi in _selectedVertices)
-            {
-                if (vi < vertices.Length)
-                    center += vertices[vi];
-            }
-            center /= _selectedVertices.Count;
+            // 直線距離は全頂点、測地線は 2R までの距離をキャッシュし、半径内だけにウェイトを張る
+            FalloffWeightCalculator.Compute(
+                _workingMesh.vertices, _selectedVertices, BrushRadius, Falloff, Metric,
+                _geodesicCalculator, _falloffWeights, _dragStartDistances);
+        }
 
-            if (Metric == DistanceMetric.Geodesic)
-            {
-                EnsureGeodesicCalculator();
-                if (_geodesicCalculator != null)
-                {
-                    // マルチソースダイクストラ: 全選択頂点を起点にして
-                    // 各頂点への「最寄りの選択頂点からの表面距離」を計算
-                    var distances = _geodesicCalculator.ComputeDistances(_selectedVertices, BrushRadius * 2f);
-                    foreach (var kvp in distances)
-                    {
-                        // 距離キャッシュは半径拡大時の再計算のため 2R 分を残すが、
-                        // ウェイトを張るのは半径内の頂点のみ。ここをゲートしないと
-                        // Constant フォールオフでブラシ球の外側（最大 2R）まで変形してしまう。
-                        _dragStartDistances[kvp.Key] = kvp.Value;
-                        if (kvp.Value <= BrushRadius)
-                        {
-                            float t = Mathf.Clamp01(kvp.Value / BrushRadius);
-                            _falloffWeights[kvp.Key] = EvaluateFalloff(t);
-                        }
-                    }
-                    return;
-                }
-            }
+        #region 影響範囲プレビュー
 
-            // ユークリッド距離: 全頂点の距離をキャッシュ
-            for (int i = 0; i < vertices.Length; i++)
+        /// <summary>
+        /// 影響範囲プレビューを再計算対象にする（実際の計算は次に必要になった時）
+        /// </summary>
+        private void MarkPreviewDirty()
+        {
+            _previewDirty = true;
+        }
+
+        private void ClearPreviewWeights()
+        {
+            _previewWeights.Clear();
+            _previewSymmetryWeights.Clear();
+            _previewDirty = true;
+        }
+
+        /// <summary>
+        /// dirty ならドラッグ前の影響範囲プレビュー（主側 + 対称側）を再計算する。
+        /// ドラッグ中はドラッグ開始時に確定したウェイトを使うため何もしない（終了時に dirty になる）。
+        /// 頂点モード以外では常に空
+        /// </summary>
+        private void EnsurePreviewWeights()
+        {
+            if (!_previewDirty || _isDragging) return;
+            _previewDirty = false;
+            _previewWeights.Clear();
+            _previewSymmetryWeights.Clear();
+
+            if (CurrentMode != EditMode.Vertex) return;
+            if (_workingMesh == null || _baseVertices == null) return;
+            if (_selectedVertices.Count == 0) return;
+
+            if (Metric == DistanceMetric.Geodesic) EnsureGeodesicCalculator();
+
+            FalloffWeightCalculator.Compute(
+                _workingMesh.vertices, _selectedVertices, BrushRadius, Falloff, Metric,
+                _geodesicCalculator, _previewWeights, null);
+
+            if (SymmetryX || SymmetryY || SymmetryZ)
             {
-                float dist = Vector3.Distance(vertices[i], center);
-                _dragStartDistances[i] = dist;
-                if (dist <= BrushRadius)
-                {
-                    float t = Mathf.Clamp01(dist / BrushRadius);
-                    _falloffWeights[i] = EvaluateFalloff(t);
-                }
+                FalloffWeightCalculator.ComputeMirrored(
+                    _baseVertices, _selectedVertices, BrushRadius, Falloff,
+                    MirrorPosition, _previewWeights, _previewSymmetryWeights);
             }
         }
+
+        /// <summary>
+        /// ドット色用の影響ウェイト。ドラッグ中はドラッグ開始時のウェイト、
+        /// それ以外はプレビューのウェイト（いずれも対称側を含む）
+        /// </summary>
+        private bool TryGetInfluenceWeight(int vertexIndex, out float weight)
+        {
+            if (_isDragging)
+            {
+                if (_falloffWeights.TryGetValue(vertexIndex, out weight)) return true;
+                return _symmetryFalloffWeights.TryGetValue(vertexIndex, out weight);
+            }
+            if (_previewWeights.TryGetValue(vertexIndex, out weight)) return true;
+            return _previewSymmetryWeights.TryGetValue(vertexIndex, out weight);
+        }
+
+        /// <summary>
+        /// 現在の設定で変形の影響を受ける頂点数（頂点モードのみ。それ以外は 0）。
+        /// Inspector の表示用
+        /// </summary>
+        public int PreviewAffectedVertexCount
+        {
+            get
+            {
+                if (CurrentMode != EditMode.Vertex) return 0;
+                if (_isDragging) return CountPositiveWeights(_falloffWeights, _symmetryFalloffWeights);
+                EnsurePreviewWeights();
+                return CountPositiveWeights(_previewWeights, _previewSymmetryWeights);
+            }
+        }
+
+        private static int CountPositiveWeights(Dictionary<int, float> primary, Dictionary<int, float> mirrored)
+        {
+            int count = 0;
+            foreach (var kvp in primary)
+                if (kvp.Value > 0.0001f) count++;
+            foreach (var kvp in mirrored)
+                if (kvp.Value > 0.0001f && !primary.ContainsKey(kvp.Key)) count++;
+            return count;
+        }
+
+        /// <summary>
+        /// 対称側のブラシ球中心（ワールド）。対称が無効なら null
+        /// </summary>
+        private Vector3? GetMirroredSelectionCenterWorld()
+        {
+            if (!SymmetryX && !SymmetryY && !SymmetryZ) return null;
+            if (_baseVertices == null || _selectedVertices.Count == 0) return null;
+
+            var center = Vector3.zero;
+            int count = 0;
+            foreach (int vi in _selectedVertices)
+            {
+                if (vi < 0 || vi >= _baseVertices.Length) continue;
+                center += _baseVertices[vi];
+                count++;
+            }
+            if (count == 0) return null;
+
+            return LocalToDisplayWorld(MirrorPosition(center / count));
+        }
+
+        #endregion
 
         /// <summary>
         /// キャッシュ済み距離から、新しいブラシ半径でウェイトだけ再計算する。
@@ -1464,20 +1630,7 @@ namespace ChimeraHairMaster.Editor.Deformation
         /// </summary>
         public static float EvaluateFalloff(float t, FalloffType type)
         {
-            t = Mathf.Clamp01(t);
-            switch (type)
-            {
-                case FalloffType.Constant:
-                    return 1.0f;
-                case FalloffType.Linear:
-                    return 1.0f - t;
-                case FalloffType.Smooth:
-                    return 1.0f - (3.0f * t * t - 2.0f * t * t * t);
-                case FalloffType.Sphere:
-                    return Mathf.Sqrt(1.0f - t * t);
-                default:
-                    return 1.0f;
-            }
+            return FalloffWeightCalculator.EvaluateFalloff(t, type);
         }
 
         private float EvaluateFalloff(float t)
@@ -1626,6 +1779,9 @@ namespace ChimeraHairMaster.Editor.Deformation
             else
             {
                 // 頂点モード
+                // ドラッグ前でも影響範囲が見えるよう、プレビューのウェイトでハイライトする
+                EnsurePreviewWeights();
+
                 for (int i = 0; i < vertCount; i++)
                 {
                     if (!_visibleVertices[i]) continue;
@@ -1634,7 +1790,7 @@ namespace ChimeraHairMaster.Editor.Deformation
 
                     if (_selectedVertices.Contains(i))
                         dotColors.Add(selectedColor);
-                    else if (_isDragging && _falloffWeights.TryGetValue(i, out float fw) && fw > 0)
+                    else if (TryGetInfluenceWeight(i, out float fw) && fw > 0)
                         dotColors.Add(Color.Lerp(unselectedColor, brushHighlightColor, fw));
                     else
                         dotColors.Add(unselectedColor);
@@ -1647,22 +1803,55 @@ namespace ChimeraHairMaster.Editor.Deformation
             // 選択頂点のワイヤーフレーム + 半透明オーバーレイを描画
             DrawSelectionOverlay();
 
-            // 頂点モード + ドラッグ中: ブラシ半径のワイヤー球を表示
-            if (CurrentMode == EditMode.Vertex && _isDragging && _selectedVertices.Count > 0)
+            // 頂点モード: ホバー中の候補頂点を表示
+            if (CurrentMode == EditMode.Vertex)
+                DrawHoverVertex();
+
+            // 頂点モード + 選択あり: ブラシ半径のワイヤー球を表示（ドラッグ前は薄く、ドラッグ中は濃く）
+            if (CurrentMode == EditMode.Vertex && _selectedVertices.Count > 0)
             {
-                DrawBrushRadiusSphere();
+                float alpha = _isDragging ? 0.4f : 0.2f;
+                DrawBrushRadiusSphere(_handlePosition, alpha);
+
+                var mirrorCenter = GetMirroredSelectionCenterWorld();
+                if (mirrorCenter.HasValue)
+                    DrawBrushRadiusSphere(mirrorCenter.Value, alpha * 0.75f);
             }
         }
 
         /// <summary>
-        /// 選択頂点の重心位置にブラシ半径のワイヤー球を表示する
+        /// ホバー中の候補頂点（クリックで拾われる頂点）に二重リングを表示する。
+        /// ドラッグ中・矩形選択中・選択済み頂点には出さない
         /// </summary>
-        private void DrawBrushRadiusSphere()
+        private void DrawHoverVertex()
         {
-            Handles.color = new Color(0f, 1f, 0.5f, 0.4f);
-            Handles.DrawWireDisc(_handlePosition, Camera.current.transform.forward, BrushRadius);
-            Handles.DrawWireDisc(_handlePosition, Camera.current.transform.up, BrushRadius);
-            Handles.DrawWireDisc(_handlePosition, Camera.current.transform.right, BrushRadius);
+            if (_isDragging || _isBoxSelecting) return;
+            if (_hoverVertex < 0 || _bakedVerticesWorld == null || _hoverVertex >= _bakedVerticesWorld.Length) return;
+            if (_selectedVertices.Contains(_hoverVertex)) return;
+
+            var camera = Camera.current;
+            if (camera == null) return;
+
+            var pos = _bakedVerticesWorld[_hoverVertex];
+            var camFwd = camera.transform.forward;
+            float size = HandleUtility.GetHandleSize(pos) * 0.05f;
+
+            Handles.color = new Color(1f, 0.9f, 0.3f, 1f);
+            Handles.DrawWireDisc(pos, camFwd, size);
+            Handles.color = new Color(0f, 0f, 0f, 0.6f);
+            Handles.DrawWireDisc(pos, camFwd, size * 1.08f);
+            Handles.color = Color.white;
+        }
+
+        /// <summary>
+        /// 指定位置にブラシ半径のワイヤー球を表示する
+        /// </summary>
+        private void DrawBrushRadiusSphere(Vector3 center, float alpha)
+        {
+            Handles.color = new Color(0f, 1f, 0.5f, alpha);
+            Handles.DrawWireDisc(center, Camera.current.transform.forward, BrushRadius);
+            Handles.DrawWireDisc(center, Camera.current.transform.up, BrushRadius);
+            Handles.DrawWireDisc(center, Camera.current.transform.right, BrushRadius);
             Handles.color = Color.white;
         }
 
@@ -2378,6 +2567,7 @@ namespace ChimeraHairMaster.Editor.Deformation
             ApplyDeltasToWorkingMesh();
             SaveDeltasToComponent();
             EditorUtility.SetDirty(TargetComponent.UndoTarget);
+            MarkPreviewDirty();
         }
 
         #endregion

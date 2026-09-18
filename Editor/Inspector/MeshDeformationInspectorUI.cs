@@ -254,6 +254,11 @@ namespace ChimeraHairMaster.Editor
 
             EditorGUILayout.LabelField(CHMLocales.Tr("MeshDeformInspector:Vertex:ToolsHeader"), EditorStyles.boldLabel);
 
+            // 現在の半径・減衰で影響を受ける頂点数（ドラッグ前のプレビューと同じ値）
+            EditorGUILayout.LabelField(
+                string.Format(CHMLocales.Tr("MeshDeformInspector:Vertex:AffectedCount"), SceneEditor.PreviewAffectedVertexCount),
+                EditorStyles.miniLabel);
+
             // 膨張/収縮スライダー
             int hotBefore = GUIUtility.hotControl;
 
@@ -396,6 +401,9 @@ namespace ChimeraHairMaster.Editor
 
             EditorGUI.indentLevel++;
 
+            // 半径・減衰・距離方式の変更を Scene View の影響範囲プレビューに即時反映する
+            EditorGUI.BeginChangeCheck();
+
             // ブラシ設定（頂点モードのみ）
             if (SceneEditor.CurrentMode == MeshDeformationSceneEditor.EditMode.Vertex)
             {
@@ -429,6 +437,9 @@ namespace ChimeraHairMaster.Editor
             SceneEditor.ZTest = EditorGUILayout.Toggle(
                 new GUIContent(CHMLocales.Tr("MeshDeformInspector:Advanced:ZTest"), CHMLocales.Tr("MeshDeformInspector:Advanced:ZTestTooltip")),
                 SceneEditor.ZTest);
+
+            if (EditorGUI.EndChangeCheck())
+                UnityEditor.SceneView.RepaintAll();
 
             EditorGUI.indentLevel--;
         }

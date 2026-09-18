@@ -129,11 +129,56 @@ namespace ChimeraHairMaster.Editor.Processing
                 deltaArray[d.vertexIndex] = d.offset;
             }
 
+            // 法線デルタを付けないと BlendShape を効かせても陰影が変形前のままになる。
+            // 出力メッシュ本体の authored 法線は保持し、「再計算した変形後法線 − 再計算した未変形法線」を
+            // 相対変化として乗せる（動かしていない近傍はゼロになる）。
+            // 接線は法線再計算で変わらないため null のまま
+            var deltaNormals = ComputeNormalDeltas(sourceMesh, deltaArray);
+
             // 1 frame, weight=100 で末尾に追加
-            // normals/tangents は null（自動再計算なし、視覚的にはほぼ問題なし）
-            mesh.AddBlendShapeFrame(actualName, 100f, deltaArray, null, null);
+            mesh.AddBlendShapeFrame(actualName, 100f, deltaArray, deltaNormals, null);
 
             return mesh;
+        }
+
+        /// <summary>
+        /// BlendShape 用の法線デルタを計算する。
+        /// 元メッシュの複製で RecalculateNormals した未変形法線と、頂点デルタを乗せて再度
+        /// RecalculateNormals した変形後法線の差分を返す。
+        /// 元メッシュに頂点数分の法線が無い場合は null（法線デルタなし）
+        /// </summary>
+        internal static Vector3[] ComputeNormalDeltas(Mesh sourceMesh, Vector3[] vertexDeltas)
+        {
+            if (sourceMesh == null || vertexDeltas == null) return null;
+            var sourceNormals = sourceMesh.normals;
+            if (sourceNormals == null || sourceNormals.Length != sourceMesh.vertexCount) return null;
+
+            var temp = Object.Instantiate(sourceMesh);
+            try
+            {
+                temp.RecalculateNormals();
+                var baseNormals = temp.normals;
+
+                var vertices = temp.vertices;
+                int count = Mathf.Min(vertices.Length, vertexDeltas.Length);
+                for (int i = 0; i < count; i++)
+                    vertices[i] += vertexDeltas[i];
+                temp.vertices = vertices;
+                temp.RecalculateNormals();
+                var deformedNormals = temp.normals;
+
+                if (baseNormals.Length != vertices.Length || deformedNormals.Length != vertices.Length)
+                    return null;
+
+                var result = new Vector3[vertices.Length];
+                for (int i = 0; i < result.Length; i++)
+                    result[i] = deformedNormals[i] - baseNormals[i];
+                return result;
+            }
+            finally
+            {
+                Object.DestroyImmediate(temp);
+            }
         }
 
         private static string MakeUniqueName(string baseName, HashSet<string> existing)

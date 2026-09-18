@@ -609,6 +609,9 @@ msgstr "Z分割"
 msgid "MeshDeformInspector:Vertex:ToolsHeader"
 msgstr "所选顶点工具"
 
+msgid "MeshDeformInspector:Vertex:AffectedCount"
+msgstr "影响顶点数: {0}"
+
 msgid "MeshDeformInspector:Vertex:Shrink"
 msgstr "收缩 ←"
 
@@ -679,7 +682,7 @@ msgid "MeshDeformInspector:Advanced:ZTest"
 msgstr "Z-test(遮挡隐藏)"
 
 msgid "MeshDeformInspector:Advanced:ZTestTooltip"
-msgstr "隐藏被其他Mesh遮挡的顶点"
+msgstr "隐藏被其他Mesh遮挡的顶点，并将其排除在点击选择之外"
 
 msgid "MeshDeformInspector:Export:SaveMesh"
 msgstr "保存Mesh"

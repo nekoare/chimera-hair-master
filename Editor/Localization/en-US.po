@@ -609,6 +609,9 @@ msgstr "Z Divisions"
 msgid "MeshDeformInspector:Vertex:ToolsHeader"
 msgstr "Selected Vertex Tools"
 
+msgid "MeshDeformInspector:Vertex:AffectedCount"
+msgstr "Affected vertices: {0}"
+
 msgid "MeshDeformInspector:Vertex:Shrink"
 msgstr "Shrink ←"
 
@@ -679,7 +682,7 @@ msgid "MeshDeformInspector:Advanced:ZTest"
 msgstr "Z-Test (Hide Occluded)"
 
 msgid "MeshDeformInspector:Advanced:ZTestTooltip"
-msgstr "Hide vertices that are occluded behind other meshes."
+msgstr "Hide vertices that are occluded behind other meshes and exclude them from click selection."
 
 msgid "MeshDeformInspector:Export:SaveMesh"
 msgstr "Save Mesh"

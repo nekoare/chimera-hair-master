@@ -609,6 +609,9 @@ msgstr "Z 분할"
 msgid "MeshDeformInspector:Vertex:ToolsHeader"
 msgstr "선택 중인 버텍스 도구"
 
+msgid "MeshDeformInspector:Vertex:AffectedCount"
+msgstr "영향 버텍스 수: {0}"
+
 msgid "MeshDeformInspector:Vertex:Shrink"
 msgstr "수축 ←"
 
@@ -679,7 +682,7 @@ msgid "MeshDeformInspector:Advanced:ZTest"
 msgstr "Z-test(가려짐 숨김)"
 
 msgid "MeshDeformInspector:Advanced:ZTestTooltip"
-msgstr "다른 Mesh 뒤에 가려진 버텍스를 숨깁니다"
+msgstr "다른 Mesh 뒤에 가려진 버텍스를 숨기고 클릭 선택 대상에서도 제외합니다"
 
 msgid "MeshDeformInspector:Export:SaveMesh"
 msgstr "Mesh 저장"
