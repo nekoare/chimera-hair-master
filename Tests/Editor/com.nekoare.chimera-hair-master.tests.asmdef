@@ -7,7 +7,8 @@
         "nadena.dev.ndmf",
         "nadena.dev.ndmf.runtime",
         "UnityEngine.TestRunner",
-        "UnityEditor.TestRunner"
+        "UnityEditor.TestRunner",
+        "GUID:fc900867c0f47cd49b6e2ae4ef907300"
     ],
     "includePlatforms": [
         "Editor"
@@ -22,6 +23,12 @@
     "defineConstraints": [
         "UNITY_INCLUDE_TESTS"
     ],
-    "versionDefines": [],
+    "versionDefines": [
+        {
+            "name": "nadena.dev.modular-avatar",
+            "expression": "",
+            "define": "CHM_MODULAR_AVATAR"
+        }
+    ],
     "noEngineReferences": false
 }

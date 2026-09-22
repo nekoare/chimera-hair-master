@@ -543,6 +543,9 @@ msgstr "Generates a hair Prefab with material settings and deformation applied.\
 msgid "Inspector:PrefabExportMeshMergeIgnored"
 msgstr "Mesh merge settings will be ignored (renderers are exported individually)."
 
+msgid "Inspector:PrefabExportRequiresModularAvatar"
+msgstr "Modular Avatar was not found. Hair in the exported Prefab will not follow the avatar. Install Modular Avatar, or merge the Prefab's Armature into the avatar manually."
+
 msgid "Inspector:PrefabExportButton"
 msgstr "Export Prefab"
 
@@ -551,6 +554,12 @@ msgstr "Unify Material Settings"
 
 msgid "Inspector:PrefabUnifyMaterialSettingsTooltip"
 msgstr "ON: Copy shader settings from the base material to all materials.\nOFF: Keep each renderer's original material settings as-is."
+
+msgid "Inspector:PrefabHideOriginal"
+msgstr "Hide original hair (EditorOnly)"
+
+msgid "Inspector:PrefabHideOriginalTooltip"
+msgstr "Deactivates the target renderers' GameObjects and tags them EditorOnly, so they neither overlap the exported Prefab nor get uploaded (undoable)."
 
 msgid "Inspector:SharedRendererWarningFormat"
 msgstr "The following Renderers are shared with another Chimera Hair Master.\nThis will cause conflicts at build time with undefined results.\n{0}"

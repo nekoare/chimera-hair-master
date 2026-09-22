@@ -543,6 +543,9 @@ msgstr "Material 설정・변형 정보를 반영한 머리 Prefab을 생성합�
 msgid "Inspector:PrefabExportMeshMergeIgnored"
 msgstr "메시 통합 설정은 무시됩니다(Renderer 개별로 출력)."
 
+msgid "Inspector:PrefabExportRequiresModularAvatar"
+msgstr "Modular Avatar를 찾을 수 없습니다. 출력된 Prefab의 머리카락은 아바타를 따라가지 않습니다. Modular Avatar를 도입하거나 Prefab 안의 Armature를 아바타에 수동으로 병합하세요."
+
 msgid "Inspector:PrefabExportButton"
 msgstr "Prefab 출력"
 
@@ -551,6 +554,12 @@ msgstr "머티리얼 설정 통일"
 
 msgid "Inspector:PrefabUnifyMaterialSettingsTooltip"
 msgstr "ON: 기준 머티리얼의 셰이더 설정을 모든 머티리얼에 복사합니다.\nOFF: 각 Renderer의 원본 머티리얼 설정을 그대로 유지합니다."
+
+msgid "Inspector:PrefabHideOriginal"
+msgstr "원본 머리카락 숨기기(EditorOnly)"
+
+msgid "Inspector:PrefabHideOriginalTooltip"
+msgstr "출력한 Prefab과 겹쳐 보이지 않도록 대상 Renderer의 GameObject를 비활성화하고 EditorOnly 태그를 붙여 업로드에서 제외합니다(Undo 가능)."
 
 msgid "Inspector:SharedRendererWarningFormat"
 msgstr "다음 Renderer가 다른 Chimera Hair Master와 중복되어 있습니다.\n빌드 시 충돌이 발생해 결과가 불확실해집니다.\n{0}"

@@ -10,7 +10,8 @@ using VRC.SDK3.Dynamics.PhysBone.Components;
 namespace ChimeraHairMaster.Editor.Processing
 {
     /// <summary>
-    /// 一時 GameObject から、対象 Renderer に必要な bone・PhysBone・Constraint だけを残し、
+    /// 一時 GameObject から、対象 Renderer に必要な bone・PhysBone・Constraint と、
+    /// 髪をアバターに接続している MA Merge Armature / MA Bone Proxy だけを残し、
     /// 不要な GameObject を再帰削除するユーティリティ。
     /// </summary>
     internal static class HierarchyDependencyResolver
@@ -50,7 +51,10 @@ namespace ChimeraHairMaster.Editor.Processing
             // 5. Constraint
             CollectConstraintDependencies(tempRoot, weightedBones, componentsToSave);
 
-            // 6. 不要 GameObject を再帰削除
+            // 6. 生き残る GameObject に付いた MA の接続コンポーネント（1〜5 の結果に依存するため最後）
+            CollectAttachmentComponents(tempRoot, componentsToSave);
+
+            // 7. 不要 GameObject を再帰削除
             CheckAndDeleteRecursive(tempRoot, componentsToSave);
         }
 
@@ -178,6 +182,8 @@ namespace ChimeraHairMaster.Editor.Processing
 
                     if (!targetCovered) continue;
 
+                    // Transform だけでなく Constraint 本体も残す（消すと髪を動かす手段が失われる）
+                    componentsToSave.Add(info.Constraint);
                     componentsToSave.Add(info.Target);
 
                     foreach (var src in info.SourceParents)
@@ -195,6 +201,7 @@ namespace ChimeraHairMaster.Editor.Processing
 
         private struct ConstraintInfo
         {
+            public Component Constraint;
             public Transform Target;
             public HashSet<Transform> TargetChildren;
             public HashSet<Transform> SourceParents;
@@ -218,7 +225,7 @@ namespace ChimeraHairMaster.Editor.Processing
                     var s = uc.GetSource(i).sourceTransform;
                     if (s != null) sources.Add(s);
                 }
-                result.Add(BuildInfo(rootTransform, target, sources));
+                result.Add(BuildInfo(rootTransform, component, target, sources));
             }
 
             // VRC Constraints
@@ -231,13 +238,13 @@ namespace ChimeraHairMaster.Editor.Processing
                 {
                     if (s.SourceTransform != null) sources.Add(s.SourceTransform);
                 }
-                result.Add(BuildInfo(rootTransform, target, sources));
+                result.Add(BuildInfo(rootTransform, vc, target, sources));
             }
 
             return result;
         }
 
-        private static ConstraintInfo BuildInfo(Transform rootTransform, Transform target, HashSet<Transform> sources)
+        private static ConstraintInfo BuildInfo(Transform rootTransform, Component constraint, Transform target, HashSet<Transform> sources)
         {
             var sourceParents = new HashSet<Transform>();
             foreach (var s in sources)
@@ -246,6 +253,7 @@ namespace ChimeraHairMaster.Editor.Processing
             }
             return new ConstraintInfo
             {
+                Constraint = constraint,
                 Target = target,
                 TargetChildren = GetSelfAndAllChildren(target).ToHashSet(),
                 SourceParents = sourceParents,
@@ -261,6 +269,42 @@ namespace ChimeraHairMaster.Editor.Processing
                 current = current.parent;
             }
             if (current == root) result.Add(current);
+        }
+
+        // ========== MA 接続コンポーネント ==========
+
+        /// <summary>
+        /// 削除されずに生き残る GameObject（保存対象とその祖先。root 自身は除く）に付いた
+        /// MA Merge Armature / MA Bone Proxy を残す。元の接続設定（prefix/suffix・mergeTarget・
+        /// boneReference）をそのまま Prefab に持ち越すのが目的。
+        /// 生き残るのは髪・ボーン・その祖先だけなので、髪と無関係な衣装側の接続は GameObject ごと消える。
+        /// ModularAvatar が未導入のプロジェクトでは何もしない（asmdef 条件コンパイル）
+        /// </summary>
+        private static void CollectAttachmentComponents(GameObject root, HashSet<Component> componentsToSave)
+        {
+#if CHM_MODULAR_AVATAR
+            var survivors = new HashSet<GameObject>();
+            foreach (var c in componentsToSave)
+            {
+                if (c == null) continue;
+                var t = c.transform;
+                while (t != null && t.gameObject != root)
+                {
+                    // 既に登録済みなら祖先も登録済み
+                    if (!survivors.Add(t.gameObject)) break;
+                    t = t.parent;
+                }
+            }
+
+            foreach (var merge in root.GetComponentsInChildren<nadena.dev.modular_avatar.core.ModularAvatarMergeArmature>(true))
+            {
+                if (survivors.Contains(merge.gameObject)) componentsToSave.Add(merge);
+            }
+            foreach (var proxy in root.GetComponentsInChildren<nadena.dev.modular_avatar.core.ModularAvatarBoneProxy>(true))
+            {
+                if (survivors.Contains(proxy.gameObject)) componentsToSave.Add(proxy);
+            }
+#endif
         }
 
         // ========== 不要 GameObject 削除 ==========

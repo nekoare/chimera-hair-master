@@ -543,6 +543,9 @@ msgstr "マテリアル設定・変形情報を反映した髪パーツのPrefab
 msgid "Inspector:PrefabExportMeshMergeIgnored"
 msgstr "メッシュ統合設定は無視されます（Renderer個別で出力します）。"
 
+msgid "Inspector:PrefabExportRequiresModularAvatar"
+msgstr "Modular Avatar が見つかりません。出力した Prefab の髪はアバターに追従しません。Modular Avatar を導入するか、Prefab 内の Armature を手動でアバターにマージしてください。"
+
 msgid "Inspector:PrefabExportButton"
 msgstr "Prefab出力"
 
@@ -551,6 +554,12 @@ msgstr "マテリアル設定を統一"
 
 msgid "Inspector:PrefabUnifyMaterialSettingsTooltip"
 msgstr "ON: 基準マテリアルのshader設定を全マテリアルにコピーします。\nOFF: 各Rendererの元マテリアル設定をそのまま保持します。"
+
+msgid "Inspector:PrefabHideOriginal"
+msgstr "元の髪を非表示にする（EditorOnly）"
+
+msgid "Inspector:PrefabHideOriginalTooltip"
+msgstr "出力した Prefab と二重に表示されないよう、対象 Renderer の GameObject を非表示にし、EditorOnly タグを付けてアップロードから外します（Undo 可）。"
 
 msgid "Inspector:SharedRendererWarningFormat"
 msgstr "以下のRendererが他のChimera Hair Masterと重複しています。\nビルド時に競合が発生し、結果が不定になります。\n{0}"

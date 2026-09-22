@@ -1,5 +1,20 @@
 # Changelog
 
+## v1.6.3
+
+### 不具合修正
+
+- **Prefab出力した髪がアバターに追従しないことがある問題を修正**
+  - 元の髪をアバターに接続していた設定（Modular Avatar の Merge Armature の prefix/suffix 設定・Bone Proxy・Constraint）が出力時に失われ、ボーン名がアバターと一致しない髪は Merge Armature でマージされずその場に残っていた
+  - 出力 Prefab に元の接続コンポーネントをそのまま引き継ぐように。名前照合の Merge Armature 自動付与は接続手段が無い髪にだけ行います
+  - 髪が Head などボーンの配下にある場合や、Constraint の参照先としてアバター本体のボーンが Prefab に含まれる場合も本体へマージされるように
+- **Modular Avatar 未導入時に Prefab出力セクションで警告するように**（出力 Prefab の追従は Modular Avatar が必須です）
+
+### 改善
+
+- **Prefab出力に「元の髪を非表示にする（EditorOnly）」を追加（既定 ON）**
+  - 出力後に元の髪が同じ位置に重なって表示されていたため、対象 Renderer の GameObject を非表示にし EditorOnly タグを付けてアップロードからも外します。Undo で戻せます
+
 ## v1.6.2
 
 ### 改善

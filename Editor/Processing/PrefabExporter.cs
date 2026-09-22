@@ -24,8 +24,9 @@ namespace ChimeraHairMaster.Editor.Processing
         /// <param name="component">対象 CHM コンポーネント</param>
         /// <param name="applyDeformation">true なら rendererDeformations を適用した変形済みメッシュを Prefab 内 Renderer に設定</param>
         /// <param name="includeFakeShadow">true ならFakeShadowの影レンダラーを Prefab に同梱し、顔のステンシル設定をシーン上のアバターに適用する（元アバター非破壊の例外・呼び出し側で確認済みであること）</param>
+        /// <param name="hideOriginalRenderers">true なら配置後に元の対象 Renderer の GameObject を非表示にし EditorOnly タグを付ける（出力 Prefab との二重表示を防ぎ、アップロードからも外す。Undo 可。アバターがシーン上にある場合のみ）</param>
         /// <returns>生成された Prefab アセット、失敗時 null</returns>
-        public static GameObject? Export(ChimeraHairMaster component, bool applyDeformation, bool includeFakeShadow = false)
+        public static GameObject? Export(ChimeraHairMaster component, bool applyDeformation, bool includeFakeShadow = false, bool hideOriginalRenderers = true)
         {
             if (!Validate(component, out var avatarRoot)) return null;
 
@@ -66,6 +67,10 @@ namespace ChimeraHairMaster.Editor.Processing
 
             try
             {
+                // 元の MA Merge Armature を持ち越す前提で、Instantiate が複製側を指してしまう
+                // mergeTarget.targetObject を先に落としておく（CleanUp で不要分は消える）
+                SanitizeMergeArmatureReferences(tempRoot);
+
                 // 一時 root 内の対応 Renderer を取得
                 var tempRenderers = GetCorrespondingRenderers(avatarRoot, tempRoot, component.targetRenderers);
 
@@ -90,8 +95,11 @@ namespace ChimeraHairMaster.Editor.Processing
                     fakeShadowStencilRef = SetupFakeShadowForExport(component, tempRenderers);
                 }
 
-                // ModularAvatar が入っていれば、各 Armature root に MA Merge Armature を自動付与
-                AddMergeArmatureComponents(validTempRenderers, avatarRoot!);
+                // ModularAvatar が入っていれば、接続手段の無い Armature root に MA Merge Armature を自動付与
+                AddMergeArmatureComponents(tempRoot, validTempRenderers, avatarRoot!);
+#if !CHM_MODULAR_AVATAR
+                Debug.LogWarning("[CHM] Modular Avatar が見つかりません。出力した Prefab の髪はアバターに追従しません。Modular Avatar を導入するか、Prefab 内の Armature を手動でアバターにマージしてください");
+#endif
 
                 // Prefab 化
                 var prefab = PrefabUtility.SaveAsPrefabAsset(tempRoot, savePath!);
@@ -137,6 +145,16 @@ namespace ChimeraHairMaster.Editor.Processing
                         EditorGUIUtility.PingObject(instance);
                         Selection.activeGameObject = instance;
                     }
+
+                    // 元の髪を残したままだと同じ位置に髪が二重に表示されるため、既定で非表示＋EditorOnly にする（Undo 可）
+                    if (hideOriginalRenderers)
+                    {
+                        int hidden = HideOriginalRenderers(component);
+                        if (hidden > 0)
+                        {
+                            Debug.Log($"[CHM] 元の髪 {hidden} 個を非表示（EditorOnly）にしました（Undo で戻せます）");
+                        }
+                    }
                 }
                 else
                 {
@@ -150,6 +168,35 @@ namespace ChimeraHairMaster.Editor.Processing
             {
                 if (tempRoot != null) Object.DestroyImmediate(tempRoot);
             }
+        }
+
+        // ========== 元の髪の非表示 ==========
+
+        private const string EditorOnlyTag = "EditorOnly";
+
+        /// <summary>
+        /// 対象 Renderer の GameObject を非表示にし、EditorOnly タグを付ける
+        /// （出力した Prefab と二重に表示されないようにし、アップロードからも外す）。
+        /// null 項目と、既に非表示かつ EditorOnly のものは飛ばす。Undo 可（表示・タグとも戻る）。処理した数を返す
+        /// </summary>
+        internal static int HideOriginalRenderers(ChimeraHairMaster component)
+        {
+            int count = 0;
+            if (component.targetRenderers == null) return count;
+
+            foreach (var renderer in component.targetRenderers)
+            {
+                if (renderer == null) continue;
+                var go = renderer.gameObject;
+                if (!go.activeSelf && go.CompareTag(EditorOnlyTag)) continue;
+
+                Undo.RecordObject(go, "CHM Prefab 出力");
+                go.SetActive(false);
+                go.tag = EditorOnlyTag;
+                EditorUtility.SetDirty(go);
+                count++;
+            }
+            return count;
         }
 
         // ========== FakeShadowの同梱 ==========
@@ -623,14 +670,52 @@ namespace ChimeraHairMaster.Editor.Processing
             }
         }
 
-        // ========== MA Merge Armature 自動付与（ModularAvatar 検出時のみ） ==========
+        // ========== MA Merge Armature（ModularAvatar 検出時のみ） ==========
 
         /// <summary>
-        /// 各髪パーツの Armature root に MA Merge Armature を付与する。
-        /// 各 Armature が独立している（パターンB）場合に、ビルド時にアバター本体の Armature にマージされる。
-        /// ModularAvatar が未導入のプロジェクトでは何もしない（asmdef 条件コンパイル）。
+        /// Instantiate 直後の複製内にある MA Merge Armature の mergeTarget を、referencePath だけの参照に作り直す。
+        /// AvatarObjectReference は内部に targetObject（GameObject 参照）も持ち、Instantiate で複製側の Armature を
+        /// 指すため、そのまま Prefab 化するとアバター配置後に自分自身へマージしようとする。
+        /// referencePath が空で targetObject が生きている場合は複製ルート相対パスを referencePath に採用する。
+        /// ModularAvatar が未導入のプロジェクトでは何もしない（asmdef 条件コンパイル）
         /// </summary>
-        private static void AddMergeArmatureComponents(IEnumerable<SkinnedMeshRenderer> tempRenderers, GameObject avatarRootOriginal)
+        internal static void SanitizeMergeArmatureReferences(GameObject tempRoot)
+        {
+#if CHM_MODULAR_AVATAR
+            foreach (var merge in tempRoot.GetComponentsInChildren<nadena.dev.modular_avatar.core.ModularAvatarMergeArmature>(true))
+            {
+                string? path = merge.mergeTarget?.referencePath;
+                if (string.IsNullOrEmpty(path))
+                {
+                    var targetObject = new SerializedObject(merge).FindProperty("mergeTarget.targetObject")?.objectReferenceValue as GameObject;
+                    if (targetObject != null)
+                    {
+                        string? relative = GetRelativePath(tempRoot.transform, targetObject.transform);
+                        if (relative != null)
+                        {
+                            path = relative.Length == 0
+                                ? nadena.dev.modular_avatar.core.AvatarObjectReference.AVATAR_ROOT
+                                : relative;
+                        }
+                    }
+                }
+
+                merge.mergeTarget = new nadena.dev.modular_avatar.core.AvatarObjectReference
+                {
+                    referencePath = path ?? string.Empty
+                };
+            }
+#endif
+        }
+
+        /// <summary>
+        /// 髪の Armature root に MA Merge Armature を付与する（名前照合でアバター本体にマージされる）。
+        /// 元の接続（Merge Armature / Bone Proxy / Constraint）が armature root から複製ルートまでの祖先に
+        /// 残っていればそれを信頼して付与しない（重ねると Bone Proxy より先にボーンを本体 Armature 下へ移して壊す）。
+        /// 複製側に元アバターの Armature root が残っていれば（Constraint のソース・probeAnchor・Head 配下の髪など）
+        /// それも本体へ戻す。ModularAvatar が未導入のプロジェクトでは何もしない（asmdef 条件コンパイル）
+        /// </summary>
+        internal static void AddMergeArmatureComponents(GameObject tempRoot, IEnumerable<SkinnedMeshRenderer> tempRenderers, GameObject avatarRootOriginal)
         {
 #if CHM_MODULAR_AVATAR
             string? armatureRefPath = FindAvatarArmaturePath(avatarRootOriginal);
@@ -639,16 +724,24 @@ namespace ChimeraHairMaster.Editor.Processing
                 Debug.LogWarning("[CHM] アバター内に Armature root が見つかりません。MA Merge Armature の mergeTarget を Prefab で手動設定してください");
             }
 
-            var processedRoots = new HashSet<Transform>();
+            var candidates = new List<Transform>();
             foreach (var renderer in tempRenderers)
             {
                 if (renderer == null) continue;
                 var armatureRoot = FindArmatureRoot(renderer);
-                if (armatureRoot == null) continue;
-                if (!processedRoots.Add(armatureRoot)) continue;
+                if (armatureRoot != null) candidates.Add(armatureRoot);
+            }
+            if (armatureRefPath != null)
+            {
+                var clonedAvatarArmature = tempRoot.transform.Find(armatureRefPath);
+                if (clonedAvatarArmature != null) candidates.Add(clonedAvatarArmature);
+            }
 
-                // 既に MA Merge Armature が付いていればスキップ
-                if (armatureRoot.GetComponent<nadena.dev.modular_avatar.core.ModularAvatarMergeArmature>() != null) continue;
+            var processedRoots = new HashSet<Transform>();
+            foreach (var armatureRoot in candidates)
+            {
+                if (!processedRoots.Add(armatureRoot)) continue;
+                if (HasAttachmentInChain(armatureRoot, tempRoot.transform)) continue;
 
                 var ma = armatureRoot.gameObject.AddComponent<nadena.dev.modular_avatar.core.ModularAvatarMergeArmature>();
                 if (armatureRefPath != null)
@@ -663,6 +756,24 @@ namespace ChimeraHairMaster.Editor.Processing
         }
 
 #if CHM_MODULAR_AVATAR
+        /// <summary>
+        /// start から stopAt（stopAt 自身は除く）までの祖先に接続コンポーネント
+        /// （MA Merge Armature / MA Bone Proxy / Constraint）があるか
+        /// </summary>
+        private static bool HasAttachmentInChain(Transform start, Transform stopAt)
+        {
+            var t = start;
+            while (t != null && t != stopAt)
+            {
+                if (t.GetComponent<nadena.dev.modular_avatar.core.ModularAvatarMergeArmature>() != null) return true;
+                if (t.GetComponent<nadena.dev.modular_avatar.core.ModularAvatarBoneProxy>() != null) return true;
+                if (t.GetComponent<UnityEngine.Animations.IConstraint>() != null) return true;
+                if (t.GetComponent<VRC.Dynamics.VRCConstraintBase>() != null) return true;
+                t = t.parent;
+            }
+            return false;
+        }
+
         /// <summary>
         /// 元アバターから本体 Armature の path を検出する。
         /// 1. avatarRoot 直下に "Armature" GameObject があればそのまま採用

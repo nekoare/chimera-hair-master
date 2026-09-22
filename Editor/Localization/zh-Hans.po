@@ -543,6 +543,9 @@ msgstr "生成已反映Material设置和变形信息的头发Prefab。\n生成�
 msgid "Inspector:PrefabExportMeshMergeIgnored"
 msgstr "Mesh合并设置将被忽略（按Renderer分别导出）。"
 
+msgid "Inspector:PrefabExportRequiresModularAvatar"
+msgstr "未找到 Modular Avatar。导出的 Prefab 中的头发不会跟随角色。请安装 Modular Avatar，或手动将 Prefab 内的 Armature 合并到角色。"
+
 msgid "Inspector:PrefabExportButton"
 msgstr "导出Prefab"
 
@@ -551,6 +554,12 @@ msgstr "统一材质设置"
 
 msgid "Inspector:PrefabUnifyMaterialSettingsTooltip"
 msgstr "ON: 将基准材质的shader设置复制到所有材质。\nOFF: 保留各Renderer的原始材质设置。"
+
+msgid "Inspector:PrefabHideOriginal"
+msgstr "隐藏原始头发（EditorOnly）"
+
+msgid "Inspector:PrefabHideOriginalTooltip"
+msgstr "将对象 Renderer 的 GameObject 设为未激活并添加 EditorOnly 标签，避免与导出的 Prefab 重叠显示，也不会被上传（可撤销）。"
 
 msgid "Inspector:SharedRendererWarningFormat"
 msgstr "以下Renderer与其他Chimera Hair Master重复使用。\n构建时会产生冲突，结果将不确定。\n{0}"

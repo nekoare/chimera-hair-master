@@ -77,6 +77,7 @@ namespace ChimeraHairMaster.Editor
         private const string PREF_PREFAB_APPLY_DEFORMATION = "CHM_PrefabApplyDeformation";
         private const string PREF_APPLY_FAKESHADOW = "CHM_ApplyFakeShadow";
         private const string PREF_PREFAB_INCLUDE_FAKESHADOW = "CHM_PrefabIncludeFakeShadow";
+        private const string PREF_PREFAB_HIDE_ORIGINAL = "CHM_PrefabHideOriginal";
 
         // メッシュ変形UI
         private MeshDeformationInspectorUI meshDeformationUI;
@@ -2624,6 +2625,13 @@ namespace ChimeraHairMaster.Editor
                     MessageType.Warning);
             }
 
+#if !CHM_MODULAR_AVATAR
+            // 出力 Prefab の追従は MA Merge Armature 頼みのため、未導入なら先に知らせる
+            EditorGUILayout.HelpBox(
+                CHMLocales.Tr("Inspector:PrefabExportRequiresModularAvatar"),
+                MessageType.Warning);
+#endif
+
             // マテリアル設定統一トグル
             EditorGUI.BeginChangeCheck();
             bool unifyMaterialSettings = EditorGUILayout.ToggleLeft(
@@ -2636,6 +2644,19 @@ namespace ChimeraHairMaster.Editor
                 Undo.RecordObject(component, "CHM Toggle Unify Material Settings");
                 component.unifyMaterialSettings = unifyMaterialSettings;
                 EditorUtility.SetDirty(component);
+            }
+
+            // 元の髪を非表示にする（出力 Prefab との二重表示を防ぐ。Undo 可）
+            bool prefabHideOriginal = EditorPrefs.GetBool(PREF_PREFAB_HIDE_ORIGINAL, true);
+            EditorGUI.BeginChangeCheck();
+            prefabHideOriginal = EditorGUILayout.ToggleLeft(
+                new GUIContent(
+                    CHMLocales.Tr("Inspector:PrefabHideOriginal"),
+                    CHMLocales.Tr("Inspector:PrefabHideOriginalTooltip")),
+                prefabHideOriginal);
+            if (EditorGUI.EndChangeCheck())
+            {
+                EditorPrefs.SetBool(PREF_PREFAB_HIDE_ORIGINAL, prefabHideOriginal);
             }
 
             bool prefabApplyDeformation = EditorPrefs.GetBool(PREF_PREFAB_APPLY_DEFORMATION, true);
@@ -2708,7 +2729,7 @@ namespace ChimeraHairMaster.Editor
                     GUIUtility.ExitGUI();
                 }
 
-                Processing.PrefabExporter.Export(component, deformation, includeFakeShadow);
+                Processing.PrefabExporter.Export(component, deformation, includeFakeShadow, prefabHideOriginal);
                 serializedObject.Update();
                 GUIUtility.ExitGUI();
             }
